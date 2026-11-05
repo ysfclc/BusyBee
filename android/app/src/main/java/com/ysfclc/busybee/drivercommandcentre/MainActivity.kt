@@ -93,8 +93,8 @@ class MainActivity : AppCompatActivity() {
         content.addView(grid)
         content.addView(card().apply {
             addView(text("KNOWN NET · BEFORE VEHICLE COSTS", 10f, MUTED, true))
-            addView(text(money(s.knownNet), 25f, MINT, true).apply { setPadding(0, dp(5), 0, 0) })
-            addView(text("PLN records only; other currencies are excluded, not converted. Gross − recorded fees + recorded bonuses. Not profit: vehicle costs and missing adjustments are excluded.", 11f, MUTED, false))
+            addView(text(s.knownNet?.let { money(it) } ?: "INCOMPLETE", 25f, MINT, true).apply { setPadding(0, dp(5), 0, 0) })
+            addView(text("PLN records only; other currencies are excluded, not converted. Net appears only when gross, fees and bonuses are all present. It is not profit: vehicle costs and missing adjustments are excluded. Foreign-currency records: ${s.nonPlnRecords}.", 11f, MUTED, false))
         })
 
         content.addView(section("ACTIVITY MIRROR", "Cross-platform history, not a map of nearby places."))
@@ -178,7 +178,7 @@ class MainActivity : AppCompatActivity() {
         setColor(color); cornerRadius = dp(radius).toFloat()
     }
 
-    private fun money(value: Double) = String.format(Locale.US, "%.2f PLN", value)
+    private fun money(value: Double?) = value?.let { String.format(Locale.US, "%.2f PLN", it) } ?: "—"
     private fun format(value: Double) = String.format(Locale.US, "%.2f", value)
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
