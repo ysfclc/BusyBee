@@ -621,6 +621,11 @@ jobs:
           # This foundation uses a checksum-pinned shell bootstrapper instead of
           # a generated wrapper JAR. The distribution checksum is verified in gradlew.
           validate-wrappers: false
+          gradle-version: '8.9'
+
+      - name: Make Gradle entrypoint executable
+        if: steps.detect.outputs.has_mobile == 'true'
+        run: chmod +x "${{ steps.import.outputs.project_dir }}/android/gradlew"
 
       - name: Run Android unit tests
         if: steps.detect.outputs.has_mobile == 'true'
