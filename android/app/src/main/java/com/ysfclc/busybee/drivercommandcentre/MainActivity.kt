@@ -28,11 +28,12 @@ class MainActivity : AppCompatActivity() {
         window.statusBarColor = Color.rgb(7, 19, 27)
         window.navigationBarColor = Color.rgb(7, 19, 27)
         MapLibre.getInstance(this)
+        val engineVersion = NativeBridge.engineVersion()
         val root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(7, 19, 27)) }
         mapView = MapView(this)
         mapView.onCreate(savedInstanceState)
         root.addView(mapView, FrameLayout.LayoutParams(-1, -1))
-        root.addView(buildHeader(), topParams())
+        root.addView(buildHeader(engineVersion), topParams())
         root.addView(buildBottomPanel(), bottomParams())
         setContentView(root)
         mapView.getMapAsync { mapInstance ->
@@ -44,7 +45,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildHeader(): View {
+    private fun buildHeader(engineVersion: String): View {
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(14), dp(18), dp(14))
@@ -64,7 +65,7 @@ class MainActivity : AppCompatActivity() {
         }
         row.addView(brand); row.addView(status)
         val subtitle = TextView(this).apply {
-            text = "DRIVER COMMAND CENTRE  /  KRAKÓW"
+            text = "DRIVER COMMAND CENTRE  /  KRAKÓW  ·  $engineVersion"
             setTextColor(0xFF9AAEB8.toInt()); textSize = 10f; letterSpacing = 0.13f
             setPadding(0, dp(5), 0, 0)
         }
@@ -88,7 +89,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, dp(7), 0, dp(4))
         }
         val detail = TextView(this).apply {
-            text = "OpenStreetMap base layer · Kraków pilot · provider connectors next"
+            text = "© OpenStreetMap contributors · Kraków pilot · connectors next"
             setTextColor(0xFF9AAEB8.toInt()); textSize = 12f
         }
         val actions = LinearLayout(this).apply {
