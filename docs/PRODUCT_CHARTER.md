@@ -7,7 +7,7 @@
 
 ## 1. The product
 
-Build one driver-facing intelligence map that aggregates every useful, accessible and legally usable road, traffic, navigation, safety, city, environmental, vehicle and driver-network data source into one coherent experience.
+Build a driver intelligence platform with two inseparable brains: (1) a private Driver Data Mirror / Digital Twin that reconstructs the driver's work across Uber, Bolt and other platforms, and (2) a provider-neutral Road Intelligence Aggregator that fuses road, traffic, navigation, safety, city, environmental and community data. The map is a spatial interface to this intelligence, not the product by itself.
 
 This is an **aggregator of aggregators**. It is not a new map provider, not a wrapper around one navigation SDK, and not a single-provider traffic app. No commercial provider gets architectural ownership of the product.
 
@@ -31,9 +31,10 @@ We actively catalogue and integrate all viable source classes:
 1. **One map, many sources:** no forced choice between TomTom, HERE, Google, Mapbox, Esri, Waze, OSM, government feeds, city feeds or our own observations.
 2. **A trustworthy road picture:** every material event carries its source, observation time, location precision, freshness and confidence rationale.
 3. **Useful navigation:** compare viable routes and provider estimates; give clear manoeuvres and immediate hazard awareness without inventing lane-level precision.
-4. **Driver economics:** make demand, route history, time, platform outcomes and vehicle costs understandable in geographic context.
-5. **Community intelligence:** let drivers contribute useful reports with consent, moderation, expiry and reputation safeguards.
-6. **Progressive 3D:** make the map feel living and spatial, with 3D camera presentation as the default visual direction. Do not make a complete photorealistic 3D city model a launch dependency.
+4. **Driver Data Mirror / Digital Twin:** unify the driver's trips, offers, earnings, fees, routes, time, platform activity, vehicle costs and outcomes across Uber, Bolt and other services. Answer which routes and hours actually pay, which platform performs better, where empty journeys happen, and what real net earnings are.
+5. **Driver economics and recommendations:** turn the personal mirror plus road intelligence into explainable, personalised decisions about when/where to work, which platform or offer is better, and how to reduce dead mileage and costs.
+6. **Community intelligence:** let drivers contribute useful reports with consent, moderation, expiry and reputation safeguards.
+7. **Progressive 3D:** make the map feel living and spatial, with 3D camera presentation as the default visual direction. Do not make a complete photorealistic 3D city model a launch dependency.
 
 ## 4. Equal product priorities, context-aware presentation
 
@@ -57,11 +58,15 @@ Police-related information, if lawfully available, is limited to general situati
 
 ## 6. First pilot
 
-Start in Kraków with a source-coverage baseline and a small, testable road-intelligence slice. The initial build should prove the full pipeline:
+Start in Kraków by proving the personal data mirror and the road-intelligence pipeline together. First-class inputs include user-authorised Uber/Bolt notifications, user-provided exports/statements and imports, trip/location history, vehicle cost profile, public/municipal feeds and legally accessible traffic/incident providers. The initial build should prove both pipelines:
 
-**source → raw observation → canonical event → spatial match → evidence assessment → map overlay → expiry/update**
+**platform activity / trip / offer / earning → source ledger → normalised private driver record → reconciled trip economics → explainable insight**
 
-The first release is successful when users can see where each displayed event came from, when it was observed, whether it is stale, and why the system considers it relevant. Source count alone is not success.
+and
+
+**road source → raw observation → canonical event → spatial match → evidence assessment → map overlay → expiry/update**
+
+The first meaningful release is successful when a driver can inspect a trustworthy, cross-platform work history and see useful, evidence-backed route/road intelligence in geographic context. Each public event must show where it came from, when it was observed, whether it is stale, and why it is relevant. Personal insights must show their source coverage and missing data. Source count and decorative map density are not success.
 
 ## 7. Product quality rules
 
