@@ -576,18 +576,16 @@ jobs:
 
       - name: Build Rust native libraries for Android
         if: steps.detect.outputs.has_mobile == 'true'
+        working-directory: ${{ steps.import.outputs.project_dir }}/rust
         shell: bash
-        env:
-          PROJECT_DIR: ${{ steps.import.outputs.project_dir }}
         run: |
           set -euo pipefail
-          cd "$PROJECT_DIR"
           cargo ndk \
             -t arm64-v8a \
             -t armeabi-v7a \
             -t x86_64 \
-            -o android/app/src/main/jniLibs \
-            build --release --manifest-path rust/Cargo.toml
+            -o ../android/app/src/main/jniLibs \
+            build --release --manifest-path Cargo.toml
 
       - name: Prepare optional Android signing material
         id: signing
