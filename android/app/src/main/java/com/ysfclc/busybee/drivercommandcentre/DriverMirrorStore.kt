@@ -33,9 +33,10 @@ data class MirrorSummary(
     val bonuses: Double?,
     val platforms: List<String>,
     val imports: Int,
-    val nonPlnRecords: Int
+    val nonPlnRecords: Int,
+    val netComplete: Boolean
 ) {
-    val knownNet: Double? get() = if (gross != null && fees != null && bonuses != null) gross - fees + bonuses else null
+    val knownNet: Double? get() = if (netComplete && gross != null && fees != null && bonuses != null) gross - fees + bonuses else null
 }
 
 object DriverCsv {
@@ -229,11 +230,14 @@ class DriverMirrorStore(context: Context) :
         val bonuses = nullableSum("bonus")
         val imports = scalar("SELECT COUNT(*) FROM imports").toInt()
         val nonPln = scalar("SELECT COUNT(*) FROM records WHERE currency<>'PLN'").toInt()
+        val grossRows = scalar("SELECT COUNT(*) FROM records WHERE currency='PLN' AND gross IS NOT NULL")
+        val incompleteNetRows = scalar("SELECT COUNT(*) FROM records WHERE currency='PLN' AND gross IS NOT NULL AND (fees IS NULL OR bonus IS NULL)")
+        val netComplete = grossRows > 0 && incompleteNetRows == 0.0
         val platforms = mutableListOf<String>()
         db.rawQuery("SELECT DISTINCT platform FROM records ORDER BY platform", null).use { c ->
             while (c.moveToNext()) platforms.add(c.getString(0))
         }
-        return MirrorSummary(records, trips, offers, gross, fees, bonuses, platforms, imports, nonPln)
+        return MirrorSummary(records, trips, offers, gross, fees, bonuses, platforms, imports, nonPln, netComplete)
     }
 
     fun recent(limit: Int = 30): List<DriverRecord> {
