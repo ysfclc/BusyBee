@@ -53,14 +53,16 @@ data class DriverItem(
     val dueAt: Long?,
     val amount: Double?,
     val uri: String?,
-    val done: Boolean
+    val done: Boolean,
+    val recurrence: String?,
+    val completedAt: Long?
 )
 
 data class CapturedNotice(val id: Long, val platform: String, val title: String, val body: String, val capturedAt: Long)
 data class CommunityDocument(val id: Long, val title: String, val content: String, val importedAt: Long)
 data class RoadReport(val id: Long, val category: String, val description: String, val latitude: Double, val longitude: Double, val createdAt: Long)
 
-class DriverCommandStore(context: Context) : SQLiteOpenHelper(context, "busybee_command_centre.db", null, 1) {
+class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 2) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE offers(
             id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, pickup TEXT, destination TEXT,
@@ -73,7 +75,8 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context, "busybee_
             title TEXT NOT NULL, body TEXT NOT NULL, captured_at INTEGER NOT NULL)""")
         db.execSQL("""CREATE TABLE driver_items(
             id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, title TEXT NOT NULL, details TEXT,
-            due_at INTEGER, amount REAL, uri TEXT, done INTEGER NOT NULL DEFAULT 0)""")
+            due_at INTEGER, amount REAL, uri TEXT, done INTEGER NOT NULL DEFAULT 0,
+            recurrence TEXT, completed_at INTEGER)""")
         db.execSQL("""CREATE TABLE community_docs(
             id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, content TEXT NOT NULL, imported_at INTEGER NOT NULL)""")
         db.execSQL("""CREATE TABLE road_reports(
@@ -81,7 +84,12 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context, "busybee_
             latitude REAL NOT NULL, longitude REAL NOT NULL, created_at INTEGER NOT NULL)""")
         db.execSQL("""CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
     }
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE driver_items ADD COLUMN recurrence TEXT")
+            db.execSQL("ALTER TABLE driver_items ADD COLUMN completed_at INTEGER")
+        }
+    }
 
     @Synchronized fun saveOffer(o: DriverOffer): Long {
         val v = ContentValues().apply {
@@ -113,18 +121,39 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context, "busybee_
         };return out
     }
 
-    fun addItem(kind:String,title:String,details:String,dueAt:Long?,amount:Double?,uri:String?=null):Long {
-        val v=ContentValues().apply { put("kind",kind);put("title",title);put("details",details);if(dueAt==null)putNull("due_at")else put("due_at",dueAt);if(amount==null)putNull("amount")else put("amount",amount);put("uri",uri);put("done",0) }
+    fun addItem(kind:String,title:String,details:String,dueAt:Long?,amount:Double?,uri:String?=null,recurrence:String?=null):Long {
+        val v=ContentValues().apply { put("kind",kind);put("title",title);put("details",details);if(dueAt==null)putNull("due_at")else put("due_at",dueAt);if(amount==null)putNull("amount")else put("amount",amount);put("uri",uri);put("done",0);put("recurrence",recurrence) }
         return writableDatabase.insertOrThrow("driver_items",null,v)
     }
     fun items(kind:String?=null):List<DriverItem> {
         val out=mutableListOf<DriverItem>()
-        val sql=if(kind==null)"SELECT id,kind,title,details,due_at,amount,uri,done FROM driver_items ORDER BY done,due_at IS NULL,due_at" else "SELECT id,kind,title,details,due_at,amount,uri,done FROM driver_items WHERE kind=? ORDER BY done,due_at IS NULL,due_at"
+        val sql=if(kind==null)"SELECT id,kind,title,details,due_at,amount,uri,done,recurrence,completed_at FROM driver_items ORDER BY done,due_at IS NULL,due_at" else "SELECT id,kind,title,details,due_at,amount,uri,done,recurrence,completed_at FROM driver_items WHERE kind=? ORDER BY done,due_at IS NULL,due_at"
         readableDatabase.rawQuery(sql,if(kind==null)null else arrayOf(kind)).use { c ->
-            while(c.moveToNext()) out.add(DriverItem(c.getLong(0),c.getString(1),c.getString(2),c.getString(3)?: "",if(c.isNull(4))null else c.getLong(4),if(c.isNull(5))null else c.getDouble(5),c.getString(6),c.getInt(7)==1))
+            while(c.moveToNext()) out.add(DriverItem(c.getLong(0),c.getString(1),c.getString(2),c.getString(3)?: "",if(c.isNull(4))null else c.getLong(4),if(c.isNull(5))null else c.getDouble(5),c.getString(6),c.getInt(7)==1,c.getString(8),if(c.isNull(9))null else c.getLong(9)))
         };return out
     }
-    fun completeItem(id:Long,done:Boolean=true) { writableDatabase.execSQL("UPDATE driver_items SET done=? WHERE id=?",arrayOf(if(done)1 else 0,id)) }
+    @Synchronized fun completeItem(id:Long,done:Boolean=true) {
+        if (!done) {
+            writableDatabase.execSQL("UPDATE driver_items SET done=0,completed_at=NULL WHERE id=?", arrayOf(id))
+            return
+        }
+        var next: Array<Any?>? = null
+        readableDatabase.rawQuery("SELECT kind,title,details,due_at,amount,recurrence,done FROM driver_items WHERE id=?", arrayOf(id.toString())).use { c ->
+            if (c.moveToFirst() && c.getInt(6)==0 && !c.isNull(3) && !c.isNull(5)) {
+                next = arrayOf(c.getString(0),c.getString(1),c.getString(2) ?: "",c.getLong(3),if(c.isNull(4))null else c.getDouble(4),c.getString(5))
+            }
+        }
+        writableDatabase.execSQL("UPDATE driver_items SET done=1,completed_at=? WHERE id=?",arrayOf(System.currentTimeMillis(),id))
+        next?.let { values ->
+            val due = Recurrence.nextDue(values[3] as Long, values[5] as String)
+            if (due != null) addItem(values[0] as String,values[1] as String,values[2] as String,due,values[4] as Double?,recurrence=values[5] as String)
+        }
+    }
+
+    fun totalAmount(kind:String,completedOnly:Boolean=false):Double {
+        val sql=if(completedOnly)"SELECT COALESCE(SUM(amount),0) FROM driver_items WHERE kind=? AND done=1" else "SELECT COALESCE(SUM(amount),0) FROM driver_items WHERE kind=?"
+        readableDatabase.rawQuery(sql,arrayOf(kind)).use { c -> return if(c.moveToFirst()) c.getDouble(0) else 0.0 }
+    }
 
     fun addCommunityDocument(title:String,content:String) {
         val v=ContentValues().apply { put("title",title);put("content",content);put("imported_at",System.currentTimeMillis()) }
@@ -156,4 +185,18 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context, "busybee_
     }
     fun setting(key:String,default:String):String = readableDatabase.rawQuery("SELECT value FROM settings WHERE key=?",arrayOf(key)).use { c -> if(c.moveToFirst()) c.getString(0) else default }
     fun setSetting(key:String,value:String) { val v=ContentValues().apply { put("key",key);put("value",value) };writableDatabase.insertWithOnConflict("settings",null,v,SQLiteDatabase.CONFLICT_REPLACE) }
+}
+
+
+object Recurrence {
+    fun nextDue(dueAt:Long,cadence:String):Long? {
+        val calendar=java.util.Calendar.getInstance().apply { timeInMillis=dueAt }
+        when(cadence.lowercase()) {
+            "weekly" -> calendar.add(java.util.Calendar.WEEK_OF_YEAR,1)
+            "monthly" -> calendar.add(java.util.Calendar.MONTH,1)
+            "yearly" -> calendar.add(java.util.Calendar.YEAR,1)
+            else -> return null
+        }
+        return calendar.timeInMillis
+    }
 }
