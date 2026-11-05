@@ -62,3 +62,27 @@ Scope boundary:
 - Debug APK: assembled and uploaded as artifact BusyBee-Driver-Command-Centre-debug-9 (19,710,964 bytes; expires 2026-11-12).
 - Release APK: not built because persistent Android signing secrets were absent at build time.
 - Real-device install/launch: not yet verified.
+
+
+## 2026-11-05 — Phase 3: Driver Data Mirror (first vertical slice)
+
+**Status:** implementation committed; CI and real-device verification pending; provider-specific import adapters not yet validated.
+
+Implemented:
+- Replaced the irrelevant nearby-amenity map screen with the Driver Data Mirror as the app's primary experience.
+- Added a local SQLite source ledger and canonical records for platform, record type, external ID, timestamp, route, distance, gross, fees, bonus, currency and status.
+- Added a provider-neutral CSV import path through Android's system file picker.
+- Preserved every imported raw row in a separate evidence table, including duplicates; canonical fingerprints prevent duplicate financial/activity records from being counted twice.
+- Added import history, recent cross-platform activity, source-row evidence preview and initial financial rollups.
+- Missing amounts remain unknown. Headline totals are PLN-only; foreign currencies are excluded rather than incorrectly converted. Known net remains incomplete unless gross, fees and bonuses are all present.
+- Added parser tests for quoted fields, escaped quotes, missing values, required headers and comma decimals.
+- Removed unused location permissions and the unused map renderer dependency from this milestone.
+
+Boundaries:
+- This is a generic import contract, not a direct Uber/Bolt integration. Real provider statement formats must be validated against user-owned exports before adapter claims are made.
+- No account linking, scraping, notification listener, network upload or background collection is implemented.
+- Vehicle costs, statement reconciliation, temporal/zone analytics and road-intelligence fusion remain future work.
+
+Verification:
+- Source and tests are committed to `main`.
+- Automated build status and device install/launch have not yet been confirmed in this checkpoint.
