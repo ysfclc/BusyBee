@@ -404,6 +404,7 @@ class MainActivity : AppCompatActivity() {
             addView(label("RECORDED VEHICLE EXPENSES · PAID",9f,MUTED,true))
             addView(label(money(recordedExpenses),19f,WHITE,true).apply{setPadding(0,dp(5),0,dp(2))})
             addView(label("Completed Expense items only. Kept separate until costs are matched to the same trip/date period.",10f,MUTED,false))
+            addView(action("＋ LOG VEHICLE EXPENSE",true){itemDialog("Expense")},LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(8)})
         })
         root.addView(section("VEHICLE ECONOMICS","The same cost model is used to rank incoming offers."))
         val cost=field("All-in vehicle cost per km (PLN)",commands.setting("cost_per_km","0.85"))
@@ -548,7 +549,15 @@ class MainActivity : AppCompatActivity() {
         Settings.Secure.getString(contentResolver,"enabled_notification_listeners")?.contains(packageName)==true
     }catch(_:Exception){false}
     private fun openPlatform(platform:String){
-        val pkg=if(platform.equals("Bolt",true))"ee.mtakso.driver" else "com.ubercab.driver"
+        val pkg=when(platform.lowercase()) {
+            "bolt" -> "ee.mtakso.driver"
+            "uber" -> "com.ubercab.driver"
+            else -> null
+        }
+        if(pkg==null) {
+            Toast.makeText(this,"Open "+platform+" Driver manually. This platform has no verified app handoff yet.",Toast.LENGTH_LONG).show()
+            return
+        }
         val i=packageManager.getLaunchIntentForPackage(pkg)
         if(i!=null)startActivity(i) else Toast.makeText(this,platform+" Driver app is not installed.",Toast.LENGTH_LONG).show()
     }
