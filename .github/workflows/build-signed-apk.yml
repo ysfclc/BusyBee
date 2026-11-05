@@ -19,7 +19,7 @@ permissions:
 
 concurrency:
   group: busybee-signed-apk
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -40,7 +40,7 @@ jobs:
         shell: bash
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          "$(go env GOPATH)/bin/actionlint" .github/workflows/build-signed-apk.yml
+          "$(go env GOPATH)/bin/actionlint" .github/workflows/*.yml
 
       - name: Detect stable release-signing secrets
         id: signing-check
