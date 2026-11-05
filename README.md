@@ -30,4 +30,4 @@ BusyBee is a phase-import control repository. Each `incoming/<name>.zip` is a co
 - Client: Android / Kotlin
 - Domain core: Rust
 - Provider strategy: multi-source aggregator; no exclusive map vendor
-- Current state: Phase 2 app and Rust core are implemented on the phase-2 branch; signed APK pipeline is under CI verification.
+- Current state: Phase 2 source is merged; CI tests and debug APK assembly pass. Real-device smoke test and stable release signing remain pending.
