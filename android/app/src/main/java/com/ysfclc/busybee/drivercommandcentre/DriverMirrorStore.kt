@@ -28,14 +28,14 @@ data class MirrorSummary(
     val records: Int,
     val trips: Int,
     val offers: Int,
-    val gross: Double,
-    val fees: Double,
-    val bonuses: Double,
+    val gross: Double?,
+    val fees: Double?,
+    val bonuses: Double?,
     val platforms: List<String>,
     val imports: Int,
     val nonPlnRecords: Int
 ) {
-    val knownNet: Double get() = gross - fees + bonuses
+    val knownNet: Double? get() = if (gross != null && fees != null && bonuses != null) gross - fees + bonuses else null
 }
 
 object DriverCsv {
@@ -213,13 +213,18 @@ class DriverMirrorStore(context: Context) :
         fun scalar(sql: String): Double {
             db.rawQuery(sql, null).use { c -> return if (c.moveToFirst()) c.getDouble(0) else 0.0 }
         }
+        fun nullableSum(column: String): Double? {
+            db.rawQuery("SELECT SUM($column) FROM records WHERE currency='PLN' AND $column IS NOT NULL", null).use { c ->
+                return if (c.moveToFirst() && !c.isNull(0)) c.getDouble(0) else null
+            }
+        }
         val records = scalar("SELECT COUNT(*) FROM records").toInt()
         val trips = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type) IN ('trip','ride','completed_trip')").toInt()
         val offers = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type)='offer'").toInt()
         // Never add unlike currencies together. Headline totals are PLN-only.
-        val gross = scalar("SELECT COALESCE(SUM(gross),0) FROM records WHERE currency='PLN'")
-        val fees = scalar("SELECT COALESCE(SUM(fees),0) FROM records WHERE currency='PLN'")
-        val bonuses = scalar("SELECT COALESCE(SUM(bonus),0) FROM records WHERE currency='PLN'")
+        val gross = nullableSum("gross")
+        val fees = nullableSum("fees")
+        val bonuses = nullableSum("bonus")
         val imports = scalar("SELECT COUNT(*) FROM imports").toInt()
         val nonPln = scalar("SELECT COUNT(*) FROM records WHERE currency<>'PLN'").toInt()
         val platforms = mutableListOf<String>()
