@@ -1,1 +1,655 @@
+name: Import project phase
 
+# The control repository is the upload inbox. Each ZIP is a complete snapshot;
+# the filename determines the private target repository name.
+on:
+  push:
+    paths:
+      - 'incoming/*.zip'
+  workflow_dispatch:
+    inputs:
+      zip_path:
+        description: 'Committed archive path, for example incoming/foundation.zip'
+        required: true
+        type: string
+        default: 'incoming/foundation.zip'
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve one phase archive
+    runs-on: ubuntu-latest
+    outputs:
+      zip_path: ${{ steps.resolve.outputs.zip_path }}
+      project_name: ${{ steps.resolve.outputs.project_name }}
+    steps:
+      - name: Check out the control repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve and validate archive selection
+        id: resolve
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_ZIP_PATH: ${{ inputs.zip_path }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            ZIP_PATH="$DISPATCH_ZIP_PATH"
+          else
+            if [[ -z "$BEFORE_SHA" || "$BEFORE_SHA" =~ ^0+$ ]]; then
+              mapfile -t CHANGED_ZIPS < <(git diff-tree --root --no-commit-id --name-only -r "$HEAD_SHA" -- 'incoming/*.zip')
+            else
+              mapfile -t CHANGED_ZIPS < <(git diff --name-only "$BEFORE_SHA" "$HEAD_SHA" -- 'incoming/*.zip')
+            fi
+
+            if [[ "${#CHANGED_ZIPS[@]}" -ne 1 ]]; then
+              echo "Expected exactly one changed incoming/*.zip archive; found ${#CHANGED_ZIPS[@]}. Commit one project ZIP at a time." >&2
+              printf 'Detected: %s\n' "${CHANGED_ZIPS[@]:-<none>}" >&2
+              exit 1
+            fi
+            ZIP_PATH="${CHANGED_ZIPS[0]}"
+          fi
+
+          if [[ ! "$ZIP_PATH" =~ ^incoming/[a-z0-9][a-z0-9._-]*\.zip$ ]]; then
+            echo "Invalid archive path '$ZIP_PATH'. Expected incoming/<safe-project-name>.zip." >&2
+            exit 1
+          fi
+          if [[ ! -f "$ZIP_PATH" ]]; then
+            echo "Archive does not exist in the checked-out control commit: $ZIP_PATH" >&2
+            exit 1
+          fi
+
+          PROJECT_NAME="$(basename "$ZIP_PATH" .zip)"
+          if [[ ! "$PROJECT_NAME" =~ [a-z0-9]$ || "$PROJECT_NAME" == *.git || ${#PROJECT_NAME} -gt 100 ]]; then
+            echo "Invalid project name derived from ZIP filename: $PROJECT_NAME" >&2
+            exit 1
+          fi
+
+          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+          echo "project_name=$PROJECT_NAME" >> "$GITHUB_OUTPUT"
+          echo "Selected archive: $ZIP_PATH"
+          echo "Target repository name: $PROJECT_NAME"
+
+  import-and-build:
+    name: Import ${{ needs.resolve.outputs.project_name }} and build Android
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: phase-import-${{ needs.resolve.outputs.project_name }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out the control repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Set up Go for actionlint
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.0'
+          cache: false
+
+      - name: Validate workflow with actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)/bin/actionlint" .github/workflows/pipeline.yml
+
+      - name: Validate, extract and normalize the phase ZIP
+        id: archive
+        shell: bash
+        env:
+          ZIP_PATH: ${{ needs.resolve.outputs.zip_path }}
+          PROJECT_NAME: ${{ needs.resolve.outputs.project_name }}
+        run: |
+          set -euo pipefail
+          ZIP_FILE="$GITHUB_WORKSPACE/$ZIP_PATH"
+          RAW_DIR="$RUNNER_TEMP/phase-raw"
+          STAGING_DIR="$RUNNER_TEMP/phase-staging"
+          MAX_ARCHIVE_BYTES=$((1024 * 1024 * 1024))
+          ARCHIVE_BYTES="$(stat -c '%s' "$ZIP_FILE")"
+          if (( ARCHIVE_BYTES > MAX_ARCHIVE_BYTES )); then
+            echo "Compressed archive exceeds the 1 GiB upload safety limit." >&2
+            exit 1
+          fi
+          rm -rf "$RAW_DIR" "$STAGING_DIR"
+          mkdir -p "$RAW_DIR" "$STAGING_DIR"
+
+          # Inspect every ZIP entry before invoking unzip. Reject path traversal,
+          # absolute/drive paths, symlinks, duplicate normalized names and zip bombs.
+          python3 - "$ZIP_FILE" <<'PY'
+          import pathlib, stat, sys, zipfile
+
+          archive = pathlib.Path(sys.argv[1])
+          max_entries = 25000
+          max_total_uncompressed = 2 * 1024 * 1024 * 1024
+          max_single_file = 512 * 1024 * 1024
+          seen = set()
+          total = 0
+
+          with zipfile.ZipFile(archive) as zf:
+              infos = zf.infolist()
+              if not infos:
+                  raise SystemExit("Archive is empty; refusing to create an empty project snapshot")
+              if len(infos) > max_entries:
+                  raise SystemExit(f"Archive has too many entries: {len(infos)} > {max_entries}")
+              for info in infos:
+                  raw = info.filename
+                  if not raw or any(ord(char) < 32 or ord(char) == 127 for char in raw):
+                      raise SystemExit("Archive contains an empty path or control character")
+                  normalized = raw.replace('\\', '/')
+                  path = pathlib.PurePosixPath(normalized)
+                  if normalized.startswith('/') or path.is_absolute():
+                      raise SystemExit(f"Absolute path rejected: {raw!r}")
+                  parts = [part for part in path.parts if part not in ('', '.')]
+                  if '..' in parts or any(':' in part for part in parts):
+                      raise SystemExit(f"Path traversal or drive path rejected: {raw!r}")
+                  if not parts:
+                      continue
+                  key = '/'.join(parts).casefold()
+                  if key in seen:
+                      raise SystemExit(f"Duplicate normalized archive path rejected: {raw!r}")
+                  seen.add(key)
+                  mode = (info.external_attr >> 16) & 0xFFFF
+                  file_type = stat.S_IFMT(mode)
+                  allowed_types = {0, stat.S_IFREG, stat.S_IFDIR}
+                  if file_type not in allowed_types or stat.S_ISLNK(mode):
+                      raise SystemExit(f"Non-regular archive entry rejected: {raw!r}")
+                  if info.is_dir() and file_type not in (0, stat.S_IFDIR):
+                      raise SystemExit(f"Invalid directory entry type rejected: {raw!r}")
+                  if not info.is_dir() and file_type == stat.S_IFDIR:
+                      raise SystemExit(f"Invalid file entry type rejected: {raw!r}")
+                  if info.flag_bits & 0x1:
+                      raise SystemExit(f"Encrypted ZIP entry rejected: {raw!r}")
+                  if info.file_size > max_single_file:
+                      raise SystemExit(f"ZIP entry exceeds per-file size limit: {raw!r}")
+                  total += info.file_size
+                  if total > max_total_uncompressed:
+                      raise SystemExit("Archive exceeds total uncompressed size limit")
+                  if info.file_size > 1_000_000 and info.compress_size > 0:
+                      ratio = info.file_size / info.compress_size
+                      if ratio > 1000:
+                          raise SystemExit(f"Suspicious compression ratio ({ratio:.0f}x): {raw!r}")
+          print(f"Archive validation passed: {len(infos)} entries, {total} uncompressed bytes")
+          PY
+
+          unzip -q "$ZIP_FILE" -d "$RAW_DIR"
+          # Ignore common macOS archive sidecars so they do not prevent root flattening.
+          find "$RAW_DIR" -type d -name '__MACOSX' -prune -exec rm -rf {} +
+          find "$RAW_DIR" -type f \( -name '.DS_Store' -o -name 'Thumbs.db' \) -delete
+
+          # Flatten only when the archive has exactly one top-level directory.
+          mapfile -t TOP_LEVEL < <(find "$RAW_DIR" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
+          if [[ "${#TOP_LEVEL[@]}" -eq 1 && -d "$RAW_DIR/${TOP_LEVEL[0]}" ]]; then
+            echo "Flattening single enclosing directory: ${TOP_LEVEL[0]}"
+            cp -a "$RAW_DIR/${TOP_LEVEL[0]}/." "$STAGING_DIR/"
+          else
+            cp -a "$RAW_DIR/." "$STAGING_DIR/"
+          fi
+
+          # Do not inherit Git internals, nested repositories or worktree metadata.
+          find "$STAGING_DIR" -type d -name .git -prune -exec rm -rf {} +
+          find "$STAGING_DIR" -type f -name .git -delete
+
+          # Remove common build caches, local environment files and signing material.
+          python3 - "$STAGING_DIR" <<'PY'
+          import pathlib, shutil, sys
+          root = pathlib.Path(sys.argv[1])
+          excluded_dirs = {'.git', '.gradle', '.idea', '.venv', 'venv', '__pycache__', '.pytest_cache', 'node_modules', 'target', 'build', '.ssh', '.aws', '.azure', '.kube', '.docker', '.terraform', '__MACOSX'}
+          excluded_suffixes = {'.jks', '.keystore', '.p12', '.pfx', '.pem', '.key', '.p8', '.mobileprovision', '.apk', '.aab', '.aar', '.class', '.dex', '.tfstate'}
+          excluded_private_key_names = {'id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa'}
+          excluded_local_secret_names = {'.ds_store', 'thumbs.db', '.npmrc', '.netrc', '.pypirc', '.git-credentials', 'local.properties', 'keystore.properties', 'credentials.json', 'secrets.json', 'service-account.json', 'service_account.json'}
+          for path in sorted(root.rglob('*'), key=lambda p: len(p.parts), reverse=True):
+              if not path.exists() and not path.is_symlink():
+                  continue
+              if path.is_dir() and path.name in excluded_dirs:
+                  shutil.rmtree(path, ignore_errors=True)
+                  continue
+              name = path.name.lower()
+              if path.is_file() or path.is_symlink():
+                  if (name == '.env' or (name.startswith('.env.') and name not in {'.env.example', '.env.template'})):
+                      path.unlink(missing_ok=True)
+                  elif path.suffix.lower() in excluded_suffixes or name.endswith('.keystore') or name in excluded_private_key_names or name in excluded_local_secret_names:
+                      path.unlink(missing_ok=True)
+                  elif path.suffix.lower() == '.so' and 'jniLibs' in path.parts:
+                      # Native libraries in jniLibs are generated by cargo-ndk in CI.
+                      path.unlink(missing_ok=True)
+          # Workflow-owned metadata is regenerated for every imported snapshot.
+          delivery = root / '.delivery'
+          if delivery.is_dir() and not delivery.is_symlink():
+              shutil.rmtree(delivery)
+          elif delivery.exists() or delivery.is_symlink():
+              delivery.unlink(missing_ok=True)
+          docs = root / 'docs'
+          if docs.is_dir():
+              (docs / 'PROVENANCE.md').unlink(missing_ok=True)
+          if not any(path.is_file() for path in root.rglob('*')):
+              raise SystemExit('Archive contains no project files after filtering; refusing an empty snapshot')
+          print('Archive filtering complete.')
+          PY
+
+          # Scan the normalized tree before repository creation or any Git push.
+          # This code is embedded in the permanent control workflow; an incoming
+          # ZIP cannot replace the trusted scanner with a no-op.
+          python3 - "$STAGING_DIR" <<'PY'
+          
+          import pathlib
+          import re
+          import sys
+          
+          RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
+              ("private-key-block", re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----")),
+              ("aws-access-key-id", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")),
+              ("github-token", re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b")),
+              ("gitlab-token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b")),
+              ("slack-token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{20,}\b")),
+              ("stripe-secret-key", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b")),
+              ("google-api-key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
+              ("twilio-api-key", re.compile(r"\bSK[0-9a-fA-F]{32}\b")),
+              (
+                  "credential-assignment",
+                  re.compile(
+                      r"(?i)(?:^|[\s,{])(?:[\"']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|secret|token|secret[_-]?key|password|passwd|private[_-]?key|auth[_-]?token|bearer|database[_-]?url|connection[_-]?string)[\"']?)\s*[:=]\s*[\"']?([^\s,;\"']{8,})"
+                  ),
+              ),
+          )
+          PLACEHOLDER = re.compile(
+              r"(?i)^(?:|none|null|false|true|example|sample|dummy|placeholder|redacted|"
+              r"changeme|change_me|replace_me|your[_-].*|<.*>|\$\{.*|\$\{\{.*|"
+              r"\*{4,}|x{4,}|0{8,}|abc123.*|test[_-].*|demo[_-].*)$"
+          )
+          
+          
+          def main() -> int:
+              root = pathlib.Path(sys.argv[1]).resolve()
+              if not root.is_dir():
+                  print(f"secret scan root does not exist: {root}", file=sys.stderr)
+                  return 2
+          
+              findings: list[tuple[str, int, str]] = []
+              files_scanned = 0
+              for path in sorted(p for p in root.rglob("*") if p.is_file() and not p.is_symlink()):
+                  try:
+                      with path.open("rb") as handle:
+                          prefix = handle.read(4096)
+                          if b"\0" in prefix:
+                              continue
+                          handle.seek(0)
+                          files_scanned += 1
+                          for line_number, raw_line in enumerate(handle, start=1):
+                              line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+                              for rule_id, pattern in RULES:
+                                  match = pattern.search(line)
+                                  if not match:
+                                      continue
+                                  if rule_id == "credential-assignment":
+                                      candidate = match.group(1).strip().strip("`)")
+                                      if PLACEHOLDER.fullmatch(candidate):
+                                          continue
+                                  findings.append((path.relative_to(root).as_posix(), line_number, rule_id))
+                                  break
+                  except OSError as exc:
+                      print(f"unable to scan {path.relative_to(root)}: {exc}", file=sys.stderr)
+                      return 2
+          
+              if findings:
+                  print(f"Secret scan blocked import: {len(findings)} likely credential finding(s) in {files_scanned} text files.", file=sys.stderr)
+                  for relative, line_number, rule_id in findings[:100]:
+                      print(f"  {relative}:{line_number}: {rule_id} (matched value redacted)", file=sys.stderr)
+                  if len(findings) > 100:
+                      print(f"  ... {len(findings) - 100} additional finding(s) omitted", file=sys.stderr)
+                  print("Remove or replace real credentials before uploading this phase ZIP. Rotate any credential that may already have been exposed.", file=sys.stderr)
+                  return 1
+          
+              print(f"Secret scan passed: {files_scanned} text files scanned; no supported credential patterns found.")
+              print("Note: heuristic secret scanning cannot prove an archive is secret-free.")
+              return 0
+          
+          
+          raise SystemExit(main())
+          PY
+
+          # Hash the normalized source tree, independent of ZIP timestamps and metadata.
+          CONTENT_SHA256="$(python3 - "$STAGING_DIR" <<'PY'
+          import hashlib, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          digest = hashlib.sha256()
+          for path in sorted((p for p in root.rglob('*') if p.is_file()), key=lambda p: p.relative_to(root).as_posix()):
+              rel = path.relative_to(root).as_posix().encode('utf-8')
+              digest.update(len(rel).to_bytes(8, 'big')); digest.update(rel)
+              stat_result = path.stat()
+              size = stat_result.st_size
+              executable_bits = stat_result.st_mode & 0o111
+              digest.update(executable_bits.to_bytes(2, 'big'))
+              digest.update(size.to_bytes(8, 'big'))
+              with path.open('rb') as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                      digest.update(chunk)
+          print(digest.hexdigest())
+          PY
+          )"
+          ZIP_SHA256="$(sha256sum "$ZIP_FILE" | awk '{print $1}')"
+
+          echo "staging_dir=$STAGING_DIR" >> "$GITHUB_OUTPUT"
+          echo "content_sha256=$CONTENT_SHA256" >> "$GITHUB_OUTPUT"
+          echo "zip_sha256=$ZIP_SHA256" >> "$GITHUB_OUTPUT"
+          echo "Normalized content SHA-256: $CONTENT_SHA256"
+
+      - name: Confirm repository token is configured
+        shell: bash
+        env:
+          REPO_CREATE_TOKEN: ${{ secrets.REPO_CREATE_TOKEN }}
+        run: |
+          if [[ -z "$REPO_CREATE_TOKEN" ]]; then
+            echo "Repository secret REPO_CREATE_TOKEN is missing. See SETUP.md." >&2
+            exit 1
+          fi
+
+      - name: Create or reuse private target repository
+        id: target
+        uses: actions/github-script@v8
+        env:
+          PROJECT_NAME: ${{ needs.resolve.outputs.project_name }}
+        with:
+          github-token: ${{ secrets.REPO_CREATE_TOKEN }}
+          script: |
+            const name = process.env.PROJECT_NAME;
+            const { data: account } = await github.rest.users.getAuthenticated();
+            let repository;
+
+            try {
+              const response = await github.rest.repos.createForAuthenticatedUser({
+                name,
+                private: true,
+                auto_init: false,
+                description: `Phase-managed project repository created from incoming/${name}.zip.`
+              });
+              repository = response.data;
+              core.info(`Created private repository ${repository.full_name}.`);
+            } catch (error) {
+              if (error.status !== 422) throw error;
+              const response = await github.rest.repos.get({ owner: account.login, repo: name });
+              repository = response.data;
+              core.info(`Repository already exists; reusing ${repository.full_name}.`);
+            }
+
+            if (repository.owner.login.toLowerCase() !== account.login.toLowerCase()) {
+              throw new Error(`Target repository owner mismatch: expected ${account.login}, received ${repository.owner.login}.`);
+            }
+
+            core.setOutput('clone_url', repository.clone_url);
+            core.setOutput('default_branch', repository.default_branch || 'main');
+            core.setOutput('repository_full_name', repository.full_name);
+            core.info(`Target clone URL captured for ${repository.full_name}.`);
+
+      - name: Cache Rust toolchain dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-${{ needs.resolve.outputs.project_name }}-cargo-${{ steps.archive.outputs.content_sha256 }}
+          restore-keys: |
+            ${{ runner.os }}-${{ needs.resolve.outputs.project_name }}-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: Import snapshot with provenance and idempotent commit semantics
+        id: import
+        shell: bash
+        env:
+          PROJECT_NAME: ${{ needs.resolve.outputs.project_name }}
+          CLONE_URL: ${{ steps.target.outputs.clone_url }}
+          DEFAULT_BRANCH: ${{ steps.target.outputs.default_branch }}
+          REPOSITORY_FULL_NAME: ${{ steps.target.outputs.repository_full_name }}
+          STAGING_DIR: ${{ steps.archive.outputs.staging_dir }}
+          CONTENT_SHA256: ${{ steps.archive.outputs.content_sha256 }}
+          ZIP_SHA256: ${{ steps.archive.outputs.zip_sha256 }}
+          SOURCE_ZIP: ${{ needs.resolve.outputs.zip_path }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GH_TOKEN: ${{ secrets.REPO_CREATE_TOKEN }}
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          PROJECT_DIR="$RUNNER_TEMP/target-project"
+          rm -rf "$PROJECT_DIR"
+          mkdir -p "$PROJECT_DIR"
+          git -C "$PROJECT_DIR" init --initial-branch="$DEFAULT_BRANCH"
+          git -C "$PROJECT_DIR" remote add origin "$CLONE_URL"
+
+          AUTH_HEADER="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          REMOTE_DEFAULT_BRANCH="$(git -C "$PROJECT_DIR" -c "http.extraheader=AUTHORIZATION: basic $AUTH_HEADER" ls-remote --heads origin "refs/heads/$DEFAULT_BRANCH")"
+          if [[ -n "$REMOTE_DEFAULT_BRANCH" ]]; then
+            echo "Fetching existing target branch $DEFAULT_BRANCH"
+            git -C "$PROJECT_DIR" -c "http.extraheader=AUTHORIZATION: basic $AUTH_HEADER" fetch --no-tags origin "$DEFAULT_BRANCH"
+            git -C "$PROJECT_DIR" checkout -B "$DEFAULT_BRANCH" FETCH_HEAD
+          else
+            echo "Target repository has no default-branch commit yet; preparing the first snapshot."
+          fi
+
+          git -C "$PROJECT_DIR" config user.name "github-actions[bot]"
+          git -C "$PROJECT_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          PREVIOUS_HASH=""
+          if git -C "$PROJECT_DIR" rev-parse --verify HEAD >/dev/null 2>&1; then
+            PREVIOUS_HASH="$(git -C "$PROJECT_DIR" show HEAD:.delivery/provenance.json 2>/dev/null | python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("normalized_content_sha256", ""))' 2>/dev/null || true)"
+          fi
+
+          if [[ "$PREVIOUS_HASH" == "$CONTENT_SHA256" ]]; then
+            echo "The normalized project content already matches the latest imported phase. No commit will be created."
+            IMPORT_STATUS="unchanged"
+          else
+            # A ZIP represents a complete snapshot: remove the prior tracked tree,
+            # then copy the normalized snapshot into the existing Git history.
+            find "$PROJECT_DIR" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+            cp -a "$STAGING_DIR/." "$PROJECT_DIR/"
+            mkdir -p "$PROJECT_DIR/.delivery" "$PROJECT_DIR/docs"
+            export PROCESSED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+            python3 - "$PROJECT_DIR/.delivery/provenance.json" <<'PY'
+          import json, os, pathlib, sys
+          data = {
+            "schema_version": 1,
+            "project_name": os.environ["PROJECT_NAME"],
+            "source_zip": os.environ["SOURCE_ZIP"],
+            "source_zip_sha256": os.environ["ZIP_SHA256"],
+            "normalized_content_sha256": os.environ["CONTENT_SHA256"],
+            "source_control_repository": os.environ["SOURCE_REPOSITORY"],
+            "source_control_commit": os.environ["SOURCE_COMMIT"],
+            "workflow_run_id": os.environ["WORKFLOW_RUN_ID"],
+            "workflow_run_attempt": os.environ["WORKFLOW_RUN_ATTEMPT"],
+            "workflow_run_url": os.environ["WORKFLOW_RUN_URL"],
+            "processed_at_utc": os.environ["PROCESSED_AT"],
+          }
+          pathlib.Path(sys.argv[1]).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          PY
+            cat > "$PROJECT_DIR/docs/PROVENANCE.md" <<EOF
+          # Import provenance
+
+          - **Project:** $PROJECT_NAME
+          - **Source archive:** $SOURCE_ZIP
+          - **Archive SHA-256:** $ZIP_SHA256
+          - **Normalized content SHA-256:** $CONTENT_SHA256
+          - **Control repository:** $SOURCE_REPOSITORY
+          - **Control commit:** $SOURCE_COMMIT
+          - **Workflow run:** $WORKFLOW_RUN_URL (run $WORKFLOW_RUN_ID, attempt $WORKFLOW_RUN_ATTEMPT)
+          - **Processed at:** $PROCESSED_AT (UTC)
+
+          This file was generated by the permanent phase-import workflow. Do not edit it manually.
+          EOF
+
+            git -C "$PROJECT_DIR" add --all
+            if git -C "$PROJECT_DIR" diff --cached --quiet; then
+              echo "Git tree is unchanged after normalization; skipping duplicate commit."
+              IMPORT_STATUS="unchanged"
+            else
+              SHORT_SHA="${CONTENT_SHA256:0:12}"
+              git -C "$PROJECT_DIR" commit -m "chore(phase-import): import $PROJECT_NAME ($SHORT_SHA)"
+              echo "Pushing the new snapshot commit to $REPOSITORY_FULL_NAME ($DEFAULT_BRANCH)."
+              git -C "$PROJECT_DIR" -c "http.extraheader=AUTHORIZATION: basic $AUTH_HEADER" push origin "HEAD:$DEFAULT_BRANCH"
+              IMPORT_STATUS="committed"
+            fi
+          fi
+
+          echo "import_status=$IMPORT_STATUS" >> "$GITHUB_OUTPUT"
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Target repository: $REPOSITORY_FULL_NAME"
+          echo "Import status: $IMPORT_STATUS"
+
+      - name: Detect Rust workspace and Android app
+        id: detect
+        shell: bash
+        env:
+          PROJECT_DIR: ${{ steps.import.outputs.project_dir }}
+        run: |
+          set -euo pipefail
+          if [[ -d "$PROJECT_DIR/rust" && -d "$PROJECT_DIR/android" ]]; then
+            [[ -f "$PROJECT_DIR/rust/Cargo.toml" ]] || { echo "rust/ exists but rust/Cargo.toml is missing." >&2; exit 1; }
+            [[ -f "$PROJECT_DIR/android/gradlew" ]] || { echo "android/ exists but android/gradlew is missing." >&2; exit 1; }
+            [[ -f "$PROJECT_DIR/android/app/build.gradle.kts" || -f "$PROJECT_DIR/android/app/build.gradle" ]] || { echo "android/ exists but the app module build file is missing." >&2; exit 1; }
+            echo "has_mobile=true" >> "$GITHUB_OUTPUT"
+            echo "Rust workspace and Android app detected; native APK build is enabled."
+          else
+            echo "has_mobile=false" >> "$GITHUB_OUTPUT"
+            echo "No paired rust/ and android/ directories; repository import is complete and APK build is skipped."
+          fi
+
+      - name: Set up Rust stable toolchain
+        if: steps.detect.outputs.has_mobile == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Ensure Rust Android targets are installed
+        if: steps.detect.outputs.has_mobile == 'true'
+        shell: bash
+        run: rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - name: Install cargo-ndk
+        if: steps.detect.outputs.has_mobile == 'true'
+        shell: bash
+        run: |
+          if ! cargo ndk --help >/dev/null 2>&1; then
+            cargo install cargo-ndk --locked
+          fi
+
+      - name: Set up Java 17
+        if: steps.detect.outputs.has_mobile == 'true'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        if: steps.detect.outputs.has_mobile == 'true'
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK, build tools and NDK
+        if: steps.detect.outputs.has_mobile == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+      - name: Build Rust native libraries for Android
+        if: steps.detect.outputs.has_mobile == 'true'
+        shell: bash
+        env:
+          PROJECT_DIR: ${{ steps.import.outputs.project_dir }}
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          cargo ndk \
+            -t arm64-v8a \
+            -t armeabi-v7a \
+            -t x86_64 \
+            -o android/app/src/main/jniLibs \
+            build --release --manifest-path rust/Cargo.toml
+
+      - name: Prepare optional Android signing material
+        id: signing
+        if: steps.detect.outputs.has_mobile == 'true'
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_KEYSTORE_PASSWORD" && -n "$ANDROID_KEY_ALIAS" && -n "$ANDROID_KEY_PASSWORD" ]]; then
+            KEYSTORE_PATH="$RUNNER_TEMP/driver-command-centre-release.keystore"
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+            chmod 600 "$KEYSTORE_PATH"
+            # Only the temporary file path crosses steps. Passwords are injected
+            # directly into the release Gradle step from Actions secrets.
+            echo "keystore_file=$KEYSTORE_PATH" >> "$GITHUB_OUTPUT"
+            echo "signing_ready=true" >> "$GITHUB_OUTPUT"
+            echo "All release-signing secrets are present; a signed release APK will be assembled."
+          else
+            echo "signing_ready=false" >> "$GITHUB_OUTPUT"
+            echo "Release-signing secrets are incomplete; building a debug APK instead."
+          fi
+
+      - name: Configure Gradle and Gradle User Home cache
+        if: steps.detect.outputs.has_mobile == 'true'
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          # This foundation uses a checksum-pinned shell bootstrapper instead of
+          # a generated wrapper JAR. The distribution checksum is verified in gradlew.
+          validate-wrappers: false
+
+      - name: Assemble signed release APK
+        if: steps.detect.outputs.has_mobile == 'true' && steps.signing.outputs.signing_ready == 'true'
+        working-directory: ${{ steps.import.outputs.project_dir }}/android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ steps.signing.outputs.keystore_file }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Assemble debug APK
+        if: steps.detect.outputs.has_mobile == 'true' && steps.signing.outputs.signing_ready != 'true'
+        working-directory: ${{ steps.import.outputs.project_dir }}/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Upload APK artifact
+        if: steps.detect.outputs.has_mobile == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ needs.resolve.outputs.project_name }}-apk-${{ github.run_number }}
+          path: ${{ steps.import.outputs.project_dir }}/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report completion
+        if: always()
+        shell: bash
+        env:
+          IMPORT_STATUS: ${{ steps.import.outputs.import_status }}
+          HAS_MOBILE: ${{ steps.detect.outputs.has_mobile }}
+          TARGET_REPOSITORY: ${{ steps.target.outputs.repository_full_name }}
+        run: |
+          echo "### Phase import summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Target: ${TARGET_REPOSITORY:-not provisioned}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Import: ${IMPORT_STATUS:-not completed}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$HAS_MOBILE" == "true" ]]; then
+            echo "- Android build: requested; see preceding build and artifact steps." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Android build: skipped (no Rust + Android project pair)." >> "$GITHUB_STEP_SUMMARY"
+          fi
