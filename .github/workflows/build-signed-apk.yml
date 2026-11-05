@@ -108,9 +108,6 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      - name: Make Gradle entrypoint executable
-        run: chmod +x android/gradlew
-
       - name: Prepare release keystore
         id: signing
         if: steps.signing-check.outputs.ready == 'true'
