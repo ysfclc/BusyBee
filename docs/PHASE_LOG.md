@@ -105,3 +105,8 @@ Boundaries:
 - Route planning uses public low-volume OSM geocoding/routing services; turn-by-turn guidance is handed to an installed navigation app.
 - Current map event data is mapped road observations, not a real-time traffic-speed service.
 - Personal data stays on-device; chat exports and notification capture are opt-in.
+
+
+## 2026-11-05 — Spatial map upgrade
+
+The map renderer moved from a flat OSM raster layer to OpenFreeMap Liberty vector styling with 3D building extrusions and a tilted neighbourhood camera. MapLibre's official Android example documents Liberty's building extrusion support. The app still labels roadwork/hazard data as mapped observations, not live traffic speeds.

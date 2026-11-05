@@ -99,8 +99,8 @@ class MainActivity : AppCompatActivity() {
         buildNavigation();showTab("MAP")
         mapView.getMapAsync { instance ->
             map=instance
-            instance.setStyle(Style.Builder().fromJson(OSM_STYLE)) {
-                instance.cameraPosition=CameraPosition.Builder().target(KRAKOW).zoom(13.2).tilt(42.0).build()
+            instance.setStyle(Style.Builder().fromUri(OPENFREE_MAP_STYLE)) {
+                instance.cameraPosition=CameraPosition.Builder().target(KRAKOW).zoom(15.0).tilt(48.0).build()
                 mapStatus?.text="● MAP ONLINE";refreshRoadIntelligence()
             }
         }
@@ -512,7 +512,7 @@ class MainActivity : AppCompatActivity() {
         val root=columnScroll()
         root.addView(section("INTELLIGENCE NETWORK","Independent source status. Candidate does not mean connected."))
         val live=card();live.addView(label("AVAILABLE IN THIS BUILD",11f,MINT,true))
-        sourceRow(live,"OpenStreetMap","Base map and road geometry","LIVE · attribution shown")
+        sourceRow(live,"OpenFreeMap / OpenStreetMap","Vector streets, labels and 3D building extrusions","LIVE · OSM attribution")
         sourceRow(live,"Overpass API","Mapped construction and hazard observations","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Open-Meteo","Current weather context","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Android location","Driver position after permission","DEVICE PERMISSION")
@@ -599,6 +599,6 @@ class MainActivity : AppCompatActivity() {
         private const val MINT=0xFF8FE7C1.toInt()
         private const val AMBER=0xFFFFC978.toInt()
         private val KRAKOW=LatLng(50.0647,19.9450)
-        private const val OSM_STYLE="""{"version":8,"sources":{"osm":{"type":"raster","tiles":["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],"tileSize":256,"attribution":"© OpenStreetMap contributors"}},"layers":[{"id":"osm-raster","type":"raster","source":"osm"}]}"""
+        private const val OPENFREE_MAP_STYLE="https://tiles.openfreemap.org/styles/liberty"
     }
 }

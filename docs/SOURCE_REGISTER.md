@@ -102,3 +102,10 @@ A source that cannot legally be persisted may still be used in a permitted displ
 | OSRM demo routing | Road route geometry, distance and estimated duration | Integrated as a low-volume route-planning fallback; not a guaranteed production SLA or a replacement for a licensed navigation provider. |
 
 The app currently queries OpenStreetMap/Overpass for mapped roadworks and hazard tags, and Open-Meteo for current weather. These are distinct observations, not a real-time traffic-speed feed. TomTom, HERE, Mapbox, Google Navigation and Waze for Cities remain separate connector evaluations.
+
+
+## 8. Vector map and 3D rendering
+
+| Source | Capabilities | Status |
+|---|---|---|
+| OpenFreeMap Liberty | Vector streets, labels and 3D building extrusions over OpenStreetMap-derived data | Integrated as the map style; camera starts tilted at neighbourhood zoom. This is not 3D terrain. |

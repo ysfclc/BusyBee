@@ -44,3 +44,8 @@ The current build replaces the POI-only experiment with five driver-facing surfa
 - **Sources:** honest connected / permission-required / not-connected source catalogue.
 
 The offer workflow does not claim direct Uber/Bolt partner API access or auto-acceptance. It surfaces captured information and hands the driver back to the source app for the final decision. Road feed coverage is not equivalent to live traffic speed; source health and gaps remain visible.
+
+
+### Spatial rendering
+
+The map now uses the OpenFreeMap Liberty vector style over OpenStreetMap-derived data. Liberty includes 3D building extrusions; the camera opens tilted at neighbourhood scale. This is 3D buildings and camera pitch, not 3D terrain. Map source attribution remains visible through the style.
