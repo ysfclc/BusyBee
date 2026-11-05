@@ -7,6 +7,11 @@ on:
       - 'rust/**'
       - 'android/**'
       - '.github/workflows/build-signed-apk.yml'
+  pull_request:
+    paths:
+      - 'rust/**'
+      - 'android/**'
+      - '.github/workflows/build-signed-apk.yml'
   workflow_dispatch:
 
 permissions:
@@ -37,7 +42,8 @@ jobs:
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           "$(go env GOPATH)/bin/actionlint" .github/workflows/build-signed-apk.yml
 
-      - name: Require stable release-signing secrets
+      - name: Detect stable release-signing secrets
+        id: signing-check
         shell: bash
         env:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -46,9 +52,12 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [[ -z "$KEYSTORE" || -z "$STORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
-            echo "::error::Stable release signing is not configured. Add all four ANDROID_KEYSTORE_* secrets; see docs/ANDROID_SIGNING.md."
-            exit 1
+          if [[ -n "$KEYSTORE" && -n "$STORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Persistent release signing is configured."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release signing secrets are incomplete. CI will build a debug APK for validation; add the four secrets in docs/ANDROID_SIGNING.md to produce install-over-existing signed releases."
           fi
 
       - name: Set up Java 17
@@ -99,8 +108,12 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest
 
+      - name: Make Gradle entrypoint executable
+        run: chmod +x android/gradlew
+
       - name: Prepare release keystore
         id: signing
+        if: steps.signing-check.outputs.ready == 'true'
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -112,6 +125,7 @@ jobs:
           echo "path=$path" >> "$GITHUB_OUTPUT"
 
       - name: Assemble signed release APK
+        if: steps.signing-check.outputs.ready == 'true'
         working-directory: android
         env:
           ANDROID_KEYSTORE_FILE: ${{ steps.signing.outputs.path }}
@@ -120,7 +134,13 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease
 
-      - name: Verify APK signature
+      - name: Assemble debug APK for validation
+        if: steps.signing-check.outputs.ready != 'true'
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Verify signed APK signature
+        if: steps.signing-check.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -129,6 +149,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
 
       - name: Upload signed APK
+        if: steps.signing-check.outputs.ready == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: BusyBee-Driver-Command-Centre-signed-${{ github.run_number }}
@@ -136,13 +157,29 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Upload debug APK
+        if: steps.signing-check.outputs.ready != 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: BusyBee-Driver-Command-Centre-debug-${{ github.run_number }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Build summary
         shell: bash
         run: |
           {
-            echo "## Signed APK ready"
-            echo "- Package: com.ysfclc.busybee.drivercommandcentre"
-            echo "- Version: 0.1.${{ github.run_number }}"
-            echo "- Signing: verified with apksigner"
-            echo "- Updates: same package ID and signing certificate preserve app data."
+            if [[ "${{ steps.signing-check.outputs.ready }}" == "true" ]]; then
+              echo "## Signed APK ready"
+              echo "- Package: com.ysfclc.busybee.drivercommandcentre"
+              echo "- Version: 0.1.${{ github.run_number }}"
+              echo "- Signing: verified with apksigner"
+              echo "- Updates: same package ID and signing certificate preserve app data."
+            else
+              echo "## Debug APK built — release signing still required"
+              echo "- Debug package uses a separate .debug application ID."
+              echo "- Configure the persistent release keystore using docs/ANDROID_SIGNING.md."
+              echo "- A debug APK cannot update or preserve data from the signed release package."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
