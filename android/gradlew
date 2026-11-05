@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# CI installs pinned Gradle with gradle/actions/setup-gradle.
+if ! command -v gradle >/dev/null 2>&1; then
+  echo "Gradle 8.9 is required. Install Gradle 8.9 or open this project in Android Studio." >&2
+  exit 127
+fi
+exec gradle "$@"

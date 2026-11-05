@@ -29,3 +29,24 @@ Exit criteria:
 - Android unit tests pass.
 - CI produces an APK.
 - The app launches on a real Android device and renders the pilot map.
+
+
+## 2026-11-05 — Phase 2: executable foundation (implementation checkpoint)
+
+**Status:** implementation branch / PR #2; CI verification pending.
+
+Implemented:
+- Kotlin Android app with MapLibre map surface and OpenStreetMap attribution.
+- Kraków pilot camera, map gestures, recenter and pitch toggle.
+- Rust road-event domain crate with freshness/TTL tests.
+- JNI bridge called from the Android app.
+- Stable release application ID; debug uses a separate suffix.
+- Signed release workflow with persistent keystore requirement, signature verification and downloadable artifact.
+- Debug APK fallback for build validation when signing secrets are not yet configured.
+
+Signing dependency:
+- The four persistent Android signing secrets are documented in docs/ANDROID_SIGNING.md.
+- The same keystore is required for every future update. No random CI signing key is generated.
+
+Scope boundary:
+- This is the executable map/core foundation only. Multi-source connectors and live road intelligence begin in Phase 3.

@@ -12,6 +12,8 @@ The product vision is one map that aggregates all accessible and legally usable 
 - [Delivery roadmap](docs/ROADMAP.md)
 - [Architecture decisions](docs/DECISIONS.md)
 - [Phase log](docs/PHASE_LOG.md)
+- [Phase 2 executable foundation](docs/PHASE_2_FOUNDATION.md)
+- [Android release signing](docs/ANDROID_SIGNING.md)
 - [Control repository setup](SETUP.md)
 
 ## Delivery model
@@ -22,10 +24,10 @@ BusyBee is a phase-import control repository. Each `incoming/<name>.zip` is a co
 
 ## Current checkpoint
 
-- Phase: 1 complete — Product and architecture lock
+- Phase: 2 — Executable foundation
 - Product: Driver Command Centre
 - Pilot: Kraków, Poland
 - Client: Android / Kotlin
 - Domain core: Rust
 - Provider strategy: multi-source aggregator; no exclusive map vendor
-- Current state: Phase 1 merged; Phase 2 executable foundation is next. The first valid project import will run the corrected actionlint gate before any repository creation.
+- Current state: Phase 2 app and Rust core are implemented on the phase-2 branch; signed APK pipeline is under CI verification.

@@ -1,0 +1,1 @@
+-keep class com.ysfclc.busybee.drivercommandcentre.NativeBridge { *; }
