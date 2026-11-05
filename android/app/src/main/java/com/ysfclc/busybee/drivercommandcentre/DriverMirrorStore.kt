@@ -48,7 +48,9 @@ object DriverCsv {
     fun parse(text: String): List<Map<String, String>> {
         val rows = csvRows(text)
         if (rows.isEmpty()) return emptyList()
-        val headers = rows.first().map { it.trim().lowercase().replace(" ", "_") }
+        val headers = rows.first().mapIndexed { index, value ->
+            (if (index == 0) value.removePrefix("\uFEFF") else value).trim().lowercase().replace(" ", "_")
+        }
         require(headers.toSet().containsAll(requiredHeaders)) {
             "CSV needs platform and record_type columns"
         }
