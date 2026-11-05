@@ -1,6 +1,6 @@
 # BusyBee — Driver Command Centre
 
-BusyBee is the control repository and project delivery ledger for **Driver Command Centre**: an Android-native, provider-neutral road and driver intelligence map.
+BusyBee is the control repository and project delivery ledger for **Driver Command Centre**: an Android-native driver intelligence platform combining a private cross-platform Driver Data Mirror with a provider-neutral Road Intelligence Aggregator. The map is the spatial interface, not the product itself.
 
 The product vision is one map that aggregates all accessible and legally usable data sources: commercial traffic and route providers, public and municipal feeds, environmental data, Android/device observations and opt-in driver reports. It normalises evidence into one canonical intelligence layer while preserving source provenance, freshness, conflicts and licence constraints.
 
@@ -30,4 +30,4 @@ BusyBee is a phase-import control repository. Each `incoming/<name>.zip` is a co
 - Client: Android / Kotlin
 - Domain core: Rust
 - Provider strategy: multi-source aggregator; no exclusive map vendor
-- Current state: Phase 2 source is merged; CI tests and debug APK assembly pass. Real-device smoke test and stable release signing remain pending.
+- Current state: Phase 2 technical shell is merged. The current map/amenity pins are only a smoke test and are not the agreed product. Next product milestone is the private Uber/Bolt Driver Data Mirror, followed by driver economics and multi-source road intelligence.
