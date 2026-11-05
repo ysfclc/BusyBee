@@ -7,6 +7,7 @@ val releaseStorePath = System.getenv("ANDROID_KEYSTORE_FILE")
 android {
     namespace = "com.ysfclc.busybee.drivercommandcentre"
     compileSdk = 35
+    buildFeatures { buildConfig = true }
     defaultConfig {
         applicationId = "com.ysfclc.busybee.drivercommandcentre"
         minSdk = 26
