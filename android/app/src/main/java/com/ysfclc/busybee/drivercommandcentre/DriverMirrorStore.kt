@@ -261,6 +261,17 @@ class DriverMirrorStore(context: Context) :
         return items
     }
 
+    fun evidencePreview(limit: Int = 8): List<String> {
+        val items = mutableListOf<String>()
+        readableDatabase.rawQuery(
+            "SELECT source_name,row_number,raw FROM raw_evidence ORDER BY id DESC LIMIT ?",
+            arrayOf(limit.toString())
+        ).use { c ->
+            while (c.moveToNext()) items.add("${c.getString(0)} · row ${c.getInt(1)}\n${c.getString(2)}")
+        }
+        return items
+    }
+
     private fun sha256(value: String): String =
         MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }
 }
