@@ -2,7 +2,7 @@
 
 The fixed Android application ID is com.ysfclc.busybee.drivercommandcentre.
 
-The release workflow refuses to create a release APK until a persistent signing key is configured. A random key on every CI run would make Android reject upgrades and force uninstall/reinstall.
+The release workflow refuses to create a release APK until a persistent signing key is configured. A dedicated key package has been prepared for this project. Use the same key for every release; a random key on each CI run would make Android reject upgrades and force uninstall/reinstall.
 
 ## Generate the signing key once
 
