@@ -342,9 +342,11 @@ jobs:
           )"
           ZIP_SHA256="$(sha256sum "$ZIP_FILE" | awk '{print $1}')"
 
-          echo "staging_dir=$STAGING_DIR" >> "$GITHUB_OUTPUT"
-          echo "content_sha256=$CONTENT_SHA256" >> "$GITHUB_OUTPUT"
-          echo "zip_sha256=$ZIP_SHA256" >> "$GITHUB_OUTPUT"
+          {
+            echo "staging_dir=$STAGING_DIR"
+            echo "content_sha256=$CONTENT_SHA256"
+            echo "zip_sha256=$ZIP_SHA256"
+          } >> "$GITHUB_OUTPUT"
           echo "Normalized content SHA-256: $CONTENT_SHA256"
 
       - name: Confirm repository token is configured
@@ -457,7 +459,8 @@ jobs:
             find "$PROJECT_DIR" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
             cp -a "$STAGING_DIR/." "$PROJECT_DIR/"
             mkdir -p "$PROJECT_DIR/.delivery" "$PROJECT_DIR/docs"
-            export PROCESSED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            PROCESSED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            export PROCESSED_AT
 
             python3 - "$PROJECT_DIR/.delivery/provenance.json" <<'PY'
           import json, os, pathlib, sys
@@ -645,11 +648,13 @@ jobs:
           HAS_MOBILE: ${{ steps.detect.outputs.has_mobile }}
           TARGET_REPOSITORY: ${{ steps.target.outputs.repository_full_name }}
         run: |
-          echo "### Phase import summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Target: ${TARGET_REPOSITORY:-not provisioned}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Import: ${IMPORT_STATUS:-not completed}" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$HAS_MOBILE" == "true" ]]; then
-            echo "- Android build: requested; see preceding build and artifact steps." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- Android build: skipped (no Rust + Android project pair)." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            echo "### Phase import summary"
+            echo "- Target: ${TARGET_REPOSITORY:-not provisioned}"
+            echo "- Import: ${IMPORT_STATUS:-not completed}"
+            if [[ "$HAS_MOBILE" == "true" ]]; then
+              echo "- Android build: requested; see preceding build and artifact steps."
+            else
+              echo "- Android build: skipped (no Rust + Android project pair)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
