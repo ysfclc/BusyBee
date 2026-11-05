@@ -1,109 +1,126 @@
 # Delivery Roadmap
 
-**Rule:** one phase at a time. Each phase has a concrete exit gate. Do not start the next phase merely because a document or scaffold exists.
+**Rule:** one phase at a time. Each phase must deliver a usable product capability, not just infrastructure or a visual demo.
+
+## Product north star
+
+BusyBee is a driver intelligence platform, not a POI map. It has two core data systems:
+
+1. **Private Driver Data Mirror / Digital Twin:** reconstruct the driver's work across Uber, Bolt and other platforms — trips, offers, earnings, fees, routes, time, vehicle costs and outcomes.
+2. **Provider-neutral Road Intelligence Aggregator:** combine permitted commercial, public, municipal, environmental, Android and opt-in driver/community sources into one evidence-backed road picture.
+
+The map is the spatial interface for these systems. Base-map rendering and generic nearby POIs are supporting infrastructure, not product milestones.
 
 ## Phase 1 — Product and architecture lock
 
-**Deliverables**
-- Product charter and non-goals.
-- Provider-neutral system architecture.
-- Source register with access and licensing status.
-- Canonical event/evidence model.
-- Phase plan and repository delivery rules.
-- Healthy control-repository workflow validation.
+**Status:** complete.
 
-**Exit gate**
-- Decisions are recorded in GitHub.
-- Existing BusyBee import pipeline passes its static workflow validation.
-- No app code is generated before this checkpoint is complete.
+- Product charter, canonical model, architecture, source register and privacy/licensing rules.
+- Provider-neutral connectors and evidence provenance.
+- Personal data separated from shared/public intelligence.
 
 ## Phase 2 — Executable foundation
 
-**Deliverables**
-- Dedicated private product repository imported through BusyBee.
-- Rust workspace with domain crates and tests.
-- Android Kotlin application shell.
-- Kotlin/Rust bridge.
-- Local database and migration baseline.
-- Map renderer proof of concept with a permitted base map.
-- CI producing a debug APK artifact.
+**Status:** foundation exists; not a product-complete milestone.
 
-**Exit gate**
-- App installs and launches on a real Android device.
-- Rust tests and Android build pass.
-- Map pans/zooms and shows a location with permission.
-- No provider credentials are embedded in the APK.
+- Android app shell, Rust domain core, map renderer, Kotlin/Rust bridge and CI.
+- Current map + generic OSM amenity pins are explicitly a temporary renderer/data-fetch smoke test.
+- They must not be mistaken for the intended product or used as the basis for declaring a feature complete.
 
-## Phase 3 — First end-to-end public-data slice
+**Exit gate:** install/launch on device, persistent release signing and local storage/migration baseline verified.
+
+## Phase 3 — Driver Data Mirror (first real product capability)
+
+**Goal:** make BusyBee understand the driver's actual work, across platforms, under the driver's control.
 
 **Deliverables**
-- Source registry and connector SDK.
-- First geography source and one live local event/transport feed.
-- Raw observation → canonical event → map overlay pipeline.
-- Provenance and freshness UI.
-- Connector health and graceful degradation.
+- Local-first source ledger with provenance, timestamps, completeness and permissions.
+- User-authorised capture/import paths for Uber and Bolt activity: notifications where exposed, statements/exports, user-selected files and guided user-initiated capture where permitted.
+- Canonical records for platforms, sessions, offers, trips, route/time, gross earnings, fees, bonuses, adjustments and vehicle costs.
+- Reconciliation and duplicate detection without silently inventing missing values.
+- Driver profile and vehicle cost model; private data stays private by default.
 
 **Exit gate**
-- A real event can be traced from source record to map marker.
-- Stale/expired events are removed or clearly marked.
-- Tests cover malformed, duplicate, delayed and contradictory records.
+- Import/capture a representative set of real user records from at least one platform and show the original evidence beside the normalised records.
+- Cross-check totals against the source statement.
+- Clearly show unknowns, gaps, duplicate candidates and confidence; never treat missing values as zero.
 
-## Phase 4 — Multi-provider traffic and route comparison
+## Phase 4 — Driver intelligence and decision engine
+
+**Goal:** turn the mirror into answers and recommendations a working driver can use.
 
 **Deliverables**
-- Parallel commercial provider trials.
-- Provider-specific traffic/incident connectors where terms permit.
-- Route-candidate model and comparison.
-- Coverage, ETA, latency and cost benchmark.
+- Net earnings after platform fees and configurable vehicle costs.
+- Earnings by hour, weekday, zone, route and platform.
+- Paid distance vs empty/dead mileage, time utilisation and effective hourly rate.
+- Uber/Bolt/platform comparisons and offer outcome history.
+- Explainable recommendations for working times/zones and platform choice, with evidence and coverage limits.
+- Geographic visualisation of the driver's own activity and outcomes.
 
 **Exit gate**
-- At least two independently sourced capabilities operate in parallel.
-- Provider failure does not take down the map.
-- Data rights and route semantics are documented before combining outputs.
+- Every metric is reproducible from underlying records.
+- Every recommendation states why it was made and what data is missing.
+- User can correct source records and see derived metrics update.
 
-## Phase 5 — Driver and community intelligence
+## Phase 5 — Road Intelligence Aggregator
+
+**Goal:** fuse multiple independent sources into a trustworthy live road picture.
 
 **Deliverables**
-- Consent-based driver reports.
-- Moderation, reputation and expiry.
-- Android location/motion observations.
-- Private driver activity and trip records where lawfully accessible.
-- Community/private data separation.
+- Connector registry/SDK and independent connector health.
+- Kraków public/municipal roadworks, restrictions, transit and relevant city feeds where accessible.
+- Commercial provider capability trials (e.g. TomTom, HERE, Mapbox, Google Navigation SDK) without exclusive vendor lock-in.
+- Weather, visibility, air-quality and other relevant context.
+- Canonical road events, spatial matching, evidence fusion, deduplication, contradiction handling, expiry and source attribution.
+- Source coverage and freshness view; explicit unavailable vs no-event states.
 
 **Exit gate**
-- A report can be submitted, reviewed, displayed with provenance and expired.
-- Private driver records cannot leak into shared layers.
+- At least two independent sources feed one canonical event capability where legally possible.
+- User can inspect provenance, observation time, freshness and confidence rationale.
+- Duplicate, contradictory, delayed and expired observations are handled by tests.
 
-## Phase 6 — Driver economics and digital mirror
+## Phase 6 — Unified spatial intelligence and navigation
+
+**Goal:** combine the private driver mirror with public road intelligence in one spatial experience.
 
 **Deliverables**
-- Trip/offer/earnings import paths.
-- Vehicle cost profile and net earning calculations.
-- Time/zone/platform analysis.
-- Data completeness and confidence reporting.
+- One map with selectable layers for navigation, hazards, roadworks, safety awareness, context, driver economics and personal history.
+- Context-aware drive/explore/driver-intelligence modes.
+- Multi-provider route candidates and comparison where licensed and available.
+- 3D camera presentation by default; progressive buildings/terrain enrichment.
+- Voice and glanceable driving interface; immediate hazards take priority while moving.
+- Police-related information only as lawful general awareness; never enforcement-evasion routing.
 
 **Exit gate**
-- Every insight is traceable to source records and states its coverage period.
-- No missing data is silently treated as zero.
+- Real Kraków route tests validate route guidance, hazard relevance and driving usability.
+- Private driver records never leak into shared layers.
+- The map remains useful under individual provider outages.
 
-## Phase 7 — Navigation, 3D enrichment and hardening
+## Phase 7 — Driver network and advanced capabilities
 
 **Deliverables**
-- Navigation guidance and voice.
-- Context-aware driving UI.
-- Progressive 3D buildings/terrain and camera presentation.
-- Performance, battery, privacy, safety and accessibility work.
+- Consent-based driver reports, moderation, reputation and expiry.
+- Optional vehicle/OBD-II and sensor signals.
+- Further platform connectors and source coverage.
+- Privacy-preserving aggregated insights only with explicit opt-in.
+- Performance, battery, security, accessibility and operational hardening.
 
 **Exit gate**
-- Real-world route testing passes.
-- Driving presentation is glanceable and does not bury immediate hazards.
-- 3D is an enhancement, not a substitute for correct geometry or navigation.
+- Shared reports are traceable, moderated, time-bounded and separated from private data.
+- Security/privacy review and real-world pilot acceptance pass.
+
+## Non-goals
+
+- A map that merely displays nearby amenities.
+- A single-provider map or traffic wrapper.
+- A generic dashboard with manually entered earnings as its only intelligence.
+- Fake live data, fabricated demand heatmaps or unsupported claims of Uber/Bolt API access.
+- Scraping private databases, bypassing authentication, or violating provider terms.
 
 ## Phase discipline
 
 - Each phase is committed as a complete checkpoint.
 - Keep a phase log and record decisions/deviations.
 - Never replace a working project snapshot with an incomplete ZIP.
-- The BusyBee import pipeline treats each archive as a **complete snapshot** and replaces the target repository's tracked tree. Every later archive must therefore contain the entire project, not only changed files.
 - Do not upload secrets, signing keys, local configuration, generated APKs or build caches.
 - Build failures are fixed before moving to the next phase.
