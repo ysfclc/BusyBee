@@ -128,7 +128,15 @@ class MainActivity : AppCompatActivity() {
             val history = store.importHistory()
             if (history.isEmpty()) addView(text("No source files yet.", 12f, MUTED, false))
             history.forEach { addView(text("•  $it", 11f, WHITE, false).apply { setPadding(0, dp(5), 0, dp(5)) }) }
-            addView(text("Stored in the app's private on-device database. No upload, account connection or background scraping.", 10f, MUTED, false).apply {
+            val evidence = store.evidencePreview()
+            if (evidence.isNotEmpty()) {
+                addView(text("LATEST ORIGINAL ROWS", 9f, MINT, true).apply { setPadding(0, dp(12), 0, dp(7)) })
+                evidence.forEach { item ->
+                    addView(text(item, 9f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(5)) })
+                    addView(divider())
+                }
+            }
+            addView(text("Every imported row, including duplicates, is retained as evidence. Canonical duplicates are not double-counted. Stored on-device; no upload or background scraping.", 10f, MUTED, false).apply {
                 setPadding(0, dp(12), 0, 0)
             })
         })
