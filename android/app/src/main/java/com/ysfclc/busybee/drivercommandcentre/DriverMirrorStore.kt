@@ -32,7 +32,8 @@ data class MirrorSummary(
     val fees: Double,
     val bonuses: Double,
     val platforms: List<String>,
-    val imports: Int
+    val imports: Int,
+    val nonPlnRecords: Int
 ) {
     val knownNet: Double get() = gross - fees + bonuses
 }
@@ -113,6 +114,17 @@ class DriverMirrorStore(context: Context) :
             )
         """.trimIndent())
         db.execSQL("""
+            CREATE TABLE raw_evidence (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                import_id INTEGER NOT NULL,
+                row_number INTEGER NOT NULL,
+                fingerprint TEXT NOT NULL,
+                raw TEXT NOT NULL,
+                source_name TEXT NOT NULL,
+                FOREIGN KEY(import_id) REFERENCES imports(id)
+            )
+        """.trimIndent())
+        db.execSQL("""
             CREATE TABLE records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 fingerprint TEXT NOT NULL UNIQUE,
@@ -155,11 +167,19 @@ class DriverMirrorStore(context: Context) :
             }
             val importId = db.insertOrThrow("imports", null, import)
             var inserted = 0
-            rows.forEach { row ->
+            rows.forEachIndexed { rowIndex, row ->
                 val platform = row["platform"].orEmpty().trim().ifBlank { "Unknown" }
                 val type = row["record_type"].orEmpty().trim().lowercase().ifBlank { "unknown" }
                 val raw = row.entries.sortedBy { it.key }.joinToString("&") { "${it.key}=${it.value}" }
                 val fingerprint = sha256(listOf(platform.lowercase(), type, row["external_id"].orEmpty(), row["occurred_at"].orEmpty(), raw).joinToString("|"))
+                val evidence = ContentValues().apply {
+                    put("import_id", importId)
+                    put("row_number", rowIndex + 1)
+                    put("fingerprint", fingerprint)
+                    put("raw", raw)
+                    put("source_name", sourceName)
+                }
+                db.insertOrThrow("raw_evidence", null, evidence)
                 val values = ContentValues().apply {
                     put("fingerprint", fingerprint)
                     put("import_id", importId)
@@ -196,15 +216,17 @@ class DriverMirrorStore(context: Context) :
         val records = scalar("SELECT COUNT(*) FROM records").toInt()
         val trips = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type) IN ('trip','ride','completed_trip')").toInt()
         val offers = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type)='offer'").toInt()
-        val gross = scalar("SELECT COALESCE(SUM(gross),0) FROM records")
-        val fees = scalar("SELECT COALESCE(SUM(fees),0) FROM records")
-        val bonuses = scalar("SELECT COALESCE(SUM(bonus),0) FROM records")
+        // Never add unlike currencies together. Headline totals are PLN-only.
+        val gross = scalar("SELECT COALESCE(SUM(gross),0) FROM records WHERE currency='PLN'")
+        val fees = scalar("SELECT COALESCE(SUM(fees),0) FROM records WHERE currency='PLN'")
+        val bonuses = scalar("SELECT COALESCE(SUM(bonus),0) FROM records WHERE currency='PLN'")
         val imports = scalar("SELECT COUNT(*) FROM imports").toInt()
+        val nonPln = scalar("SELECT COUNT(*) FROM records WHERE currency<>'PLN'").toInt()
         val platforms = mutableListOf<String>()
         db.rawQuery("SELECT DISTINCT platform FROM records ORDER BY platform", null).use { c ->
             while (c.moveToNext()) platforms.add(c.getString(0))
         }
-        return MirrorSummary(records, trips, offers, gross, fees, bonuses, platforms, imports)
+        return MirrorSummary(records, trips, offers, gross, fees, bonuses, platforms, imports, nonPln)
     }
 
     fun recent(limit: Int = 30): List<DriverRecord> {
