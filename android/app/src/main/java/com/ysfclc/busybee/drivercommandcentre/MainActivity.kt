@@ -30,6 +30,8 @@ import org.json.JSONObject
 import org.maplibre.android.MapLibre
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
+import org.maplibre.android.annotations.Polyline
+import org.maplibre.android.annotations.PolylineOptions
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -60,6 +62,11 @@ class MainActivity : AppCompatActivity() {
     private var roadEvents:List<RoadEvent> = emptyList()
     private val eventMarkers=mutableListOf<Marker>()
     private val reportMarkers=mutableListOf<Marker>()
+    private val routeMarkers=mutableListOf<Marker>()
+    private var routePolyline:Polyline?=null
+    private var routeSummary:TextView?=null
+    private var routeDestinationInput:EditText?=null
+    private var activeRoute:RoutePlan?=null
     private var mapStatus:TextView?=null
     private var mapSummary:TextView?=null
     private var weatherSummary="Weather feed not checked"
@@ -155,7 +162,19 @@ class MainActivity : AppCompatActivity() {
         overlay.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
         val bottom=card()
         bottom.addView(label("LIVE ROAD PICTURE",11f,MINT,true))
-        bottom.addView(label(weatherSummary,11f,WHITE,false).apply{setPadding(0,dp(5),0,dp(8))})
+        bottom.addView(label(weatherSummary,11f,WHITE,false).apply{setPadding(0,dp(5),0,dp(5))})
+        routeSummary=label("Plan a route to compare distance and estimated time.",9f,MUTED,false).apply{setPadding(0,dp(2),0,dp(7))}
+        bottom.addView(routeSummary)
+        val routeRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+        routeDestinationInput=EditText(this).apply{
+            hint="Where are you going?"
+            setSingleLine(true);textSize=12f;setTextColor(WHITE);setHintTextColor(MUTED)
+            setPadding(dp(10),dp(8),dp(10),dp(8));background=rounded(0xFF1B303A.toInt(),10)
+            layoutParams=LinearLayout.LayoutParams(0,dp(42),1f)
+        }
+        routeRow.addView(routeDestinationInput)
+        routeRow.addView(action("ROUTE",true){planRoute(routeDestinationInput?.text?.toString().orEmpty())},LinearLayout.LayoutParams(dp(78),dp(42)).apply{marginStart=dp(7)})
+        bottom.addView(routeRow)
         val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
         actions.addView(action("◎ LOCATE",true){requestLocation()},LinearLayout.LayoutParams(0,dp(42),1f))
         actions.addView(action("↻ REFRESH",false){refreshRoadIntelligence()},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
@@ -165,8 +184,43 @@ class MainActivity : AppCompatActivity() {
             showTab("MAP")
         },LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
         bottom.addView(actions)
-        bottom.addView(action("＋ REPORT A ROAD HAZARD",false){reportRoadHazard()},LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(7)})
+        bottom.addView(action("START TURN-BY-TURN IN MAPS",false){openExternalNavigation()},LinearLayout.LayoutParams(-1,dp(36)).apply{topMargin=dp(7)})
+        bottom.addView(action("＋ REPORT A ROAD HAZARD",false){reportRoadHazard()},LinearLayout.LayoutParams(-1,dp(36)).apply{topMargin=dp(6)})
         overlay.addView(bottom);frame.addView(overlay,FrameLayout.LayoutParams(-1,-1));return frame
+    }
+
+    private fun planRoute(query:String) {
+        if(query.isBlank()) { Toast.makeText(this,"Enter a destination first.",Toast.LENGTH_SHORT).show(); return }
+        val fix=lastLocation
+        val camera=map?.cameraPosition?.target?:KRAKOW
+        val origin=if(fix!=null)LatLng(fix.latitude,fix.longitude) else camera
+        routeSummary?.text="Finding destination and calculating a route…"
+        worker.execute {
+            try {
+                val plan=RoutePlanner.plan(origin,query)
+                runOnUiThread {
+                    routePolyline?.let { map?.removeAnnotation(it) }
+                    routeMarkers.forEach { map?.removeAnnotation(it) };routeMarkers.clear()
+                    routePolyline=map?.addPolyline(PolylineOptions().addAll(plan.points).color(MINT).width(5f))
+                    map?.addMarker(MarkerOptions().position(origin).title("Route starts here"))?.let{routeMarkers.add(it)}
+                    map?.addMarker(MarkerOptions().position(plan.destination).title("Destination").snippet(plan.destinationName))?.let{routeMarkers.add(it)}
+                    activeRoute=plan
+                    routeSummary?.text=String.format(Locale.US,"%.1f km · %.0f min estimated · OpenStreetMap / OSRM",plan.distanceKm,plan.durationMinutes)
+                    mapStatus?.text="● ROUTE READY"
+                    map?.animateCamera(CameraUpdateFactory.newLatLngZoom(plan.destination,13.0),500)
+                }
+            } catch(e:Exception) {
+                runOnUiThread { routeSummary?.text="Route unavailable: "+(e.message?: "source error");mapStatus?.text="● ROUTING UNAVAILABLE" }
+            }
+        }
+    }
+
+    private fun openExternalNavigation() {
+        val route=activeRoute
+        if(route==null) { Toast.makeText(this,"Plan a route first.",Toast.LENGTH_SHORT).show();return }
+        val uri=Uri.parse("google.navigation:q="+route.destination.latitude+","+route.destination.longitude+"&mode=d")
+        try { startActivity(Intent(Intent.ACTION_VIEW,uri)) }
+        catch(_:Exception) { startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("geo:"+route.destination.latitude+","+route.destination.longitude))) }
     }
 
     private fun refreshRoadIntelligence() {
