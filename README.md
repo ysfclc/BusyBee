@@ -24,10 +24,10 @@ BusyBee is a phase-import control repository. Each `incoming/<name>.zip` is a co
 
 ## Current checkpoint
 
-- Phase: 2 — Executable foundation
+- Phase: 3 — Driver Data Mirror (first vertical slice implemented; real export adapters and CI/device verification pending)
 - Product: Driver Command Centre
 - Pilot: Kraków, Poland
 - Client: Android / Kotlin
 - Domain core: Rust
 - Provider strategy: multi-source aggregator; no exclusive map vendor
-- Current state: Phase 2 technical shell is merged. The current map/amenity pins are only a smoke test and are not the agreed product. Next product milestone is the private Uber/Bolt Driver Data Mirror, followed by driver economics and multi-source road intelligence.
+- Current state: the Android app now opens into a local-first Driver Data Mirror with CSV import, a private SQLite source ledger, raw-row evidence, duplicate protection, platform activity and cautious financial totals. It does not claim direct Uber/Bolt API access. The old map/POI screen has been removed from this milestone; road intelligence returns after the mirror and driver economics are proven. See [CSV import contract](docs/DRIVER_MIRROR_IMPORT.md).
