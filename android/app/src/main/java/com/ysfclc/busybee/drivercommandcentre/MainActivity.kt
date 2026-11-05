@@ -70,6 +70,7 @@ class MainActivity : AppCompatActivity() {
     private var mapStatus:TextView?=null
     private var mapSummary:TextView?=null
     private var weatherSummary="Weather feed not checked"
+    private var weatherText:TextView?=null
     private val selectedLayers= mutableSetOf("Roadworks","Hazards","Driver reports")
     private val navButtons=mutableMapOf<String,TextView>()
     private val locationListener=object:LocationListener {
@@ -162,7 +163,8 @@ class MainActivity : AppCompatActivity() {
         overlay.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
         val bottom=card()
         bottom.addView(label("LIVE ROAD PICTURE",11f,MINT,true))
-        bottom.addView(label(weatherSummary,11f,WHITE,false).apply{setPadding(0,dp(5),0,dp(5))})
+        weatherText=label(weatherSummary,11f,WHITE,false).apply{setPadding(0,dp(5),0,dp(5))}
+        bottom.addView(weatherText)
         routeSummary=label("Plan a route to compare distance and estimated time.",9f,MUTED,false).apply{setPadding(0,dp(2),0,dp(7))}
         bottom.addView(routeSummary)
         val routeRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
@@ -231,7 +233,7 @@ class MainActivity : AppCompatActivity() {
             try{events=fetchRoadEvents(center.latitude,center.longitude)}catch(e:Exception){roadError=e.message}
             val weather=try{fetchWeather(center.latitude,center.longitude)}catch(e:Exception){"Weather source unavailable"}
             runOnUiThread{
-                roadEvents=events;weatherSummary=weather;renderRoadEvents()
+                roadEvents=events;weatherSummary=weather;weatherText?.text=weather;renderRoadEvents()
                 mapStatus?.text=if(roadError==null)"● ROAD FEED UPDATED" else "● PARTIAL SOURCE COVERAGE"
                 mapSummary?.text=events.size.toString()+" mapped road observations · OpenStreetMap / Overpass"
                 Toast.makeText(this,if(roadError==null)"Road intelligence refreshed" else "Some road sources are unavailable",Toast.LENGTH_SHORT).show()
@@ -331,7 +333,7 @@ class MainActivity : AppCompatActivity() {
             showTab("OFFERS")
         });root.addView(rules)
         val capture=card();capture.addView(label("PLATFORM SIGNALS",11f,MINT,true))
-        capture.addView(label("Read visible Uber/Bolt notifications after you explicitly enable Android notification access. No private app database access.",11f,MUTED,false))
+        capture.addView(label("Read visible ride-platform notifications after you explicitly enable Android notification access. No private app database access.",11f,MUTED,false))
         capture.addView(action(if(notificationAccessEnabled())"NOTIFICATION ACCESS ENABLED · SETTINGS" else "ENABLE UBER / BOLT OFFER CAPTURE",false){startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))})
         root.addView(capture)
         val add=card();add.addView(label("MANUAL OFFER",11f,MINT,true));add.addView(label("Complete details when the platform notification does not expose enough information.",10f,MUTED,false))
@@ -342,7 +344,7 @@ class MainActivity : AppCompatActivity() {
         ranked.forEach{root.addView(offerCard(it))}
         root.addView(section("CAPTURED PLATFORM NOTIFICATIONS","Raw notification text; review and convert into a structured offer."))
         val notices=commands.notices()
-        if(notices.isEmpty())root.addView(card().apply{addView(label("No Uber/Bolt notifications captured.",11f,MUTED,false))})
+        if(notices.isEmpty())root.addView(card().apply{addView(label("No ride-platform notifications captured.",11f,MUTED,false))})
         notices.forEach{n->root.addView(card().apply{
             addView(label(n.platform+" · "+dateTime(n.capturedAt),10f,MINT,true));addView(label(n.title,13f,WHITE,true))
             addView(label(n.body,11f,MUTED,false).apply{setPadding(0,dp(4),0,dp(7))})
@@ -397,6 +399,12 @@ class MainActivity : AppCompatActivity() {
         totals.addView(label(s.knownNet?.let{money(it)}?:"INCOMPLETE",24f,MINT,true))
         totals.addView(label("PLN records only. Fees and bonuses must be explicit for every gross record. Vehicle costs, taxes and missing adjustments are excluded.",10f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
         root.addView(totals)
+        val recordedExpenses=commands.totalAmount("Expense",true)
+        root.addView(card().apply {
+            addView(label("RECORDED VEHICLE EXPENSES · PAID",9f,MUTED,true))
+            addView(label(money(recordedExpenses),19f,WHITE,true).apply{setPadding(0,dp(5),0,dp(2))})
+            addView(label("Completed Expense items only. Kept separate until costs are matched to the same trip/date period.",10f,MUTED,false))
+        })
         root.addView(section("VEHICLE ECONOMICS","The same cost model is used to rank incoming offers."))
         val cost=field("All-in vehicle cost per km (PLN)",commands.setting("cost_per_km","0.85"))
         root.addView(card().apply{addView(cost);addView(action("SAVE COST MODEL",true){commands.setSetting("cost_per_km",cost.text.toString().replace(',','.').ifBlank{"0.85"});showTab("EARNINGS")})})
@@ -425,13 +433,21 @@ class MainActivity : AppCompatActivity() {
         val items=commands.items()
         if(items.isEmpty())root.addView(card().apply{addView(label("Nothing saved yet. Add an insurance renewal, payment, document expiry, maintenance or expense.",11f,MUTED,false))})
         items.forEach{item->root.addView(card().apply{
-            addView(label(item.kind.uppercase()+" · "+(item.dueAt?.let{date(it)}?:"No due date"),9f,MINT,true))
+            addView(label(item.kind.uppercase()+" · "+(item.dueAt?.let{date(it)}?:"No due date")+(item.recurrence?.let{" · "+it}?: ""),9f,MINT,true))
             addView(label(item.title,14f,WHITE,true).apply{setPadding(0,dp(4),0,dp(3))})
             addView(label(item.details.ifBlank{"No details"}+(item.amount?.let{" · "+money(it)}?:""),10f,MUTED,false))
             val row=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
             row.addView(action(if(item.done)"COMPLETED" else "MARK DONE",false){commands.completeItem(item.id,!item.done);showTab("DRIVER HUB")},LinearLayout.LayoutParams(0,dp(36),1f))
             if(item.uri!=null)row.addView(action("OPEN FILE",true){openUri(Uri.parse(item.uri))},LinearLayout.LayoutParams(0,dp(36),1f).apply{marginStart=dp(7)})
             addView(row.apply{setPadding(0,dp(9),0,0)})
+        })}
+        val paymentHistory=items.filter{it.done}
+        root.addView(section("PAYMENT & COMPLETION HISTORY",paymentHistory.size.toString()+" completed payments, renewals and services"))
+        if(paymentHistory.isEmpty()) root.addView(card().apply{addView(label("Completed items will appear here as your payment and service history.",10f,MUTED,false))})
+        paymentHistory.forEach{item->root.addView(card().apply{
+            addView(label(item.kind.uppercase()+" · "+(item.completedAt?.let{dateTime(it)}?:"Completed"),9f,MINT,true))
+            addView(label(item.title,12f,WHITE,true))
+            addView(label(item.details+" · "+(item.amount?.let{money(it)}?:"Amount not recorded"),10f,MUTED,false))
         })}
         root.addView(section("WHATSAPP KNOWLEDGE BASE","Import a chat export yourself; BusyBee indexes it locally and privately."))
         val community=card();community.addView(action("IMPORT WHATSAPP .TXT EXPORT",true){chatPicker.launch(arrayOf("text/plain"))})
@@ -456,11 +472,14 @@ class MainActivity : AppCompatActivity() {
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),0,dp(18),0)}
         val kind=field("Type",defaultKind);val title=field("Title","");val details=field("Details / provider / policy","")
         val due=field("Due date (YYYY-MM-DD, optional)","");val amount=field("Amount (PLN, optional)","")
-        listOf(kind,title,details,due,amount).forEach{box.addView(it)}
+        val recurrence=field("Repeat: none / weekly / monthly / yearly","none")
+        listOf(kind,title,details,due,amount,recurrence).forEach{box.addView(it)}
         AlertDialog.Builder(this).setTitle("Save driver item").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Save"){_,_->
             val dueAt=due.text.toString().trim().takeIf{it.isNotBlank()}?.let{parseDate(it)}
             if(due.text.isNotBlank()&&dueAt==null){Toast.makeText(this,"Use YYYY-MM-DD for due date",Toast.LENGTH_LONG).show();return@setPositiveButton}
-            commands.addItem(kind.text.toString().ifBlank{"Reminder"},title.text.toString().ifBlank{"Untitled"},details.text.toString(),dueAt,amount.text.toString().replace(',','.').toDoubleOrNull())
+            val cadence=recurrence.text.toString().trim().lowercase().takeIf{it in setOf("weekly","monthly","yearly")}
+            if(cadence!=null&&dueAt==null){Toast.makeText(this,"A recurring item needs a due date.",Toast.LENGTH_LONG).show();return@setPositiveButton}
+            commands.addItem(kind.text.toString().ifBlank{"Reminder"},title.text.toString().ifBlank{"Untitled"},details.text.toString(),dueAt,amount.text.toString().replace(',','.').toDoubleOrNull(),recurrence=cadence)
             showTab("DRIVER HUB")
         }.show()
     }
@@ -496,7 +515,7 @@ class MainActivity : AppCompatActivity() {
         sourceRow(live,"Overpass API","Mapped construction and hazard observations","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Open-Meteo","Current weather context","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Android location","Driver position after permission","DEVICE PERMISSION")
-        sourceRow(live,"Uber / Bolt notifications","Visible offer notifications after opt-in","USER AUTHORIZATION REQUIRED")
+        sourceRow(live,"Uber / Bolt / FreeNow / iTaxi / Cabify / Lyft","Visible notifications from supported ride apps after opt-in","USER AUTHORIZATION REQUIRED")
         sourceRow(live,"User exports","Statement and history CSV import","LOCAL IMPORT");root.addView(live)
         val gated=card();gated.addView(label("CONNECTOR CATALOGUE · NOT CONNECTED",11f,AMBER,true))
         listOf(

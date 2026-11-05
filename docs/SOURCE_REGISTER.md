@@ -90,3 +90,15 @@ A source is eligible for production only after:
 - Attribution and user-facing source disclosure implemented.
 
 A source that cannot legally be persisted may still be used in a permitted display-only or transient path. It must not be copied into the shared event store by default.
+
+
+## 7. Additional road and navigation sources
+
+| Source | Capabilities | Status / access notes |
+|---|---|---|
+| GDDKiA / Krajowy Punkt Dostępowy (KPD) | National-road accidents, roadworks, abnormal traffic, hazards and other DATEX II events | Public catalogue; consumer integration is not a simple unauthenticated JSON feed. KPD uses DATEX II 3.4 and a registered SOAP interface; signed requests/certificates and recipient registration must be completed before claiming a live connector. |
+| Geoportal GUGiK — GDDKiA road disruptions layer | Map presentation of current GDDKiA disruptions, including maintenance works, accidents and other events | Public Geoportal presentation announced 28 October 2026; use as a discovery/validation source while the machine interface is assessed. |
+| Nominatim | User-triggered destination geocoding | Integrated for manual route requests; respect usage policy and rate limits. |
+| OSRM demo routing | Road route geometry, distance and estimated duration | Integrated as a low-volume route-planning fallback; not a guaranteed production SLA or a replacement for a licensed navigation provider. |
+
+The app currently queries OpenStreetMap/Overpass for mapped roadworks and hazard tags, and Open-Meteo for current weather. These are distinct observations, not a real-time traffic-speed feed. TomTom, HERE, Mapbox, Google Navigation and Waze for Cities remain separate connector evaluations.

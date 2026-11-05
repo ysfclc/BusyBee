@@ -86,3 +86,22 @@ Boundaries:
 Verification:
 - Source and tests are committed to `main`.
 - Automated build status and device install/launch have not yet been confirmed in this checkpoint.
+
+
+## 2026-11-05 — Driver Command Centre product build
+
+**Status:** route-planning build at commit 39bf6fadd6ddcf7443295377da75809a753bf01f passed Android unit tests and APK assembly; recurring-payment and source coverage additions are now in the next checkpoint.
+
+Delivered:
+- Five product surfaces: spatial map, offer command, earnings mirror, driver hub and source network.
+- MapLibre map with tilted camera, OpenStreetMap attribution, Overpass mapped roadwork/hazard observations, Open-Meteo current weather, private driver reports and destination route planning using Nominatim + OSRM, with external turn-by-turn handoff.
+- Offer Desk with opt-in Android notification listener, manual structured offer entry, vehicle cost per km, pickup-distance, minimum net/hour and passenger-rating rules; ranking is deterministic by estimated net hourly value.
+- Driver Hub with local document references, reminders, recurring insurance/payment schedules, completion history, WhatsApp TXT export import/search and trusted service contacts.
+- Source catalogue explicitly separates live integrations from credential/partner-dependent providers.
+- Unit tests cover offer economics and filtering.
+
+Boundaries:
+- Platform notifications may not contain all trip fields; missing details require driver review. No private app database access, unsupported partner API claims or automatic offer acceptance.
+- Route planning uses public low-volume OSM geocoding/routing services; turn-by-turn guidance is handed to an installed navigation app.
+- Current map event data is mapped road observations, not a real-time traffic-speed service.
+- Personal data stays on-device; chat exports and notification capture are opt-in.

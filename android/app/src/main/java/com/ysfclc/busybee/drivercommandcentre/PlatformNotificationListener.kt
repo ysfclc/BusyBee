@@ -9,6 +9,10 @@ class PlatformNotificationListener : NotificationListenerService() {
         val platform = when {
             pkg.contains("uber") -> "Uber"
             pkg.contains("bolt") || pkg.contains("taxify") -> "Bolt"
+            pkg.contains("freenow") || pkg.contains("mytaxi") -> "FreeNow"
+            pkg.contains("itaxi") -> "iTaxi"
+            pkg.contains("cabify") -> "Cabify"
+            pkg.contains("lyft") -> "Lyft"
             else -> return
         }
         val extras = sbn.notification.extras
