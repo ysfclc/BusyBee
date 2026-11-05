@@ -386,9 +386,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun startLocationUpdates() {
         try {
-            val providers = locationManager.getProviders(true).filter {
-                it == LocationManager.GPS_PROVIDER || it == LocationManager.NETWORK_PROVIDER
+            val fineGranted = ContextCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            val allowedProviders = if (fineGranted) {
+                setOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            } else {
+                setOf(LocationManager.NETWORK_PROVIDER)
             }
+            val providers = locationManager.getProviders(true).filter { it in allowedProviders }
             if (providers.isEmpty()) {
                 mapStatusView?.text = "  ●  LOCATION DISABLED"
                 sourceView?.text = "TURN ON PHONE LOCATION SERVICES"
