@@ -36,7 +36,7 @@ mod tests {
 
 #[no_mangle]
 pub extern "system" fn Java_com_ysfclc_busybee_drivercommandcentre_NativeBridge_engineVersion(
-    mut env: jni::JNIEnv,
+    env: jni::JNIEnv,
     _this: jni::objects::JObject,
 ) -> jni::sys::jstring {
     env.new_string(ENGINE_VERSION).expect("JNI string allocation failed").into_raw()
