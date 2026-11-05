@@ -22,6 +22,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mapView: MapView
     private var map: MapLibreMap? = null
     private var tilted = true
+    private var mapStatusView: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +40,7 @@ class MainActivity : AppCompatActivity() {
         mapView.getMapAsync { mapInstance ->
             map = mapInstance
             mapInstance.setStyle(Style.Builder().fromJson(OSM_STYLE)) {
+                mapStatusView?.text = "  ●  MAP ONLINE"
                 mapInstance.cameraPosition = CameraPosition.Builder()
                     .target(KRAKOW).zoom(12.3).tilt(38.0).build()
             }
@@ -60,9 +62,10 @@ class MainActivity : AppCompatActivity() {
             typeface = Typeface.create("sans-serif-black", Typeface.NORMAL); letterSpacing = 0.12f
         }
         val status = TextView(this).apply {
-            text = "  ●  MAP ONLINE"; setTextColor(Color.rgb(143, 231, 193))
+            text = "  ●  CONNECTING"; setTextColor(Color.rgb(143, 231, 193))
             textSize = 10f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = 0.08f
         }
+        mapStatusView = status
         row.addView(brand); row.addView(status)
         val subtitle = TextView(this).apply {
             text = "DRIVER COMMAND CENTRE  /  KRAKÓW  ·  $engineVersion"
@@ -102,10 +105,10 @@ class MainActivity : AppCompatActivity() {
                 CameraPosition.Builder().target(KRAKOW).zoom(12.3)
                     .tilt(if (tilted) 38.0 else 0.0).build()), 550)
         }
-        val viewMode = actionButton("3D VIEW  ON", false)
+        val viewMode = actionButton("3D CAMERA  ON", false)
         viewMode.setOnClickListener {
             tilted = !tilted
-            viewMode.text = if (tilted) "3D VIEW  ON" else "3D VIEW  OFF"
+            viewMode.text = if (tilted) "3D CAMERA  ON" else "3D CAMERA  OFF"
             map?.animateCamera(CameraUpdateFactory.newCameraPosition(
                 CameraPosition.Builder().target(map?.cameraPosition?.target ?: KRAKOW)
                     .zoom(map?.cameraPosition?.zoom ?: 12.3)
