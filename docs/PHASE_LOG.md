@@ -33,7 +33,7 @@ Exit criteria:
 
 ## 2026-11-05 — Phase 2: executable foundation (implementation checkpoint)
 
-**Status:** implementation branch / PR #2; CI verification pending.
+**Status:** source merged to main; CI validation passed; device and release-signing gates pending.
 
 Implemented:
 - Kotlin Android app with MapLibre map surface and OpenStreetMap attribution.
@@ -50,3 +50,15 @@ Signing dependency:
 
 Scope boundary:
 - This is the executable map/core foundation only. Multi-source connectors and live road intelligence begin in Phase 3.
+
+
+### CI verification — 2026-11-05
+
+- Workflow run: 42107024805 (success).
+- actionlint: passed for all repository workflows.
+- Rust workspace tests: 4 passed.
+- Rust native libraries: built for arm64-v8a, armeabi-v7a and x86_64.
+- Android unit tests: passed.
+- Debug APK: assembled and uploaded as artifact BusyBee-Driver-Command-Centre-debug-9 (19,710,964 bytes; expires 2026-11-12).
+- Release APK: not built because persistent Android signing secrets were absent at build time.
+- Real-device install/launch: not yet verified.
