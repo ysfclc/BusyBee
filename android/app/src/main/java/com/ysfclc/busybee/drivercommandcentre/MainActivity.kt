@@ -94,7 +94,7 @@ class MainActivity : AppCompatActivity() {
         content.addView(card().apply {
             addView(text("KNOWN NET · BEFORE VEHICLE COSTS", 10f, MUTED, true))
             addView(text(money(s.knownNet), 25f, MINT, true).apply { setPadding(0, dp(5), 0, 0) })
-            addView(text("Gross − recorded fees + recorded bonuses. Not profit: vehicle costs and missing adjustments are excluded.", 11f, MUTED, false))
+            addView(text("PLN records only; other currencies are excluded, not converted. Gross − recorded fees + recorded bonuses. Not profit: vehicle costs and missing adjustments are excluded.", 11f, MUTED, false))
         })
 
         content.addView(section("ACTIVITY MIRROR", "Cross-platform history, not a map of nearby places."))
