@@ -31,6 +31,8 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 
 ## Phase 3 — Driver Data Mirror (first real product capability)
 
+**Status:** first usable vertical slice implemented. Real provider-export validation, statement reconciliation and completeness review with the driver's own data remain open.
+
 **Goal:** make BusyBee understand the driver's actual work, across platforms, under the driver's control.
 
 **Deliverables**
@@ -46,6 +48,8 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 - Clearly show unknowns, gaps, duplicate candidates and confidence; never treat missing values as zero.
 
 ## Phase 4 — Driver intelligence and decision engine
+
+**Status:** initial platform comparison, start-hour grouping and per-kilometre vehicle-cost estimates implemented. Weekday/zone/route economics, duration-based hourly earnings and dead-mileage analysis remain blocked on additional source fields.
 
 **Goal:** turn the mirror into answers and recommendations a working driver can use.
 
