@@ -17,3 +17,17 @@ Bolt,trip,ride-002,2026-10-31T19:10:00+02:00,Kazimierz,Krowodrza,5.2,29.00,5.80,
 Each row stores its raw key/value evidence, source filename, import batch and deterministic fingerprint. Duplicate rows do not double-count in the canonical record table. Import batches record received and inserted counts. Data stays in the app-private SQLite database; no upload, scraping or account linking occurs.
 
 The headline net is gross minus recorded fees plus recorded bonuses, before vehicle costs, taxes and other adjustments. BusyBee shows it only when every PLN record carrying gross also has explicit fee and bonus values; an empty field is unknown, not zero. It is not labelled profit or take-home pay. Real provider-format adapters and statement reconciliation are the next validation step.
+
+## Current driver analytics
+
+The Driver Mirror screen groups recognised trip types (`trip`, `ride`, `completed_trip`) by platform and recorded start hour. It reports source coverage alongside totals.
+
+- Platform gross, fees and bonuses are partial sums of known values; they are not presented as complete if source rows are missing fields.
+- Known net before vehicle cost is calculated only for rows with gross, fees and bonus all present.
+- Estimated net after vehicle cost is calculated only for rows that also have a non-negative distance, using the driver's saved PLN/km assumption.
+- Non-PLN records are not mixed into PLN totals.
+- Start-hour groups show trip counts, gross and complete net before vehicle cost. They are not hourly-wage estimates because trip duration and waiting time are not yet part of the imported record schema.
+- Missing fee, bonus, distance or timestamp values are surfaced as data gaps. Empty values are never silently converted to zero.
+- The app shows recent import batches and raw source-row previews so derived totals can be traced back to evidence.
+
+Not yet calculated: weekday profitability, zone/corridor performance, effective hourly wage, empty/dead mileage, waiting time, tax, and fully reconciled vehicle expenses. These require additional source fields and/or a validated trip-session model.
