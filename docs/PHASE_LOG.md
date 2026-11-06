@@ -113,7 +113,7 @@ The map renderer moved from a flat OSM raster layer to OpenFreeMap Liberty vecto
 
 ## 2026-11-06 — Driver economics and distribution checkpoint
 
-**Status:** implementation committed; Rust tests, Android unit tests and debug APK assembly passed in workflow run 41. The first APK upload attempt failed because GitHub Actions artifact storage quota was exhausted. The build pipeline was changed to publish APKs as private-repository GitHub Release assets instead of quota-limited Actions artifacts; workflow run 42 validates that publishing path.
+**Status:** implementation committed; workflow run 42 succeeded end-to-end. Rust tests, Android unit tests, debug APK assembly and publication as a private-repository GitHub Release asset all passed. The earlier Actions artifact upload failure was resolved by moving APK distribution to GitHub Releases.
 
 Delivered in this checkpoint:
 - Added deterministic driver analytics grouped by platform and recorded trip start hour.
@@ -125,5 +125,5 @@ Delivered in this checkpoint:
 
 Verification:
 - Workflow run 41: actionlint passed, Rust tests passed, Android unit tests passed, debug APK assembly passed; Actions artifact upload failed solely because storage quota was exhausted.
-- Workflow run 42: actionlint and full build/test/release-asset publication are the current verification gate.
-- Release signing secrets were not present in run 41; its APK was debug-only and cannot update the signed production package.
+- Workflow run 42 (success): actionlint passed, Rust tests passed, Android unit tests passed, debug APK assembled and published at https://github.com/ysfclc/BusyBee/releases/tag/build-42.
+- Persistent release-signing secrets were not present in run 42; the published APK is debug-only (`.debug` application ID) and cannot update the signed production package. Configure the four secrets in docs/ANDROID_SIGNING.md to publish an install-over-existing signed APK.
