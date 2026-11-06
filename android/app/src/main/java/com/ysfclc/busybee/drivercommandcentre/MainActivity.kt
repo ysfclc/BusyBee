@@ -409,6 +409,45 @@ class MainActivity : AppCompatActivity() {
         root.addView(section("VEHICLE ECONOMICS","The same cost model is used to rank incoming offers."))
         val cost=field("All-in vehicle cost per km (PLN)",commands.setting("cost_per_km","0.85"))
         root.addView(card().apply{addView(cost);addView(action("SAVE COST MODEL",true){commands.setSetting("cost_per_km",cost.text.toString().replace(',','.').ifBlank{"0.85"});showTab("EARNINGS")})})
+        val analytics=DriverAnalyticsEngine.calculate(mirror.recent(5000),num("cost_per_km",0.85))
+        root.addView(section("WHAT YOUR DATA SAYS","Evidence-based economics. Estimated vehicle cost uses your saved per-km assumption; no missing values are filled in."))
+        root.addView(card().apply {
+            addView(label("COVERAGE",11f,MINT,true))
+            addView(label("${analytics.plnTripCount} PLN trips · gross ${analytics.tripsWithGross} · fees ${analytics.tripsWithFees} · bonuses ${analytics.tripsWithBonus} · distance ${analytics.tripsWithDistance} · time ${analytics.tripsWithTime}",10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(5))})
+            addView(label("Estimated net after vehicle cost",9f,MUTED,true))
+            addView(label(analytics.estimatedNetPln?.let{money(it)}?:"NOT ENOUGH COMPLETE DATA",21f,MINT,true).apply{setPadding(0,dp(3),0,dp(3))})
+            addView(label("${analytics.estimatedNetTrips} trips include gross, fees, bonus and distance. This estimate excludes tax, unpaid waiting time and costs not represented by your per-km setting.",10f,MUTED,false))
+        })
+        if(analytics.platforms.isNotEmpty()) {
+            root.addView(section("PLATFORM COMPARISON","Only comparable PLN trips. Incomplete net rows are excluded from net calculations."))
+            analytics.platforms.forEach { p ->
+                root.addView(card().apply {
+                    addView(label(p.platform.uppercase()+" · "+p.tripCount+" TRIPS",11f,MINT,true))
+                    addView(label("Gross "+money(p.grossPln)+" · fees "+money(p.feesPln)+" · bonuses "+money(p.bonusesPln),10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(3))})
+                    addView(label("Known net before vehicle "+money(p.knownNetBeforeVehiclePln),10f,MUTED,false))
+                    addView(label("Estimated vehicle cost "+money(p.estimatedVehicleCostPln)+" · net after vehicle "+money(p.estimatedNetAfterVehiclePln),10f,MUTED,false).apply{setPadding(0,dp(3),0,dp(3))})
+                    addView(label(p.completeNetTrips+"/"+p.tripCount+" complete net rows · "+p.tripsWithDistance+"/"+p.tripCount+" with distance",9f,AMBER,true))
+                })
+            }
+        }
+        if(analytics.hours.isNotEmpty()) {
+            root.addView(section("START-TIME SIGNAL","Gross and complete pre-vehicle net grouped by recorded trip start hour. Not an hourly wage."))
+            analytics.hours.take(8).forEach { h ->
+                root.addView(card().apply {
+                    addView(label(String.format(Locale.US,"%02d:00–%02d:00",h.hour,h.hour+1)+" · "+h.trips+" trips",12f,WHITE,true))
+                    addView(label("Gross "+money(h.grossPln)+" · complete net before vehicle "+money(h.completeNetPln),10f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+                })
+            }
+        }
+        if(analytics.dataWarnings.isNotEmpty()) {
+            root.addView(card().apply {
+                addView(label("DATA GAPS · DO NOT OVER-INTERPRET",10f,AMBER,true))
+                analytics.dataWarnings.forEach { warning -> addView(label("• "+warning,10f,MUTED,false).apply{setPadding(0,dp(5),0,0)}) }
+            })
+        }
+        root.addView(section("IMPORT HISTORY & ORIGINAL EVIDENCE","Every import is retained with its raw rows and source filename."))
+        mirror.importHistory().forEach { entry -> root.addView(label("• "+entry,10f,MUTED,false).apply{setPadding(dp(5),dp(3),0,dp(3))}) }
+        mirror.evidencePreview(5).forEach { evidence -> root.addView(card().apply { addView(label(evidence,9f,MUTED,false)) }) }
         root.addView(section("RECENT MIRRORED ACTIVITY","Source-backed records; missing fields remain unknown."))
         mirror.recent(30).forEach{r->root.addView(card().apply{
             addView(label(r.platform+" · "+r.type.uppercase(),11f,MINT,true))
