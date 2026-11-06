@@ -196,25 +196,40 @@ class MainActivity : AppCompatActivity() {
         val fix=lastLocation
         val camera=map?.cameraPosition?.target?:KRAKOW
         val origin=if(fix!=null)LatLng(fix.latitude,fix.longitude) else camera
-        routeSummary?.text="Finding destination and calculating a route…"
+        routeSummary?.text="Finding destination and comparing route options…"
         worker.execute {
             try {
-                val plan=RoutePlanner.plan(origin,query)
+                val plans=RoutePlanner.planAlternatives(origin,query)
                 runOnUiThread {
-                    routePolyline?.let { map?.removeAnnotation(it) }
-                    routeMarkers.forEach { map?.removeAnnotation(it) };routeMarkers.clear()
-                    routePolyline=map?.addPolyline(PolylineOptions().addAll(plan.points).color(MINT).width(5f))
-                    map?.addMarker(MarkerOptions().position(origin).title("Route starts here"))?.let{routeMarkers.add(it)}
-                    map?.addMarker(MarkerOptions().position(plan.destination).title("Destination").snippet(plan.destinationName))?.let{routeMarkers.add(it)}
-                    activeRoute=plan
-                    routeSummary?.text=String.format(Locale.US,"%.1f km · %.0f min estimated · OpenStreetMap / OSRM",plan.distanceKm,plan.durationMinutes)
-                    mapStatus?.text="● ROUTE READY"
-                    map?.animateCamera(CameraUpdateFactory.newLatLngZoom(plan.destination,13.0),500)
+                    displayRoute(plans.first(),origin,"FASTEST")
+                    if(plans.size>1) {
+                        val labels=plans.mapIndexed { index, plan ->
+                            val kind=if(index==0)"FASTEST" else "ALTERNATIVE $index"
+                            String.format(Locale.US,"%s  ·  %.1f km  ·  %.0f min",kind,plan.distanceKm,plan.durationMinutes)
+                        }.toTypedArray()
+                        AlertDialog.Builder(this)
+                            .setTitle("Compare routes · OSRM estimates")
+                            .setItems(labels) { _, selected -> displayRoute(plans[selected],origin,if(selected==0)"FASTEST" else "ALTERNATIVE $selected") }
+                            .setNegativeButton("Keep fastest",null)
+                            .show()
+                    }
                 }
             } catch(e:Exception) {
-                runOnUiThread { routeSummary?.text="Route unavailable: "+(e.message?: "source error");mapStatus?.text="● ROUTING UNAVAILABLE" }
+                runOnUiThread { routeSummary?.text="Route unavailable: "+(e.message?:"source error");mapStatus?.text="● ROUTING UNAVAILABLE" }
             }
         }
+    }
+
+    private fun displayRoute(plan:RoutePlan,origin:LatLng,kind:String) {
+        routePolyline?.let { map?.removeAnnotation(it) }
+        routeMarkers.forEach { map?.removeAnnotation(it) };routeMarkers.clear()
+        routePolyline=map?.addPolyline(PolylineOptions().addAll(plan.points).color(MINT).width(5f))
+        map?.addMarker(MarkerOptions().position(origin).title("Route starts here"))?.let{routeMarkers.add(it)}
+        map?.addMarker(MarkerOptions().position(plan.destination).title("Destination").snippet(plan.destinationName))?.let{routeMarkers.add(it)}
+        activeRoute=plan
+        routeSummary?.text=String.format(Locale.US,"%s · %.1f km · %.0f min estimated · OSRM (not live traffic)",kind,plan.distanceKm,plan.durationMinutes)
+        mapStatus?.text="● ROUTE READY"
+        map?.animateCamera(CameraUpdateFactory.newLatLngZoom(plan.destination,13.0),500)
     }
 
     private fun openExternalNavigation() {
