@@ -109,3 +109,17 @@ The app currently queries OpenStreetMap/Overpass for mapped roadworks and hazard
 | Source | Capabilities | Status |
 |---|---|---|
 | OpenFreeMap Liberty | Vector streets, labels and 3D building extrusions over OpenStreetMap-derived data | Integrated as the map style; camera starts tilted at neighbourhood zoom. This is not 3D terrain. |
+
+## 7. Kraków / Poland source verification — 6 November 2026
+
+These checks establish that the sources exist and what access path is documented. They do not mean BusyBee has integrated them.
+
+| Source | Verified capability | Integration status | Next engineering step |
+|---|---|---|---|
+| [MSIP Kraków open-data catalogue](https://msip.krakow.pl/aktualnosci/324198,2053,komunikat,nowa_usluga_pobierania_danych_msip.html) | Since June 2026, catalogue datasets can be downloaded without login as SHP, GeoJSON or DXF; most datasets in the open-data category also expose WFS. | Public download path verified; dataset-specific terms still apply. | Select roadworks / restrictions / transport layers, inspect metadata and licence, then implement a WFS or GeoJSON connector. |
+| [MSIP transport network dataset](https://msip.krakow.pl/dataset/2961) | Vector transport network for Kraków including roads, tram and rail infrastructure; metadata identifies mixed municipal / OSM source lineage and EPSG:2178. | Dataset identified; no in-app connector yet. | Transform EPSG:2178 geometry to WGS84 and retain original dataset attribution. |
+| [ZDMK city roadworks register](https://zdmk.krakow.pl/zestawienie-prac-w-miescie/) | Current roadworks are published by district with descriptions, dates and links to notices; a map is provided. | Human-readable live source verified; no supported machine-readable endpoint confirmed. | Prefer an official feed/API if ZDMK exposes one; do not scrape the page as if it were a stable API. |
+| [KPD / GDDKiA DATEX II traffic-events dataset](https://kpd.gddkia.gov.pl/index.php/pl/metadane-datex/) | National-road events and roadworks in DATEX II XML, WGS84; the metadata catalogue describes public availability. | Dataset confirmed, but the documented SOAP / snapshot-pull interface requires registration and client-certificate authentication. | Register for receiver access and implement a server-side or securely provisioned connector only after credentials and terms are approved. |
+| [GUGiK Geoportal GDDKiA disruption layer announcement](https://www.gov.pl/web/gugik/nowa-usluga-utrudnienia-drogowe-gddkia-dostepna-w-serwisie-wwwgeoportalgovpl) | A Geoportal service was announced on 28 October 2026, based on KPD data, showing maintenance works, accidents and other disruptions with dates, road identifiers and update information. | Public map viewer confirmed; direct feature-service endpoint and reuse terms not yet verified. | Inspect the published service metadata before treating it as an ingestible API. |
+
+**Connector rule:** a browser-visible map or public web page is not automatically a reusable API. A source becomes connected only after its actual endpoint, licence, geographic coverage, refresh behaviour and failure mode have been tested. Never mark a candidate as live merely because a human can view it in a browser.
