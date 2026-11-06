@@ -110,3 +110,20 @@ Boundaries:
 ## 2026-11-05 — Spatial map upgrade
 
 The map renderer moved from a flat OSM raster layer to OpenFreeMap Liberty vector styling with 3D building extrusions and a tilted neighbourhood camera. MapLibre's official Android example documents Liberty's building extrusion support. The app still labels roadwork/hazard data as mapped observations, not live traffic speeds.
+
+## 2026-11-06 — Driver economics and distribution checkpoint
+
+**Status:** implementation committed; Rust tests, Android unit tests and debug APK assembly passed in workflow run 41. The first APK upload attempt failed because GitHub Actions artifact storage quota was exhausted. The build pipeline was changed to publish APKs as private-repository GitHub Release assets instead of quota-limited Actions artifacts; workflow run 42 validates that publishing path.
+
+Delivered in this checkpoint:
+- Added deterministic driver analytics grouped by platform and recorded trip start hour.
+- Estimated net after vehicle cost only when gross, fees, bonus and distance are all present; incomplete rows remain excluded and surfaced as data gaps.
+- Added per-platform economics, source coverage, import history and original evidence previews to the Driver Mirror screen.
+- Documented analytics semantics and explicit limitations: no effective hourly wage, weekday/zone analysis or dead-mileage claim without duration and empty-distance source data.
+- Verified Kraków MSIP open-data access options, ZDMK's human-readable roadworks register and the GDDKiA DATEX / Geoportal access boundaries in the source register.
+- Replaced Actions artifact distribution with a versioned prerelease asset to avoid the exhausted artifact quota.
+
+Verification:
+- Workflow run 41: actionlint passed, Rust tests passed, Android unit tests passed, debug APK assembly passed; Actions artifact upload failed solely because storage quota was exhausted.
+- Workflow run 42: actionlint and full build/test/release-asset publication are the current verification gate.
+- Release signing secrets were not present in run 41; its APK was debug-only and cannot update the signed production package.
