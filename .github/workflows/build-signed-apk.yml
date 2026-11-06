@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: busybee-signed-apk
@@ -146,23 +146,32 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
 
-      - name: Upload signed APK
-        if: steps.signing-check.outputs.ready == 'true'
-        uses: actions/upload-artifact@v6
-        with:
-          name: BusyBee-Driver-Command-Centre-signed-${{ github.run_number }}
-          path: android/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload debug APK
-        if: steps.signing-check.outputs.ready != 'true'
-        uses: actions/upload-artifact@v6
-        with:
-          name: BusyBee-Driver-Command-Centre-debug-${{ github.run_number }}
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 7
+      - name: Publish APK as a GitHub Release asset
+        if: github.event_name != 'pull_request'
+        id: publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="build-${GITHUB_RUN_NUMBER}"
+          if [[ "${{ steps.signing-check.outputs.ready }}" == "true" ]]; then
+            apk="android/app/build/outputs/apk/release/app-release.apk"
+            title="BusyBee signed Android build ${GITHUB_RUN_NUMBER}"
+            notes="Signed BusyBee Android APK. Package: com.ysfclc.busybee.drivercommandcentre. Version: 0.1.${GITHUB_RUN_NUMBER}."
+          else
+            apk="android/app/build/outputs/apk/debug/app-debug.apk"
+            title="BusyBee debug validation build ${GITHUB_RUN_NUMBER}"
+            notes="Debug-only BusyBee APK for validation. Package has the .debug suffix and cannot update the signed release app. Configure the persistent keystore in docs/ANDROID_SIGNING.md for install-over-existing releases."
+          fi
+          test -s "$apk"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "$apk" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" "$apk" --repo "$GITHUB_REPOSITORY" \
+              --title "$title" --notes "$notes" --prerelease
+          fi
+          echo "url=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq .url)" >> "$GITHUB_OUTPUT"
 
       - name: Build summary
         shell: bash
@@ -173,11 +182,13 @@ jobs:
               echo "- Package: com.ysfclc.busybee.drivercommandcentre"
               echo "- Version: 0.1.${{ github.run_number }}"
               echo "- Signing: verified with apksigner"
+              echo "- Download: ${{ steps.publish.outputs.url }}"
               echo "- Updates: same package ID and signing certificate preserve app data."
             else
               echo "## Debug APK built — release signing still required"
               echo "- Debug package uses a separate .debug application ID."
               echo "- Configure the persistent release keystore using docs/ANDROID_SIGNING.md."
               echo "- A debug APK cannot update or preserve data from the signed release package."
+              echo "- Download: ${{ steps.publish.outputs.url }}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
