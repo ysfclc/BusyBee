@@ -55,9 +55,7 @@ object RoutePlanner {
             )
         }
         require(plans.isNotEmpty()) { "Routing service returned incomplete routes" }
-        return plans.distinctBy { "%.3f:%.3f".format(java.util.Locale.US, it.distanceKm, it.durationMinutes) }
-            .sortedWith(compareBy<RoutePlan> { it.durationMinutes }.thenBy { it.distanceKm })
-            .take(3)
+        return RouteOptionRanker.rank(plans)
     }
 
     private fun request(url: String): String {
@@ -73,4 +71,12 @@ object RoutePlanner {
             connection.disconnect()
         }
     }
+}
+
+
+object RouteOptionRanker {
+    fun rank(plans: List<RoutePlan>): List<RoutePlan> =
+        plans.distinctBy { "%.3f:%.3f".format(java.util.Locale.US, it.distanceKm, it.durationMinutes) }
+            .sortedWith(compareBy<RoutePlan> { it.durationMinutes }.thenBy { it.distanceKm })
+            .take(3)
 }
