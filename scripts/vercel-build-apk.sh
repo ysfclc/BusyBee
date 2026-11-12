@@ -54,7 +54,7 @@ if [[ ! -x "$SDKMANAGER" ]]; then
   SDK_ARCHIVE="$TOOLS_ROOT/commandlinetools-linux-$CMDLINE_TOOLS_REVISION.zip"
   SDK_TEMP="$TOOLS_ROOT/cmdline-tools-unpack"
   curl --fail --location --retry 3 --retry-delay 2 \
-    "https://dl.google.com/android/repository/commandlinetools-linux-$CMDLINE_TOOLS_REVISION_latest.zip" \
+    "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_REVISION}_latest.zip" \
     --output "$SDK_ARCHIVE"
   rm -rf "$SDK_TEMP"
   mkdir -p "$SDK_TEMP" "$ANDROID_HOME/cmdline-tools/latest"
