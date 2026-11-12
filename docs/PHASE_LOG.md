@@ -216,3 +216,30 @@ Verification boundary:
 - First preview attempt (commit `d06532a`) successfully installed Temurin Java 17, then stopped at the Android command-line-tools download because Bash parsed `$CMDLINE_TOOLS_REVISION_latest` as a different variable. Corrected the URL interpolation in commit `d6aebd9`; the corrected preview deployment is queued.
 - The first build may still be constrained by Vercel Hobby build duration, memory, disk or download limits. Inspect exact logs before choosing a different no-cost builder.
 - Debug package ID is `com.ysfclc.busybee.drivercommandcentre.debug`; it cannot update the release package. Release builds require the same persistent keystore used for all prior releases.
+
+
+## 2026-11-12 — Vercel Sandbox build verification
+
+**Status:** successful Vercel Sandbox build; standard static Vercel deployment still pending.
+
+Build execution:
+- Sandbox: `busybee-android-build`, Vercel Hobby, 4 vCPU / 8 GB RAM, Ubuntu 26.04.
+- Source commit: `d45aa55491757d4f1155c7d9ce441aa97254187b` on `feat/vercel-apk-builder-2026-11-12`.
+- Added native compiler installation when `cc` is missing (`build-essential` on apt images; GCC/make on dnf images).
+- Corrected the Robolectric API usage in `DriverMirrorStoreTest`: `RuntimeEnvironment.getApplication()` is not generic in the selected Robolectric version.
+- Disabled Kotlin incremental compilation and used the in-process compiler for the Vercel test step to avoid Kotlin daemon cache failures in the sandbox.
+
+Verified results:
+- Rust workspace tests: **4 passed, 0 failed**.
+- Android unit tests: **31 passed, 0 failed, 0 errors, 0 skipped** across 8 test-result XML files.
+- Android debug APK assembly: **BUILD SUCCESSFUL**.
+- APK manifest: package `com.ysfclc.busybee.drivercommandcentre.debug`, versionCode `1794515558`, versionName `0.1.1794515558-debug`.
+- APK signature: verified with Android `apksigner` (debug key, APK Signature Scheme v2).
+- Native Rust library present in APK for `arm64-v8a`, `armeabi-v7a` and `x86_64`.
+- Artifact: 48,877,022 bytes; SHA-256 `77f74c552077ce5e17b06f3bb829e90c4de2b42426ee8eaa7ca3ebfb46d66f06`.
+- The APK and `build-info.json` were served from the running Vercel Sandbox port route for immediate download. The route is temporary and tied to the sandbox session.
+
+Remaining gates:
+- The standard `busybee-apk` static deployment did not complete. The first preview exposed and fixed a shell URL interpolation bug; later deployment creation hit the Vercel team's daily deployment API limit (>100 creations/day). The stable project URL must not be represented as live until a deployment reaches READY and its APK/metadata are checked.
+- Debug package identity cannot update an existing release package. Release signing requires the same persistent keystore; no replacement key was generated.
+- Real-device installation, launch, upgrade continuity, battery/performance and accessibility checks remain outstanding.
