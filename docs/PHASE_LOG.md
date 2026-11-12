@@ -213,5 +213,6 @@ Delivered:
 Verification boundary:
 - PR #5: https://github.com/ysfclc/BusyBee/pull/5 (draft; based on PR #4).
 - Vercel project is linked and build settings are configured. No completed build, passing test, or APK artifact is claimed until deployment logs and output files are inspected.
-- First build may be constrained by Vercel Hobby build duration, memory, disk or download limits. If it fails during toolchain installation or before commands execute, inspect the exact failure before choosing a different no-cost builder.
+- First preview attempt (commit `d06532a`) successfully installed Temurin Java 17, then stopped at the Android command-line-tools download because Bash parsed `$CMDLINE_TOOLS_REVISION_latest` as a different variable. Corrected the URL interpolation in commit `d6aebd9`; the corrected preview deployment is queued.
+- The first build may still be constrained by Vercel Hobby build duration, memory, disk or download limits. Inspect exact logs before choosing a different no-cost builder.
 - Debug package ID is `com.ysfclc.busybee.drivercommandcentre.debug`; it cannot update the release package. Release builds require the same persistent keystore used for all prior releases.
