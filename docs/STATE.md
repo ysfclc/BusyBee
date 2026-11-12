@@ -49,7 +49,7 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 - CI build: `.github/workflows/build-signed-apk.yml` (Rust tests, Android unit tests, native Android Rust libraries, APK assembly; persistent signing secrets enable signed release output).
 - Android baseline: Java 17, compile/target SDK 35, NDK 27.2.12479018, Gradle 8.9 in CI.
 - A JDK and Kotlin compiler are present in the current container, but `/testbed` is absent and there is no repository checkout, Gradle executable, Android SDK or Cargo toolchain. No local project build/test was executed this session.
-- GitHub Actions runs 47 (43146041937), 48 (both attempts), and 43283672002 for the latest PR #4 head all failed before runner assignment. Latest job 131411281742 has an empty step list; no test or build command ran. This is a pre-execution CI blocker, not a result from the source tests.
+- GitHub Actions runs 47 (43146041937), 48 (both attempts), 43283672002 and 43283810594 for updated PR #4 heads failed before runner assignment. Latest job 131411762866 has an empty step list; no test or build command ran. This is a pre-execution CI blocker, not a result from the source tests.
 
 ## 6. Next increments
 
