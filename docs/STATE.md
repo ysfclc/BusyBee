@@ -20,7 +20,7 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 | Driver Hub | 🟡 partial | Documents, reminders, recurrence, expense/contact and WhatsApp TXT import/search surfaces |
 | Source catalogue | 🟡 partial | Honest access/status catalogue; broad connector framework and live feed-health are not complete |
 | Rust domain core | 🟡 partial | Road-event model, TTL logic and JNI version bridge; canonical fusion engine is not implemented |
-| CI / APK | 🟡 baseline verified only | Run 46 is the last documented successful build/test baseline; PR runs 47 and 48 ended before runner assignment (runner_id: 0, no steps); current changes are unverified |
+| CI / APK | 🟡 baseline verified only | Run 46 is the last documented successful build/test baseline; PR runs 47 and 48 (including retry attempt 2) ended before runner assignment (runner_id: 0, no steps); current changes are unverified |
 | Release signing | ⚪ pending | Persistent release keystore secrets were not configured in the last documented successful build |
 
 ## 3. Currently in flight
@@ -48,11 +48,11 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 - CI build: .github/workflows/build-signed-apk.yml (Rust tests, Android unit tests, native Android Rust libraries, APK assembly; persistent signing secrets enable signed release output).
 - Android baseline: Java 17, compile/target SDK 35, NDK 27.2.12479018, Gradle 8.9 in CI.
 - A JDK and Kotlin compiler are present in the current container, but the repository checkout, Gradle project, Android SDK and Rust toolchain are not mounted. No local project build/test was executed this session.
-- GitHub Actions run 47 (43146041937) and run 48 (43146277412) both show a failed job with runner_id 0, an empty step list and no downloadable job logs. This is a pre-execution CI blocker; it is not a result from the source tests.
+- GitHub Actions run 47 (43146041937), run 48 attempt 1, and run 48 attempt 2 (manual retry at 13:16 UTC) all show failed jobs before runner assignment. Retry job 131208270290 has an empty step list; no test or build command ran. This is a pre-execution CI blocker; it is not a result from the source tests.
 
 ## 6. Next three increments
 
-1. Restore/diagnose GitHub Actions runner availability, rerun PR #3, and only mark R-DM-005 done after the Rust suite, complete Android unit suite and APK build succeed.
+1. Human/repository-admin action: inspect repository Actions availability/billing and GitHub-hosted runner entitlement; the standard ubuntu-latest job fails before steps even after manual retry. Once runners are available, rerun PR #3 and require Rust tests, Android unit tests and APK assembly.
 2. Validate the generic CSV contract against real user-owned Uber or Bolt exports and implement only evidence-backed provider adapters.
 3. Add Android store-level tests for import transactions, raw evidence retention and duplicate handling; then select one additional road-intelligence source for a complete provenance/freshness/failure-tested vertical slice.
 
@@ -60,4 +60,4 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 
 - [ ] Which real export should be used first for adapter validation (Uber or Bolt)? Default: do not claim provider-specific support until a sample export is available and tested.
 - [ ] Are the persistent Android release-signing secrets configured? Default: treat existing builds as debug-only until a signed workflow run verifies the certificate.
-- [ ] Can GitHub Actions hosted runners be started for this private repository? Default: diagnose runner availability before changing application code or merging PR #3.
+- [ ] Can GitHub Actions hosted runners be started for this private repository, and is Actions usage/billing enabled? Default: enable permitted GitHub-hosted Actions for this repo; do not change workflow runner type or merge PR #3 until a run executes.
