@@ -16,6 +16,16 @@ Bolt,trip,ride-002,2026-10-31T19:10:00+02:00,Kazimierz,Krowodrza,5.2,29.00,5.80,
 
 Each row stores its raw key/value evidence, source filename, import batch and deterministic fingerprint. Duplicate rows do not double-count in the canonical record table. Import batches record received and inserted counts. Data stays in the app-private SQLite database; no upload, scraping or account linking occurs.
 
+### Persistence integrity checks
+
+`DriverMirrorStoreTest` exercises the SQLite-backed store with Robolectric:
+
+- Repeated rows in one batch and across separate imports produce one canonical record, while all three source-row evidence entries remain available.
+- Import history reports received and inserted counts for each batch.
+- An injected row-processing failure after a valid row verifies that the import batch, canonical record and evidence rows roll back together.
+
+These tests are authored but have not yet been executed because GitHub-hosted Actions jobs currently fail before runner assignment. They must pass in `./gradlew --no-daemon testDebugUnitTest` before this persistence capability is marked verified.
+
 ### R-DM-005 — Trip-only headline earnings
 
 Headline earnings are calculated from recognised trip records only: `trip`, `ride` and `completed_trip`. Offers and other activity records are counted in their own activity totals but never contribute to gross, fees, bonuses or net earnings.
