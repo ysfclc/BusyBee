@@ -1,0 +1,5 @@
+{
+  "installCommand": "true",
+  "buildCommand": "bash scripts/vercel-build-apk.sh",
+  "outputDirectory": "public"
+}
