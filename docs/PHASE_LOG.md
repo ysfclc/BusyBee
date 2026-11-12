@@ -193,3 +193,6 @@ Verification boundary:
 - Job: `131411281742` — completed with failure and an empty step list. No runner was assigned and no validation command ran.
 - This confirms the same pre-execution hosted-runner blocker on the updated CSV parser/tests. It does not indicate a Kotlin source or test failure.
 - The current container has a JDK and Kotlin compiler but no `/testbed` checkout, Gradle executable, Android SDK or Cargo toolchain; local project verification is not possible here.
+
+
+- Follow-up documentation-head run: `43283810594` (head `abeb5d4dc8dde2b30319eceaab45411c6c259a31`) also failed before runner allocation; job `131411762866` returned an empty step list. No build/test command executed.
