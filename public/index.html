@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101820">
+  <title>BusyBee APK</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #101820; color: #edf4f2; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 0%, #1b3940, #101820 58%); }
+    main { width: min(100%, 620px); border: 1px solid #355057; border-radius: 24px; padding: clamp(24px, 6vw, 44px); background: #15252b; box-shadow: 0 24px 80px #0006; }
+    .eyebrow { color: #a5d7c6; letter-spacing: .14em; text-transform: uppercase; font-size: 12px; font-weight: 700; }
+    h1 { font-size: clamp(32px, 7vw, 48px); line-height: 1.05; margin: 12px 0; }
+    p { color: #bdceca; line-height: 1.6; }
+    a { display: inline-flex; margin-top: 20px; padding: 15px 22px; border-radius: 14px; background: #b7f36b; color: #17231c; text-decoration: none; font-weight: 800; }
+    dl { display: grid; grid-template-columns: 120px 1fr; gap: 10px 16px; margin-top: 28px; font-size: 13px; }
+    dt { color: #8fa9a5; } dd { margin: 0; overflow-wrap: anywhere; }
+    code { color: #d5e8dc; }
+    .notice { margin-top: 22px; border-left: 3px solid #e8b96b; padding-left: 12px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">Driver Command Centre</div>
+    <h1>BusyBee</h1>
+    <p>The Android build is generated from the current BusyBee source commit. Download only after the build status and package details below have loaded.</p>
+    <a href="/BusyBee.apk" id="download" hidden>Download BusyBee APK</a>
+    <p id="status" role="status">Loading build information…</p>
+    <dl>
+      <dt>Build type</dt><dd id="variant">—</dd>
+      <dt>Version</dt><dd id="version">—</dd>
+      <dt>Package</dt><dd id="package">—</dd>
+      <dt>Source</dt><dd id="source">—</dd>
+      <dt>Built</dt><dd id="built">—</dd>
+      <dt>SHA-256</dt><dd><code id="checksum">—</code></dd>
+    </dl>
+    <p class="notice" id="notice">A debug build has a separate package ID and cannot update a release installation.</p>
+  </main>
+  <script>
+    fetch('/build-info.json', { cache: 'no-store' })
+      .then(response => { if (!response.ok) throw new Error('Build metadata is not available'); return response.json(); })
+      .then(info => {
+        document.getElementById('variant').textContent = info.variant;
+        document.getElementById('version').textContent = info.versionName + ' (' + info.versionCode + ')';
+        document.getElementById('package').textContent = info.packageName;
+        document.getElementById('source').textContent = (info.branch || 'unknown') + ' · ' + (info.commit || 'unknown').slice(0, 12);
+        document.getElementById('built').textContent = info.builtAt;
+        document.getElementById('checksum').textContent = info.apk.sha256;
+        document.getElementById('download').hidden = false;
+        document.getElementById('status').textContent = 'APK is ready · ' + Math.round(info.apk.sizeBytes / 1048576 * 10) / 10 + ' MB';
+        if (info.variant === 'release') document.getElementById('notice').textContent = 'Release signature verified during the build. Keep using the same persistent signing key for future updates.';
+      })
+      .catch(error => { document.getElementById('status').textContent = error.message; });
+  </script>
+</body>
+</html>

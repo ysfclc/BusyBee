@@ -2,7 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
-val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+val ciRunNumber = (System.getenv("BUSYBEE_BUILD_NUMBER") ?: System.getenv("GITHUB_RUN_NUMBER"))?.toIntOrNull() ?: 1
 val releaseStorePath = System.getenv("ANDROID_KEYSTORE_FILE")
 android {
     namespace = "com.ysfclc.busybee.drivercommandcentre"

@@ -1,3 +1,13 @@
+## 2026-11-12 — Vercel Android APK build pipeline
+
+- Added a dedicated Vercel Hobby project (`busybee-apk`) linked to the BusyBee repository, without changing other Vercel projects.
+- Added a Vercel build script that installs Java 17, Android SDK 35 / NDK 27.2.12479018, Rust Android targets, cargo-ndk and Gradle 8.9.
+- The pipeline runs Rust workspace tests and Android unit tests before building native Rust libraries and assembling the APK.
+- Added a protected static APK download page and build metadata with source commit, package, version, timestamp, APK size and SHA-256.
+- Debug APKs remain separate from release package identity. Persistent release signing is supported only when all four keystore variables are configured; partial signing configuration fails closed.
+- Verified a Vercel Sandbox build: Rust tests 4/4 and Android unit tests 31/31 passed; debug APK assembly and signature verification passed. Artifact: 48,877,022 bytes, SHA-256 `77f74c552077ce5e17b06f3bb829e90c4de2b42426ee8eaa7ca3ebfb46d66f06`.
+- Standard static deployment is still pending because the team's Vercel deployment API daily cap (>100 creations/day) was reached; a temporary Sandbox route served the APK. No stable project download URL is claimed yet.
+
 # Changelog
 
 ## 2026-11-12 — Driver Mirror CSV integrity hardening

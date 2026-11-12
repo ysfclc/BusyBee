@@ -33,6 +33,10 @@ BusyBee is a phase-import control repository. Each `incoming/<name>.zip` is a co
 - Current state: the Android app contains five pilot surfaces: Map, Offers, Earnings, Driver Hub and Sources. The Earnings surface is backed by a local-first Driver Data Mirror with CSV import, a private SQLite source ledger, raw-row evidence and duplicate protection. The Map surface includes mapped road observations, weather context, destination routing and a tilted 3D-building style; it is not yet the complete provider-neutral live road-intelligence aggregator described by the charter. Offer capture is opt-in and capability-limited. The app does not claim direct Uber/Bolt partner API access. See the [CSV import contract](docs/DRIVER_MIRROR_IMPORT.md) and [delivery roadmap](docs/ROADMAP.md).
 
 
+## Android APK delivery
+
+The Android app can be built and distributed through the dedicated Vercel project. See [Vercel APK build](docs/VERCEL_APK_BUILD.md) for the toolchain, protected download page, debug/release signing boundary and verification status. A build is not considered available until the Vercel deployment completes and its APK metadata is present.
+
 ## Current Android product surfaces
 
 The current build replaces the POI-only experiment with five driver-facing surfaces:
