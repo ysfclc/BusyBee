@@ -16,7 +16,13 @@ Bolt,trip,ride-002,2026-10-31T19:10:00+02:00,Kazimierz,Krowodrza,5.2,29.00,5.80,
 
 Each row stores its raw key/value evidence, source filename, import batch and deterministic fingerprint. Duplicate rows do not double-count in the canonical record table. Import batches record received and inserted counts. Data stays in the app-private SQLite database; no upload, scraping or account linking occurs.
 
-The headline net is gross minus recorded fees plus recorded bonuses, before vehicle costs, taxes and other adjustments. BusyBee shows it only when every PLN record carrying gross also has explicit fee and bonus values; an empty field is unknown, not zero. It is not labelled profit or take-home pay. Real provider-format adapters and statement reconciliation are the next validation step.
+### R-DM-005 — Trip-only headline earnings
+
+Headline earnings are calculated from recognised trip records only: `trip`, `ride` and `completed_trip`. Offers and other activity records are counted in their own activity totals but never contribute to gross, fees, bonuses or net earnings.
+
+Gross, fees and bonuses are partial sums of known values across eligible PLN trips. `KNOWN NET` is gross minus fees plus bonuses, before vehicle costs, taxes and other adjustments; it is shown only when at least one eligible PLN trip exists and every eligible PLN trip has explicit gross, fee and bonus values. A missing amount is unknown, not zero. The figure is not labelled profit or take-home pay.
+
+Real provider-format adapters and statement reconciliation are the next validation step.
 
 ## Current driver analytics
 
