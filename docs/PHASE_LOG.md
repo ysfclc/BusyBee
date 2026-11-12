@@ -196,3 +196,22 @@ Verification boundary:
 
 
 - Follow-up documentation-head run: `43283810594` (head `abeb5d4dc8dde2b30319eceaab45411c6c259a31`) also failed before runner allocation; job `131411762866` returned an empty step list. No build/test command executed.
+
+
+## 2026-11-12 — Vercel-hosted Android build pipeline
+
+**Status:** build pipeline and dedicated Vercel project configured; first build/deployment pending.
+
+Delivered:
+- Created a separate Vercel Hobby project `busybee-apk`, linked to `ysfclc/BusyBee`. Team SSO protection is enabled for non-custom deployment domains.
+- Added `vercel.json`, a custom Android/Rust build script and a static APK download page.
+- The script installs Java 17, Android command-line tools revision 11076708, platform 35, build-tools 35.0.0, NDK 27.2.12479018, Rust Android targets, cargo-ndk and Gradle 8.9.
+- The script runs Rust workspace tests, builds Rust JNI libraries for arm64-v8a / armeabi-v7a / x86_64, runs Android unit tests, and builds a debug APK unless all four persistent release-signing variables are present.
+- Added build metadata (commit, branch, package, version, timestamp, APK size and SHA-256) and a stable `/BusyBee.apk` artifact path.
+- Android versionCode now accepts `BUSYBEE_BUILD_NUMBER`; the Vercel build uses a UTC epoch-second value when no CI run number exists.
+
+Verification boundary:
+- PR #5: https://github.com/ysfclc/BusyBee/pull/5 (draft; based on PR #4).
+- Vercel project is linked and build settings are configured. No completed build, passing test, or APK artifact is claimed until deployment logs and output files are inspected.
+- First build may be constrained by Vercel Hobby build duration, memory, disk or download limits. If it fails during toolchain installation or before commands execute, inspect the exact failure before choosing a different no-cost builder.
+- Debug package ID is `com.ysfclc.busybee.drivercommandcentre.debug`; it cannot update the release package. Release builds require the same persistent keystore used for all prior releases.
