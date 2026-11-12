@@ -134,6 +134,7 @@ cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 \
 
 echo "==> Running Android unit tests"
 cd "$ROOT_DIR/android"
+chmod +x ./gradlew
 ./gradlew --no-daemon testDebugUnitTest
 
 SIGNING_COUNT=0
