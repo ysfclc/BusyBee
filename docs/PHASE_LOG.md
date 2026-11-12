@@ -137,7 +137,7 @@ Workflow run 46 succeeded end-to-end: actionlint, Rust tests, Android unit tests
 
 ## 2026-11-12 — Trip-only headline earnings
 
-**Status:** implementation committed to `fix/trip-only-earnings-2026-11-12`; CI verification pending.
+**Status:** implementation and focused tests committed to `fix/trip-only-earnings-2026-11-12`; GitHub Actions execution blocked before runner assignment; PR #3 remains open.
 
 Delivered:
 - Corrected the Earnings headline to include only recognised PLN trip records (`trip`, `ride`, `completed_trip`); offers and other activity no longer inflate earnings.
@@ -146,4 +146,7 @@ Delivered:
 - Established the missing state ledger, coverage matrix and changelog; corrected the stale README checkpoint that contradicted the current five-surface Android app.
 
 Verification:
-- Pending the pull-request GitHub Actions run. No local build is claimed because a repository checkout/build environment was not mounted in this session.
+- Pull request: https://github.com/ysfclc/BusyBee/pull/3 (open; not merged).
+- Workflow run 47 (43146041937) and run 48 (43146277412) both terminated within seconds before a runner was assigned. The job records report `runner_id: 0`, an empty steps list and no downloadable logs. These are CI infrastructure failures, not test results; no Kotlin/Rust step is shown as executed.
+- Run 46 is the previous successful baseline (Rust tests, Android unit tests, debug APK assembly and Release publication). It does not verify this change.
+- No local build is claimed because a repository checkout/Android SDK/Gradle project was not mounted in this session. R-DM-005 remains unverified until a runner executes the workflow.
