@@ -264,7 +264,7 @@ class DriverMirrorStore(context: Context) :
         val trips = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type) IN ('trip','ride','completed_trip')").toInt()
         val offers = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type)='offer'").toInt()
         val financialRows = mutableListOf<DriverFinancialRow>()
-        db.rawQuery("SELECT record_type,currency,gross,fees,bonus FROM records", null).use { c ->
+        db.rawQuery("SELECT record_type,currency,gross,fees,bonus FROM records WHERE lower(record_type) IN ('trip','ride','completed_trip') AND upper(currency)='PLN'", null).use { c ->
             while (c.moveToNext()) {
                 financialRows.add(
                     DriverFinancialRow(
