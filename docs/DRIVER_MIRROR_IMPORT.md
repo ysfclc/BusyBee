@@ -8,6 +8,14 @@ Optional columns: `external_id`, `occurred_at`, `pickup`, `dropoff`, `distance_k
 
 Amounts accept dot or comma decimal separators. Blank amounts remain NULL, never zero. Currency defaults to PLN only when omitted. Use ISO-8601 timestamps.
 
+### Import validation rules
+
+- Header names are trimmed, lowercased independently of device locale, and spaces become underscores.
+- Empty, duplicate-after-normalisation, and unsupported headers are rejected.
+- Every non-empty data row must include non-blank `platform` and `record_type` values.
+- Extra cells are rejected rather than silently discarded. Omitted trailing optional cells are treated as blank/unknown.
+- Quoted commas and escaped double quotes are supported. Unclosed quoted fields are rejected.
+
 ```csv
 platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,gross,fees,bonus,currency,status
 Uber,trip,trip-001,2026-10-31T18:32:00+02:00,Old Town,Podgorze,8.4,42.50,8.50,0,PLN,completed
