@@ -22,7 +22,7 @@ need_command() {
   }
 }
 
-for command_name in curl unzip tar find awk sed sha256sum python3; do
+for command_name in curl unzip tar find awk sed sha256sum python3 readlink wc tr base64 chmod yes; do
   need_command "$command_name"
 done
 
@@ -65,8 +65,11 @@ export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
 set +o pipefail
-yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null
-LICENSE_STATUS=$?
+if yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null; then
+  LICENSE_STATUS=0
+else
+  LICENSE_STATUS=$?
+fi
 set -o pipefail
 if [[ "$LICENSE_STATUS" -ne 0 && "$LICENSE_STATUS" -ne 141 ]]; then
   echo "Android SDK license acceptance failed (exit $LICENSE_STATUS)." >&2
@@ -170,10 +173,10 @@ cp "$APK_SOURCE" "$APK_DESTINATION"
 APK_SHA256="$(sha256sum "$APK_DESTINATION" | awk '{print $1}')"
 APK_SIZE="$(wc -c < "$APK_DESTINATION" | tr -d ' ')"
 BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-export BUSYBEE_BUILD_VARIANT="$BUILD_VARIANT" BUSYBEE_PACKAGE_NAME="$PACKAGE_NAME" BUSYBEE_VERSION_NAME="$VERSION_NAME" BUSYBEE_COMMIT_SHA="$COMMIT_SHA" BUSYBEE_COMMIT_REF="$COMMIT_REF" BUSYBEE_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" BUSYBEE_APK_SHA256="$APK_SHA256" BUSYBEE_APK_SIZE="$APK_SIZE"
 COMMIT_SHA="${VERCEL_GIT_COMMIT_SHA:-${GITHUB_SHA:-unknown}}"
 COMMIT_REF="${VERCEL_GIT_COMMIT_REF:-${GITHUB_REF_NAME:-unknown}}"
 VERSION_NAME="0.1.$BUILD_NUMBER"
+export BUSYBEE_BUILD_VARIANT="$BUILD_VARIANT" BUSYBEE_PACKAGE_NAME="$PACKAGE_NAME" BUSYBEE_VERSION_NAME="$VERSION_NAME" BUSYBEE_COMMIT_SHA="$COMMIT_SHA" BUSYBEE_COMMIT_REF="$COMMIT_REF" BUSYBEE_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" BUSYBEE_APK_SHA256="$APK_SHA256" BUSYBEE_APK_SIZE="$APK_SIZE"
 
 python3 - "$ROOT_DIR/public/build-info.json" <<'PY'
 import json
