@@ -22,9 +22,31 @@ need_command() {
   }
 }
 
-for command_name in curl unzip tar find awk sed sha256sum python3 readlink wc tr base64 chmod yes; do
+for command_name in curl unzip tar find awk sed sha256sum python3 readlink wc tr base64 chmod yes id; do
   need_command "$command_name"
 done
+
+echo "==> Preparing native build tools"
+if ! command -v cc >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    if [[ "$(id -u)" -eq 0 ]]; then
+      apt-get update
+      apt-get install -y build-essential
+    else
+      sudo apt-get update
+      sudo apt-get install -y build-essential
+    fi
+  elif command -v dnf >/dev/null 2>&1; then
+    if [[ "$(id -u)" -eq 0 ]]; then
+      dnf install -y gcc gcc-c++ make
+    else
+      sudo dnf install -y gcc gcc-c++ make
+    fi
+  else
+    echo "A native C compiler is required to build cargo-ndk, but no supported package manager was found." >&2
+    exit 1
+  fi
+fi
 
 echo "==> Preparing Java 17"
 JAVA_MAJOR=""
