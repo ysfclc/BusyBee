@@ -38,7 +38,7 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 - Route planning uses low-volume public Nominatim/OSRM services and hands turn-by-turn guidance to external navigation; it is not a production SLA or live-traffic route engine.
 - Community road-report moderation, expiry, reputation and shared backend are not complete.
 - Real-device install, upgrade/signature continuity, battery/performance and accessibility checks are unverified.
-- docs/SPEC.md is absent; docs/PRODUCT_CHARTER.md is the canonical product specification. docs/RISKS.md is also absent and a standalone risk register still needs to be established. docs/STATE.md, docs/COVERAGE.md and root CHANGELOG.md now exist.
+- docs/SPEC.md is absent; docs/PRODUCT_CHARTER.md is the canonical product specification. docs/RISKS.md now records data integrity, privacy, source quality, safety, CI and release-signing risks. docs/STATE.md, docs/COVERAGE.md and root CHANGELOG.md now exist.
 - The README checkpoint inconsistency found at session start was corrected to describe the five implemented pilot surfaces and the current limits of the map and offer capture.
 
 ## 5. Environment & how to run
@@ -55,7 +55,7 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 
 1. Restore a runnable test environment without requiring paid GitHub-hosted minutes; then run Rust tests, Android unit tests (including Robolectric store tests), and APK assembly. Do not merge PR #3 or claim R-DM-001/R-DM-005 verified until these checks pass.
 2. Validate the generic CSV contract against a real user-owned Uber or Bolt export and implement only evidence-backed provider adapters.
-3. Establish a standalone risk register and choose one additional road-intelligence source for a provenance/freshness/failure-tested vertical slice.
+3. Choose one additional road-intelligence source for a provenance/freshness/failure-tested vertical slice, after the current import tests are executable.
 
 ## 7. Open questions for the human
 
