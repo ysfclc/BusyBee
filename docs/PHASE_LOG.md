@@ -133,3 +133,17 @@ Verification:
 Implemented route alternatives in the map: the route planner requests up to three OSRM candidates, ranks fastest first with distance as a tie-breaker, removes duplicate metric pairs, and lets the driver select an alternative in-app. The selected route remains explicitly labelled as an OSRM estimate, not live-traffic guidance. Added unit tests for ordering, deduplication and candidate limits.
 
 Workflow run 46 succeeded end-to-end: actionlint, Rust tests, Android unit tests, debug APK assembly and GitHub Release asset publication all passed. Download: https://github.com/ysfclc/BusyBee/releases/tag/build-46. The APK is debug-only because persistent release-signing secrets are still not configured.
+
+
+## 2026-11-12 — Trip-only headline earnings
+
+**Status:** implementation committed to `fix/trip-only-earnings-2026-11-12`; CI verification pending.
+
+Delivered:
+- Corrected the Earnings headline to include only recognised PLN trip records (`trip`, `ride`, `completed_trip`); offers and other activity no longer inflate earnings.
+- Kept gross, fees and bonuses as partial sums of known trip values, but require every recognised PLN trip to have gross, fees and bonus before showing `KNOWN NET`.
+- Added focused unit tests for mixed trip/offer data, incomplete offers, missing trip amounts and non-PLN-only data.
+- Established the missing state ledger, coverage matrix and changelog; corrected the stale README checkpoint that contradicted the current five-surface Android app.
+
+Verification:
+- Pending the pull-request GitHub Actions run. No local build is claimed because a repository checkout/build environment was not mounted in this session.
