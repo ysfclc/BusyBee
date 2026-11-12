@@ -24,6 +24,50 @@ data class DriverRecord(
     val sourceName: String
 )
 
+data class DriverFinancialRow(
+    val recordType: String,
+    val currency: String,
+    val gross: Double?,
+    val fees: Double?,
+    val bonus: Double?
+)
+
+data class DriverFinancialTotals(
+    val gross: Double?,
+    val fees: Double?,
+    val bonuses: Double?,
+    val netComplete: Boolean
+) {
+    val knownNet: Double?
+        get() = if (netComplete && gross != null && fees != null && bonuses != null) {
+            gross - fees + bonuses
+        } else null
+}
+
+object DriverFinancialSummaryCalculator {
+    private val earningTripTypes = setOf("trip", "ride", "completed_trip")
+
+    fun calculate(records: Iterable<DriverFinancialRow>): DriverFinancialTotals {
+        val trips = records.filter {
+            it.recordType.trim().lowercase(java.util.Locale.ROOT) in earningTripTypes &&
+                it.currency.equals("PLN", ignoreCase = true)
+        }
+
+        fun total(value: (DriverFinancialRow) -> Double?): Double? =
+            trips.mapNotNull(value).takeIf { it.isNotEmpty() }?.sum()
+
+        val allTripsComplete = trips.isNotEmpty() &&
+            trips.all { it.gross != null && it.fees != null && it.bonus != null }
+
+        return DriverFinancialTotals(
+            gross = total { it.gross },
+            fees = total { it.fees },
+            bonuses = total { it.bonus },
+            netComplete = allTripsComplete
+        )
+    }
+}
+
 data class MirrorSummary(
     val records: Int,
     val trips: Int,
@@ -216,28 +260,36 @@ class DriverMirrorStore(context: Context) :
         fun scalar(sql: String): Double {
             db.rawQuery(sql, null).use { c -> return if (c.moveToFirst()) c.getDouble(0) else 0.0 }
         }
-        fun nullableSum(column: String): Double? {
-            db.rawQuery("SELECT SUM($column) FROM records WHERE currency='PLN' AND $column IS NOT NULL", null).use { c ->
-                return if (c.moveToFirst() && !c.isNull(0)) c.getDouble(0) else null
-            }
-        }
         val records = scalar("SELECT COUNT(*) FROM records").toInt()
         val trips = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type) IN ('trip','ride','completed_trip')").toInt()
         val offers = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type)='offer'").toInt()
-        // Never add unlike currencies together. Headline totals are PLN-only.
-        val gross = nullableSum("gross")
-        val fees = nullableSum("fees")
-        val bonuses = nullableSum("bonus")
+        val financialRows = mutableListOf<DriverFinancialRow>()
+        db.rawQuery("SELECT record_type,currency,gross,fees,bonus FROM records WHERE lower(record_type) IN ('trip','ride','completed_trip') AND upper(currency)='PLN'", null).use { c ->
+            while (c.moveToNext()) {
+                financialRows.add(
+                    DriverFinancialRow(
+                        recordType = c.getString(0),
+                        currency = c.getString(1),
+                        gross = if (c.isNull(2)) null else c.getDouble(2),
+                        fees = if (c.isNull(3)) null else c.getDouble(3),
+                        bonus = if (c.isNull(4)) null else c.getDouble(4)
+                    )
+                )
+            }
+        }
+        // Earnings include recognised PLN trip rows only; offers and other activity are not revenue.
+        val financials = DriverFinancialSummaryCalculator.calculate(financialRows)
         val imports = scalar("SELECT COUNT(*) FROM imports").toInt()
         val nonPln = scalar("SELECT COUNT(*) FROM records WHERE currency<>'PLN'").toInt()
-        val grossRows = scalar("SELECT COUNT(*) FROM records WHERE currency='PLN' AND gross IS NOT NULL")
-        val incompleteNetRows = scalar("SELECT COUNT(*) FROM records WHERE currency='PLN' AND gross IS NOT NULL AND (fees IS NULL OR bonus IS NULL)")
-        val netComplete = grossRows > 0 && incompleteNetRows == 0.0
         val platforms = mutableListOf<String>()
         db.rawQuery("SELECT DISTINCT platform FROM records ORDER BY platform", null).use { c ->
             while (c.moveToNext()) platforms.add(c.getString(0))
         }
-        return MirrorSummary(records, trips, offers, gross, fees, bonuses, platforms, imports, nonPln, netComplete)
+        return MirrorSummary(
+            records, trips, offers,
+            financials.gross, financials.fees, financials.bonuses,
+            platforms, imports, nonPln, financials.netComplete
+        )
     }
 
     fun recent(limit: Int = 30): List<DriverRecord> {

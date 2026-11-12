@@ -133,3 +133,20 @@ Verification:
 Implemented route alternatives in the map: the route planner requests up to three OSRM candidates, ranks fastest first with distance as a tie-breaker, removes duplicate metric pairs, and lets the driver select an alternative in-app. The selected route remains explicitly labelled as an OSRM estimate, not live-traffic guidance. Added unit tests for ordering, deduplication and candidate limits.
 
 Workflow run 46 succeeded end-to-end: actionlint, Rust tests, Android unit tests, debug APK assembly and GitHub Release asset publication all passed. Download: https://github.com/ysfclc/BusyBee/releases/tag/build-46. The APK is debug-only because persistent release-signing secrets are still not configured.
+
+
+## 2026-11-12 — Trip-only headline earnings
+
+**Status:** implementation and focused tests committed to `fix/trip-only-earnings-2026-11-12`; GitHub Actions execution blocked before runner assignment; PR #3 remains open.
+
+Delivered:
+- Corrected the Earnings headline to include only recognised PLN trip records (`trip`, `ride`, `completed_trip`); offers and other activity no longer inflate earnings.
+- Kept gross, fees and bonuses as partial sums of known trip values, but require every recognised PLN trip to have gross, fees and bonus before showing `KNOWN NET`.
+- Added focused unit tests for mixed trip/offer data, incomplete offers, missing trip amounts and non-PLN-only data.
+- Established the missing state ledger, coverage matrix and changelog; corrected the stale README checkpoint that contradicted the current five-surface Android app.
+
+Verification:
+- Pull request: https://github.com/ysfclc/BusyBee/pull/3 (open; not merged).
+- Workflow run 47 (43146041937), run 48 initial attempt (43146277412 attempt 1), and a manual retry of run 48 (attempt 2) all terminated within seconds before a runner was assigned. The retry was accepted and queued, then failed without creating any steps; job 131208270290 has an empty steps list. The job records report `runner_id: 0`, an empty steps list and no downloadable logs. These are CI infrastructure failures, not test results; no Kotlin/Rust step is shown as executed.
+- Run 46 is the previous successful baseline (Rust tests, Android unit tests, debug APK assembly and Release publication). It does not verify this change.
+- No local build is claimed because a repository checkout/Android SDK/Gradle project was not mounted in this session. R-DM-005 remains unverified until a runner executes the workflow.
