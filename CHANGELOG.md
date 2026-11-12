@@ -3,6 +3,7 @@
 ## 2026-11-12 — Driver Mirror persistence integrity
 
 - Added Robolectric-backed SQLite store tests for canonical duplicate suppression across repeated rows and separate import batches.
+- Established `docs/RISKS.md` for financial integrity, persistence, provider access, privacy, road-data quality, service availability, CI and release-signing risks.
 - Verified in test design that every original row remains in raw evidence and each import batch retains its received/inserted counts.
 - Added a failure-injection test asserting a mid-batch exception rolls back the import ledger, canonical records and raw evidence together.
 - Added Robolectric 4.14.1 and Android unit-test resource support to the app test configuration.
