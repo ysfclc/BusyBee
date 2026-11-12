@@ -147,6 +147,6 @@ Delivered:
 
 Verification:
 - Pull request: https://github.com/ysfclc/BusyBee/pull/3 (open; not merged).
-- Workflow run 47 (43146041937) and run 48 (43146277412) both terminated within seconds before a runner was assigned. The job records report `runner_id: 0`, an empty steps list and no downloadable logs. These are CI infrastructure failures, not test results; no Kotlin/Rust step is shown as executed.
+- Workflow run 47 (43146041937), run 48 initial attempt (43146277412 attempt 1), and a manual retry of run 48 (attempt 2) all terminated within seconds before a runner was assigned. The retry was accepted and queued, then failed without creating any steps; job 131208270290 has an empty steps list. The job records report `runner_id: 0`, an empty steps list and no downloadable logs. These are CI infrastructure failures, not test results; no Kotlin/Rust step is shown as executed.
 - Run 46 is the previous successful baseline (Rust tests, Android unit tests, debug APK assembly and Release publication). It does not verify this change.
 - No local build is claimed because a repository checkout/Android SDK/Gradle project was not mounted in this session. R-DM-005 remains unverified until a runner executes the workflow.
