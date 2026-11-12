@@ -1,5 +1,5 @@
 # State Ledger
-_Last updated: 2026-11-12 by ChatGPT — session 2_
+_Last updated: 2026-11-12 by ChatGPT — session 3_
 
 ## 1. Product snapshot
 
@@ -12,8 +12,8 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 | Product charter / architecture | ✅ baseline | Product direction, source register and ADR-001–008 are committed |
 | Android application shell | ✅ baseline | Stable package ID; Kotlin app and MapLibre integration |
 | Spatial map / routing | 🟡 partial | Tilted Liberty vector map, mapped road observations, weather context and OSRM alternatives; not a complete multi-source live traffic aggregator |
-| Driver Data Mirror import | 🟡 partial | Provider-neutral CSV import into private SQLite; provider-specific exports and statement reconciliation are unvalidated |
-| Mirror evidence / deduplication | 🟡 partial | Store-level Robolectric tests now cover duplicate suppression, raw evidence retention, import counts and rollback; authored but not executed |
+| Driver Data Mirror import | 🟡 partial | CSV rejects duplicate/empty headers, missing required values and extra cells; omitted trailing optional fields stay unknown; provider-specific exports and statement reconciliation are unvalidated |
+| Mirror evidence / deduplication | 🟡 partial | Store-level Robolectric tests cover duplicate suppression, raw evidence retention, import counts and rollback; authored but not executed |
 | Driver economics | 🟡 partial | Platform and start-hour groupings; no validated hourly wage, weekday/zone or dead-mileage analysis |
 | Headline earnings R-DM-005 | 🟡 implemented; unverified | Trip-only PLN gross/fees/bonus totals and completeness logic added with four unit cases; CI runs 47/48 did not assign a runner or execute steps |
 | Offer Desk | 🟡 partial | Manual entry and opt-in notification capture/ranking; no direct Uber/Bolt partner API or auto-acceptance |
@@ -26,14 +26,14 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 ## 3. Currently in flight
 
 - R-DM-005 — trip-only headline earnings. Implementation, four focused unit tests and docs are on branch `fix/trip-only-earnings-2026-11-12`; PR #3 is open and unmerged: https://github.com/ysfclc/BusyBee/pull/3. Next gate is a successful CI run with a real runner. Do not merge before Rust tests, Android unit tests and APK assembly pass.
-- R-DM-001 persistence verification — Robolectric-backed SQLite tests are on branch `feature/mirror-store-integrity-tests-2026-11-12`, in draft PR #4 (https://github.com/ysfclc/BusyBee/pull/4), based on PR #3. They cover duplicate suppression, evidence retention, import counts and rollback. No execution result exists yet.
+- R-DM-001 / CSV integrity — parser hardening and locale-independent normalisation plus Robolectric-backed SQLite tests are on branch `feature/mirror-store-integrity-tests-2026-11-12`, in draft PR #4 (https://github.com/ysfclc/BusyBee/pull/4), based on PR #3. Tests cover malformed CSV rejection, duplicate suppression, evidence retention, import counts and rollback. No execution result exists yet.
 
 ## 4. Known gaps & stubs
 
-- Provider-specific Uber/Bolt exports have not been validated against real user-owned sample files; current CSV is a documented interchange contract, not a provider adapter.
+- Provider-specific Uber/Bolt exports have not been validated against real user-owned sample files; current CSV is a documented interchange contract, not a provider adapter. Parser rejects duplicate/empty headers, extra cells and missing required values; optional trailing blanks remain unknown.
 - Financial statement reconciliation, adjustment handling and correction workflows remain incomplete.
 - Weekday, zone/corridor, duration-based hourly wage, waiting-time and dead-mileage metrics lack the required source fields/session model.
-- SQLite store-level tests are authored but unexecuted; do not treat persistence integrity as verified yet.
+- CSV parser regression tests and SQLite store-level tests are authored but unexecuted; do not treat import/persistence integrity as verified yet.
 - Road intelligence is not yet a provider-neutral connector/fusion system. Current mapped OSM observations and weather are not live traffic-speed coverage.
 - Route planning uses low-volume public Nominatim/OSRM services and hands turn-by-turn guidance to external navigation; it is not a production SLA or live-traffic route engine.
 - Community road-report moderation, expiry, reputation and shared backend are not complete.
@@ -55,7 +55,7 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 
 1. Restore a runnable test environment without requiring paid GitHub-hosted minutes; then run Rust tests, Android unit tests (including Robolectric store tests), and APK assembly. Do not merge PR #3 or claim R-DM-001/R-DM-005 verified until these checks pass.
 2. Validate the generic CSV contract against a real user-owned Uber or Bolt export and implement only evidence-backed provider adapters.
-3. Choose one additional road-intelligence source for a provenance/freshness/failure-tested vertical slice, after the current import tests are executable.
+3. Validate the CSV contract against a real user-owned Uber or Bolt export; resolve duplicate/correction semantics before claiming statement reconciliation. Then choose one additional road-intelligence source for a provenance/freshness/failure-tested vertical slice.
 
 ## 7. Open questions for the human
 
