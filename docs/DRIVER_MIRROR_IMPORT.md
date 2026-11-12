@@ -8,6 +8,14 @@ Optional columns: `external_id`, `occurred_at`, `pickup`, `dropoff`, `distance_k
 
 Amounts accept dot or comma decimal separators. Blank amounts remain NULL, never zero. Currency defaults to PLN only when omitted. Use ISO-8601 timestamps.
 
+### Import validation rules
+
+- Header names are trimmed, lowercased independently of device locale, and spaces become underscores.
+- Empty, duplicate-after-normalisation, and unsupported headers are rejected.
+- Every non-empty data row must include non-blank `platform` and `record_type` values.
+- Extra cells are rejected rather than silently discarded. Omitted trailing optional cells are treated as blank/unknown.
+- Quoted commas and escaped double quotes are supported. Unclosed quoted fields are rejected.
+
 ```csv
 platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,gross,fees,bonus,currency,status
 Uber,trip,trip-001,2026-10-31T18:32:00+02:00,Old Town,Podgorze,8.4,42.50,8.50,0,PLN,completed
@@ -15,6 +23,16 @@ Bolt,trip,ride-002,2026-10-31T19:10:00+02:00,Kazimierz,Krowodrza,5.2,29.00,5.80,
 ```
 
 Each row stores its raw key/value evidence, source filename, import batch and deterministic fingerprint. Duplicate rows do not double-count in the canonical record table. Import batches record received and inserted counts. Data stays in the app-private SQLite database; no upload, scraping or account linking occurs.
+
+### Persistence integrity checks
+
+`DriverMirrorStoreTest` exercises the SQLite-backed store with Robolectric:
+
+- Repeated rows in one batch and across separate imports produce one canonical record, while all three source-row evidence entries remain available.
+- Import history reports received and inserted counts for each batch.
+- An injected row-processing failure after a valid row verifies that the import batch, canonical record and evidence rows roll back together.
+
+These tests are authored but have not yet been executed because GitHub-hosted Actions jobs currently fail before runner assignment. They must pass in `./gradlew --no-daemon testDebugUnitTest` before this persistence capability is marked verified.
 
 ### R-DM-005 — Trip-only headline earnings
 

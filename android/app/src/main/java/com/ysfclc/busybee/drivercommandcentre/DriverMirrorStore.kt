@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.security.MessageDigest
+import java.util.Locale
 
 data class DriverRecord(
     val id: Long,
@@ -94,8 +95,10 @@ object DriverCsv {
         val rows = csvRows(text)
         if (rows.isEmpty()) return emptyList()
         val headers = rows.first().mapIndexed { index, value ->
-            (if (index == 0) value.removePrefix("\uFEFF") else value).trim().lowercase().replace(" ", "_")
+            (if (index == 0) value.removePrefix("\uFEFF") else value).trim().lowercase(Locale.ROOT).replace(" ", "_")
         }
+        require(headers.none { it.isBlank() }) { "CSV contains an empty column header" }
+        require(headers.size == headers.toSet().size) { "CSV contains duplicate column headers" }
         require(headers.toSet().containsAll(requiredHeaders)) {
             "CSV needs platform and record_type columns"
         }
@@ -104,9 +107,16 @@ object DriverCsv {
         }
         return rows.drop(1).mapNotNull { cells ->
             if (cells.all { it.isBlank() }) return@mapNotNull null
-            headers.mapIndexedNotNull { index, key ->
-                if (index < cells.size) key to cells[index].trim() else null
+            require(cells.size <= headers.size) {
+                "CSV row has ${cells.size} values but the header defines ${headers.size} columns"
+            }
+            val row = headers.mapIndexed { index, key ->
+                key to cells.getOrElse(index) { "" }.trim()
             }.toMap()
+            require(row["platform"].orEmpty().isNotBlank() && row["record_type"].orEmpty().isNotBlank()) {
+                "Every CSV data row must include platform and record_type"
+            }
+            row
         }
     }
 
@@ -216,9 +226,9 @@ class DriverMirrorStore(context: Context) :
             var inserted = 0
             rows.forEachIndexed { rowIndex, row ->
                 val platform = row["platform"].orEmpty().trim().ifBlank { "Unknown" }
-                val type = row["record_type"].orEmpty().trim().lowercase().ifBlank { "unknown" }
+                val type = row["record_type"].orEmpty().trim().lowercase(Locale.ROOT).ifBlank { "unknown" }
                 val raw = row.entries.sortedBy { it.key }.joinToString("&") { "${it.key}=${it.value}" }
-                val fingerprint = sha256(listOf(platform.lowercase(), type, row["external_id"].orEmpty(), row["occurred_at"].orEmpty(), raw).joinToString("|"))
+                val fingerprint = sha256(listOf(platform.lowercase(Locale.ROOT), type, row["external_id"].orEmpty(), row["occurred_at"].orEmpty(), raw).joinToString("|"))
                 val evidence = ContentValues().apply {
                     put("import_id", importId)
                     put("row_number", rowIndex + 1)
@@ -240,7 +250,7 @@ class DriverMirrorStore(context: Context) :
                     put("gross", DriverCsv.number(row["gross"]))
                     put("fees", DriverCsv.number(row["fees"]))
                     put("bonus", DriverCsv.number(row["bonus"]))
-                    put("currency", row["currency"].orEmpty().ifBlank { "PLN" }.uppercase())
+                    put("currency", row["currency"].orEmpty().ifBlank { "PLN" }.uppercase(Locale.ROOT))
                     put("status", row["status"])
                     put("raw", raw)
                     put("source_name", sourceName)

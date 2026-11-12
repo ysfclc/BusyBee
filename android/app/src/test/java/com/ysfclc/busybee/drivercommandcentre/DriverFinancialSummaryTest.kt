@@ -1,5 +1,6 @@
 package com.ysfclc.busybee.drivercommandcentre
 
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -57,6 +58,18 @@ class DriverFinancialSummaryTest {
         assertEquals(40.0, result.gross!!, 0.0001)
         assertEquals(9.0, result.fees!!, 0.0001)
         assertEquals(2.0, result.bonuses!!, 0.0001)
+    }
+
+    @Test fun recognisesUppercaseTripTypesIndependentOfDeviceLocale() {
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            val result = DriverFinancialSummaryCalculator.calculate(listOf(row("TRIP")))
+            assertTrue(result.netComplete)
+            assertEquals(34.0, result.knownNet!!, 0.0001)
+        } finally {
+            Locale.setDefault(original)
+        }
     }
 
     @Test fun emptyAndNonPlnOnlyDataCannotProduceHeadlineNet() {

@@ -150,3 +150,49 @@ Verification:
 - Workflow run 47 (43146041937), run 48 initial attempt (43146277412 attempt 1), and a manual retry of run 48 (attempt 2) all terminated within seconds before a runner was assigned. The retry was accepted and queued, then failed without creating any steps; job 131208270290 has an empty steps list. The job records report `runner_id: 0`, an empty steps list and no downloadable logs. These are CI infrastructure failures, not test results; no Kotlin/Rust step is shown as executed.
 - Run 46 is the previous successful baseline (Rust tests, Android unit tests, debug APK assembly and Release publication). It does not verify this change.
 - No local build is claimed because a repository checkout/Android SDK/Gradle project was not mounted in this session. R-DM-005 remains unverified until a runner executes the workflow.
+
+
+## 2026-11-12 — Driver Mirror SQLite persistence integrity
+
+**Status:** persistence regression tests authored on `feature/mirror-store-integrity-tests-2026-11-12`; execution pending because hosted runners cannot be allocated.
+
+Delivered:
+- Added Robolectric test support to the Android unit-test configuration.
+- Added a store-level test proving repeated rows are deduplicated in canonical records both within a batch and across imports.
+- The same test asserts that all raw evidence rows survive, including duplicates, and that import history reports accurate received/inserted counts.
+- Added failure injection after one valid row and assertions that the enclosing transaction leaves no import batch, canonical record or evidence row behind.
+- Updated the coverage matrix and CSV import contract to describe the new persistence checks without claiming they passed.
+
+Verification boundary:
+- Source and documentation were committed to the feature branch.
+- No Gradle test or APK build was executed in this session: the repository checkout and Android SDK are not mounted locally, and GitHub Actions attempts fail before runner assignment.
+- Run `cd android && ./gradlew --no-daemon testDebugUnitTest` when a runner is available. Do not mark R-DM-001 verified until the Robolectric tests pass.
+
+
+## 2026-11-12 — Driver Mirror CSV integrity hardening
+
+**Status:** implementation and focused parser regressions committed on `feature/mirror-store-integrity-tests-2026-11-12`; test execution pending.
+
+Delivered:
+- Reject duplicate and empty normalised headers instead of allowing duplicate keys to overwrite each other.
+- Reject extra row cells instead of silently dropping source values; omitted trailing optional cells remain explicit blank/unknown values.
+- Reject data rows with blank required platform or record type.
+- Use locale-independent casing for CSV headers, imported record types, platform fingerprinting and currency normalisation.
+- Added parser regression tests for duplicate headers, extra values, missing required values, omitted optional cells and Turkish-locale header casing; added a Turkish-locale trip-type regression to the headline calculator tests.
+
+Verification boundary:
+- Changes and focused tests are committed to the feature branch.
+- No Gradle or APK build was executed. GitHub-hosted runners remain unavailable and no local Android SDK/project checkout is mounted.
+- Required check remains `cd android && ./gradlew --no-daemon testDebugUnitTest`; do not mark the import contract verified until it passes.
+
+
+### Latest CI retry — 2026-11-12
+
+- Latest PR #4 head at the time of this check: `94bf00205329ff33263f198ebc8d8f257453af01`.
+- Workflow run: `43283672002` — failed.
+- Job: `131411281742` — completed with failure and an empty step list. No runner was assigned and no validation command ran.
+- This confirms the same pre-execution hosted-runner blocker on the updated CSV parser/tests. It does not indicate a Kotlin source or test failure.
+- The current container has a JDK and Kotlin compiler but no `/testbed` checkout, Gradle executable, Android SDK or Cargo toolchain; local project verification is not possible here.
+
+
+- Follow-up documentation-head run: `43283810594` (head `abeb5d4dc8dde2b30319eceaab45411c6c259a31`) also failed before runner allocation; job `131411762866` returned an empty step list. No build/test command executed.
