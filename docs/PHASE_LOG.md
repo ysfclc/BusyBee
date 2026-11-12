@@ -184,3 +184,12 @@ Verification boundary:
 - Changes and focused tests are committed to the feature branch.
 - No Gradle or APK build was executed. GitHub-hosted runners remain unavailable and no local Android SDK/project checkout is mounted.
 - Required check remains `cd android && ./gradlew --no-daemon testDebugUnitTest`; do not mark the import contract verified until it passes.
+
+
+### Latest CI retry — 2026-11-12
+
+- Latest PR #4 head at the time of this check: `94bf00205329ff33263f198ebc8d8f257453af01`.
+- Workflow run: `43283672002` — failed.
+- Job: `131411281742` — completed with failure and an empty step list. No runner was assigned and no validation command ran.
+- This confirms the same pre-execution hosted-runner blocker on the updated CSV parser/tests. It does not indicate a Kotlin source or test failure.
+- The current container has a JDK and Kotlin compiler but no `/testbed` checkout, Gradle executable, Android SDK or Cargo toolchain; local project verification is not possible here.
