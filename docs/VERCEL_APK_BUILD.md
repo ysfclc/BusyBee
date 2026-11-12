@@ -26,8 +26,9 @@ The build script installs and pins the project toolchain versions already used b
 - Rust stable with `aarch64-linux-android`, `armv7-linux-androideabi` and `x86_64-linux-android`
 - `cargo-ndk`
 - Gradle 8.9
+- Native C/C++ compiler (`build-essential` on apt-based images, or GCC/make via dnf) when `cc` is not already present
 
-It then runs Rust workspace tests, builds the three Android Rust libraries, runs Android unit tests (including Robolectric), and assembles an APK. A successful Vercel build copies the APK to `public/BusyBee.apk` and writes `public/build-info.json` with commit, branch, version, package, build timestamp, size and SHA-256.
+It then runs Rust workspace tests, builds the three Android Rust libraries, runs Android unit tests (including Robolectric, with Kotlin compilation in-process to avoid daemon-cache failures), and assembles an APK. A successful Vercel build copies the APK to `public/BusyBee.apk` and writes `public/build-info.json` with commit, branch, version, package, build timestamp, size and SHA-256.
 
 ## Debug versus release
 
@@ -48,7 +49,9 @@ After a successful deployment, open the protected Vercel deployment URL and use 
 
 ## Limits and verification
 
-- A Vercel build is a full Android toolchain install, not a lightweight web build. The first build may hit Hobby build-time, memory, disk or network limits. The deployment log is the source of truth; no APK is considered ready until Vercel reports the deployment as READY and the APK and metadata are present.
+- A Vercel build is a full Android toolchain install, not a lightweight web build. The first successful Vercel Sandbox build completed on commit `d45aa55491757d4f1155c7d9ce441aa97254187b`: Rust tests 4/4, Android unit tests 31/31, APK assembly succeeded, APK signature verified (debug v2), and the three Rust JNI libraries were present for arm64-v8a, armeabi-v7a and x86_64.
+- Verified debug artifact: `0.1.1794515558-debug` (`com.ysfclc.busybee.drivercommandcentre.debug`), 48,877,022 bytes, SHA-256 `77f74c552077ce5e17b06f3bb829e90c4de2b42426ee8eaa7ca3ebfb46d66f06`.
+- The standard static Vercel deployment has not completed. The first preview exposed a shell URL interpolation defect, which is fixed; subsequent deployment creation hit the team's daily deployment API cap (>100 creations/day). The sandbox build is a verified artifact, but the stable project download page is still pending. Do not claim a production Vercel deployment until it is READY and `/BusyBee.apk` plus `/build-info.json` are present.
 - The current default is debug-only until persistent signing is configured. Do not generate a replacement key to bypass that gate.
 - Build output is tied to the exact Git commit shown in `build-info.json`.
 - The script does not upload driver data, secrets or source exports.
