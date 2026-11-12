@@ -7,4 +7,4 @@
 - Added unit tests for mixed trip/offer imports, incomplete offers, missing trip amounts and non-PLN-only data.
 - Added the initial project state ledger and requirement coverage matrix.
 - Corrected the README checkpoint to reflect the current Map, Offers, Earnings, Driver Hub and Sources surfaces.
-- CI verification is pending for this increment; see [the phase log](docs/PHASE_LOG.md).
+- GitHub Actions runs 47 and 48 ended before runner assignment (no steps executed); the previous green run 46 does not verify this change. See [the phase log](docs/PHASE_LOG.md).
