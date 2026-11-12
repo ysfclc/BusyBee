@@ -167,3 +167,20 @@ Verification boundary:
 - Source and documentation were committed to the feature branch.
 - No Gradle test or APK build was executed in this session: the repository checkout and Android SDK are not mounted locally, and GitHub Actions attempts fail before runner assignment.
 - Run `cd android && ./gradlew --no-daemon testDebugUnitTest` when a runner is available. Do not mark R-DM-001 verified until the Robolectric tests pass.
+
+
+## 2026-11-12 — Driver Mirror CSV integrity hardening
+
+**Status:** implementation and focused parser regressions committed on `feature/mirror-store-integrity-tests-2026-11-12`; test execution pending.
+
+Delivered:
+- Reject duplicate and empty normalised headers instead of allowing duplicate keys to overwrite each other.
+- Reject extra row cells instead of silently dropping source values; omitted trailing optional cells remain explicit blank/unknown values.
+- Reject data rows with blank required platform or record type.
+- Use locale-independent casing for CSV headers, imported record types, platform fingerprinting and currency normalisation.
+- Added parser regression tests for duplicate headers, extra values, missing required values, omitted optional cells and Turkish-locale header casing; added a Turkish-locale trip-type regression to the headline calculator tests.
+
+Verification boundary:
+- Changes and focused tests are committed to the feature branch.
+- No Gradle or APK build was executed. GitHub-hosted runners remain unavailable and no local Android SDK/project checkout is mounted.
+- Required check remains `cd android && ./gradlew --no-daemon testDebugUnitTest`; do not mark the import contract verified until it passes.
