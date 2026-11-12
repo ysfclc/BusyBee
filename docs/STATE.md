@@ -26,7 +26,7 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 ## 3. Currently in flight
 
 - R-DM-005 — trip-only headline earnings. Implementation, four focused unit tests and docs are on branch `fix/trip-only-earnings-2026-11-12`; PR #3 is open and unmerged: https://github.com/ysfclc/BusyBee/pull/3. Next gate is a successful CI run with a real runner. Do not merge before Rust tests, Android unit tests and APK assembly pass.
-- R-DM-001 persistence verification — Robolectric-backed SQLite tests are on branch `feature/mirror-store-integrity-tests-2026-11-12`. They cover duplicate suppression, evidence retention, import counts and rollback. No execution result exists yet.
+- R-DM-001 persistence verification — Robolectric-backed SQLite tests are on branch `feature/mirror-store-integrity-tests-2026-11-12`, in draft PR #4 (https://github.com/ysfclc/BusyBee/pull/4), based on PR #3. They cover duplicate suppression, evidence retention, import counts and rollback. No execution result exists yet.
 
 ## 4. Known gaps & stubs
 
