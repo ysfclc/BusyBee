@@ -14,7 +14,7 @@ class DriverMirrorStoreTest {
     private val databaseName = "busybee_driver_mirror.db"
 
     private fun newStore(): DriverMirrorStore {
-        val context = RuntimeEnvironment.getApplication<Application>()
+        val context = RuntimeEnvironment.getApplication()
         context.deleteDatabase(databaseName)
         return DriverMirrorStore(context)
     }
@@ -58,7 +58,7 @@ class DriverMirrorStoreTest {
             assertTrue(history.any { it.contains("0 new / 1 rows") })
         } finally {
             store.close()
-            RuntimeEnvironment.getApplication<Application>().deleteDatabase(databaseName)
+            RuntimeEnvironment.getApplication().deleteDatabase(databaseName)
         }
     }
 
@@ -93,7 +93,7 @@ class DriverMirrorStoreTest {
             assertTrue(store.evidencePreview(10).isEmpty())
         } finally {
             store.close()
-            RuntimeEnvironment.getApplication<Application>().deleteDatabase(databaseName)
+            RuntimeEnvironment.getApplication().deleteDatabase(databaseName)
         }
     }
 }
