@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-12 — Driver Mirror persistence integrity
+
+- Added Robolectric-backed SQLite store tests for canonical duplicate suppression across repeated rows and separate import batches.
+- Verified in test design that every original row remains in raw evidence and each import batch retains its received/inserted counts.
+- Added a failure-injection test asserting a mid-batch exception rolls back the import ledger, canonical records and raw evidence together.
+- Added Robolectric 4.14.1 and Android unit-test resource support to the app test configuration.
+- Tests are authored but not executed: GitHub-hosted Actions still fails before runner assignment, and no local Android SDK/project checkout is mounted. No build or runtime pass is claimed.
+- See [coverage](docs/COVERAGE.md), [import contract](docs/DRIVER_MIRROR_IMPORT.md) and [phase log](docs/PHASE_LOG.md).
+
 ## 2026-11-12 — Earnings integrity and project continuity
 
 - Corrected headline earnings so only recognised PLN trip rows contribute; offers and other activity records no longer inflate trip gross, fees, bonuses or known net.
