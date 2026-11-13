@@ -1,4 +1,10 @@
-# Driver mirror CSV import
+# Optional Driver Mirror CSV backfill and reconciliation
+
+**This is an optional interchange format, not the normal BusyBee workflow.** Native driver-app capture (or an approved provider API) is the primary route into the Driver Mirror. The user must not need to upload a CSV to use BusyBee or view its core capabilities.
+
+CSV/statement import remains useful for historical backfill, source reconciliation and recovery. It must stay secondary in navigation and must never be presented as a required setup step. See [PRODUCT_CONTRACT.md](PRODUCT_CONTRACT.md).
+
+---
 
 BusyBee imports a documented provider-neutral CSV interchange format. This is not represented as a direct Uber or Bolt API integration. Provider exports vary; specific adapters are added after validating real sample files.
 

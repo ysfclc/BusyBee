@@ -57,3 +57,34 @@
 **Decision:** Any lawfully available police-related information is contextual awareness only, with source and timestamp. No enforcement-evasion routing or checkpoint avoidance.
 
 **Reason:** The map should represent road conditions and safety context, not facilitate evasion.
+
+
+## ADR-009 — Native driver-app integration is primary
+
+**Status:** Accepted — 2026-11-13
+
+**Decision:** BusyBee's primary Driver Mirror ingestion path is approved provider APIs and/or explicit user-initiated Android-native integration with on-device processing and review. Notification capture is a secondary fallback. CSV import is optional backfill/reconciliation only.
+
+**Reason:** The product must use data from the driver's actual Uber, Bolt and other driver apps; requiring CSV upload or relying only on notifications does not satisfy the agreed product.
+
+**Consequences:** Implement independent per-platform adapters and capability states. Respect provider approval, Android consent and app security. Do not access private databases, undocumented endpoints or automate ride actions. Validate real app screens and API entitlements before claiming connected status.
+
+## ADR-010 — WhatsApp tracking is selected-group based
+
+**Status:** Accepted — 2026-11-13
+
+**Decision:** Discover groups from notification-visible metadata and let the driver individually enable, inspect, pause and delete group data. Do not require chat-export files.
+
+**Reason:** The intended workflow is to choose the driver's groups to track, not import entire chat histories.
+
+**Consequences:** Persist message previews only for explicitly enabled groups. Android/WhatsApp notification visibility is incomplete and must be stated; private chat database access is prohibited.
+
+## ADR-011 — Full-screen map-first workspace and bespoke surfaces
+
+**Status:** Accepted — 2026-11-13
+
+**Decision:** Map is the default full-screen spatial workspace with floating controls and context-sensitive overlays. Other primary surfaces must be designed for their workflows rather than reusing a generic stacked-card dashboard.
+
+**Reason:** The map is central to the Driver Command Centre, and visual hierarchy must support drivers rather than present a dense generic dashboard.
+
+**Consequences:** A palette update or padding changes do not count as redesign. Premium redesign and target-device validation remain explicit acceptance gates.

@@ -116,10 +116,25 @@ fi
 # shellcheck disable=SC1090
 source "$CARGO_HOME/env"
 rustup toolchain install stable --profile minimal
-rustup target add --toolchain stable \
-  aarch64-linux-android \
-  armv7-linux-androideabi \
+# Vercel's base image may have a different default Rust toolchain. Install the
+# Android std targets into, and force every subsequent cargo invocation to use,
+# the same stable toolchain; otherwise cargo-ndk can see a toolchain with no
+# Android core library even though rustup downloaded the targets for stable.
+rustup default stable
+export RUSTUP_TOOLCHAIN=stable
+ANDROID_RUST_TARGETS=(
+  aarch64-linux-android
+  armv7-linux-androideabi
   x86_64-linux-android
+)
+rustup target add --toolchain stable "${ANDROID_RUST_TARGETS[@]}"
+for target in "${ANDROID_RUST_TARGETS[@]}"; do
+  if ! rustup target list --installed --toolchain stable | grep -Fxq "$target"; then
+    echo "Rust Android target was not installed for stable: $target" >&2
+    exit 1
+  fi
+done
+rustc --version
 if ! command -v cargo-ndk >/dev/null 2>&1; then
   cargo install --locked cargo-ndk
 fi
@@ -229,4 +244,37 @@ payload = {
 with open(sys.argv[1], "w", encoding="utf-8") as output:
     json.dump(payload, output, indent=2)
     output.write("\n")
+PY
+
+# Brave on Android can stall while finalising direct APK downloads. Offer the
+# same signed artifact inside an ordinary ZIP archive as the primary path.
+python3 - "$ROOT_DIR/public/BusyBee.apk" "$ROOT_DIR/public/BusyBee-download.zip" "$ROOT_DIR/public/build-info.json" <<'PY'
+import hashlib
+import json
+import sys
+import zipfile
+
+apk_path, archive_path, metadata_path = sys.argv[1:]
+with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_STORED) as archive:
+    archive.write(apk_path, "BusyBee.apk")
+with zipfile.ZipFile(archive_path) as archive:
+    bad_member = archive.testzip()
+    if bad_member is not None:
+        raise SystemExit(f"ZIP integrity check failed: {bad_member}")
+    if archive.read("BusyBee.apk") != open(apk_path, "rb").read():
+        raise SystemExit("ZIP does not contain the exact APK artifact")
+with open(metadata_path, "r", encoding="utf-8") as source:
+    metadata = json.load(source)
+with open(archive_path, "rb") as archive_file:
+    archive_sha256 = hashlib.sha256(archive_file.read()).hexdigest()
+metadata["downloadArchive"] = {
+    "file": "BusyBee-download.zip",
+    "sha256": archive_sha256,
+    "sizeBytes": __import__("os").path.getsize(archive_path),
+    "contains": "BusyBee.apk",
+}
+with open(metadata_path, "w", encoding="utf-8") as output:
+    json.dump(metadata, output, indent=2)
+    output.write("\n")
+print("Verified Android download archive: BusyBee-download.zip")
 PY

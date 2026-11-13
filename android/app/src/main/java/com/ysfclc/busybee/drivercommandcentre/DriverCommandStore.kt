@@ -60,9 +60,38 @@ data class DriverItem(
 
 data class CapturedNotice(val id: Long, val platform: String, val title: String, val body: String, val capturedAt: Long)
 data class CommunityDocument(val id: Long, val title: String, val content: String, val importedAt: Long)
+data class WhatsAppGroupWatch(
+    val id: Long,
+    val packageName: String,
+    val title: String,
+    val trackingEnabled: Boolean,
+    val firstSeenAt: Long,
+    val lastSeenAt: Long,
+    val capturedMessages: Int
+)
+data class WhatsAppGroupMessage(
+    val id: Long,
+    val sender: String,
+    val body: String,
+    val messageAt: Long
+)
 data class RoadReport(val id: Long, val category: String, val description: String, val latitude: Double, val longitude: Double, val createdAt: Long)
 
-class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 2) {
+/**
+ * Notification identity includes Android's post timestamp. Identical text can represent
+ * two separate ride offers; hashing only the text silently discarded every later offer.
+ * A repost/update of the same Android notification retains its postTime and stays deduped.
+ */
+internal object NotificationFingerprint {
+    fun create(platform: String, title: String, body: String, postedAt: Long): String {
+        val identity = listOf(platform, title, body, postedAt.toString()).joinToString("\u0000")
+        return java.security.MessageDigest.getInstance("SHA-256")
+            .digest(identity.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+    }
+}
+
+class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE offers(
             id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, pickup TEXT, destination TEXT,
@@ -83,12 +112,36 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, description TEXT NOT NULL,
             latitude REAL NOT NULL, longitude REAL NOT NULL, created_at INTEGER NOT NULL)""")
         db.execSQL("""CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
+        createWhatsAppWatchTables(db)
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE driver_items ADD COLUMN recurrence TEXT")
             db.execSQL("ALTER TABLE driver_items ADD COLUMN completed_at INTEGER")
         }
+        if (oldVersion < 3) createWhatsAppWatchTables(db)
+    }
+
+    private fun createWhatsAppWatchTables(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE IF NOT EXISTS whatsapp_groups(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            package_name TEXT NOT NULL,
+            group_title TEXT NOT NULL,
+            tracking_enabled INTEGER NOT NULL DEFAULT 0,
+            first_seen_at INTEGER NOT NULL,
+            last_seen_at INTEGER NOT NULL,
+            UNIQUE(package_name, group_title)
+        )""")
+        db.execSQL("""CREATE TABLE IF NOT EXISTS whatsapp_group_messages(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            fingerprint TEXT NOT NULL UNIQUE,
+            sender TEXT NOT NULL,
+            body TEXT NOT NULL,
+            message_at INTEGER NOT NULL,
+            FOREIGN KEY(group_id) REFERENCES whatsapp_groups(id) ON DELETE CASCADE
+        )""")
+        db.execSQL("CREATE INDEX IF NOT EXISTS whatsapp_messages_group_time ON whatsapp_group_messages(group_id,message_at DESC)")
     }
 
     @Synchronized fun saveOffer(o: DriverOffer): Long {
@@ -110,7 +163,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
     fun updateOfferStatus(id:Long,status:String) { writableDatabase.execSQL("UPDATE offers SET status=? WHERE id=?", arrayOf(status,id)) }
 
     @Synchronized fun captureNotice(platform:String,title:String,body:String,at:Long=System.currentTimeMillis()) {
-        val fingerprint=java.security.MessageDigest.getInstance("SHA-256").digest("$platform|$title|$body".toByteArray()).joinToString(""){"%02x".format(it)}
+        val fingerprint=NotificationFingerprint.create(platform,title,body,at)
         val v=ContentValues().apply { put("fingerprint",fingerprint);put("platform",platform);put("title",title);put("body",body);put("captured_at",at) }
         writableDatabase.insertWithOnConflict("notices",null,v,SQLiteDatabase.CONFLICT_IGNORE)
     }
@@ -155,6 +208,117 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
         readableDatabase.rawQuery(sql,arrayOf(kind)).use { c -> return if(c.moveToFirst()) c.getDouble(0) else 0.0 }
     }
 
+    /**
+     * Discovers a WhatsApp group name from Android's visible notification metadata.
+     * Message bodies are intentionally not written here; they are stored only when
+     * the driver has explicitly enabled tracking for this exact group.
+     */
+    @Synchronized
+    fun observeWhatsAppGroup(packageName: String, groupTitle: String, at: Long = System.currentTimeMillis()): Long? {
+        val pkg = packageName.lowercase()
+        if (pkg !in setOf("com.whatsapp", "com.whatsapp.w4b")) return null
+        val title = groupTitle.trim().take(160)
+        if (title.isBlank()) return null
+        val db = writableDatabase
+        db.execSQL(
+            "UPDATE whatsapp_groups SET last_seen_at=? WHERE package_name=? AND group_title=?",
+            arrayOf(at, pkg, title)
+        )
+        db.execSQL(
+            """INSERT OR IGNORE INTO whatsapp_groups(package_name,group_title,tracking_enabled,first_seen_at,last_seen_at)
+               VALUES(?,?,0,?,?)""".trimIndent(),
+            arrayOf(pkg, title, at, at)
+        )
+        db.rawQuery(
+            "SELECT id FROM whatsapp_groups WHERE package_name=? AND group_title=?",
+            arrayOf(pkg, title)
+        ).use { cursor -> return if (cursor.moveToFirst()) cursor.getLong(0) else null }
+    }
+
+    fun whatsappGroups(): List<WhatsAppGroupWatch> {
+        val result = mutableListOf<WhatsAppGroupWatch>()
+        readableDatabase.rawQuery(
+            """SELECT g.id,g.package_name,g.group_title,g.tracking_enabled,g.first_seen_at,g.last_seen_at,
+                      (SELECT COUNT(*) FROM whatsapp_group_messages m WHERE m.group_id=g.id)
+               FROM whatsapp_groups g ORDER BY g.last_seen_at DESC,g.group_title COLLATE NOCASE""".trimIndent(),
+            null
+        ).use { cursor ->
+            while (cursor.moveToNext()) result.add(
+                WhatsAppGroupWatch(
+                    cursor.getLong(0), cursor.getString(1), cursor.getString(2),
+                    cursor.getInt(3) == 1, cursor.getLong(4), cursor.getLong(5), cursor.getInt(6)
+                )
+            )
+        }
+        return result
+    }
+
+    @Synchronized
+    fun setWhatsAppGroupTracking(groupId: Long, enabled: Boolean) {
+        writableDatabase.execSQL(
+            "UPDATE whatsapp_groups SET tracking_enabled=? WHERE id=?",
+            arrayOf(if (enabled) 1 else 0, groupId)
+        )
+    }
+
+    fun isWhatsAppGroupTrackingEnabled(groupId: Long): Boolean =
+        readableDatabase.rawQuery(
+            "SELECT tracking_enabled FROM whatsapp_groups WHERE id=?",
+            arrayOf(groupId.toString())
+        ).use { cursor -> cursor.moveToFirst() && cursor.getInt(0) == 1 }
+
+    @Synchronized
+    fun captureTrackedWhatsAppMessage(
+        groupId: Long,
+        sender: String,
+        body: String,
+        messageAt: Long
+    ): Boolean {
+        val cleanBody = body.trim().take(4000)
+        if (cleanBody.isBlank() || !isWhatsAppGroupTrackingEnabled(groupId)) return false
+        val fingerprint = java.security.MessageDigest.getInstance("SHA-256")
+            .digest("$groupId\\u0000$sender\\u0000$cleanBody\\u0000$messageAt".toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        val values = ContentValues().apply {
+            put("group_id", groupId)
+            put("fingerprint", fingerprint)
+            put("sender", sender.trim().take(120))
+            put("body", cleanBody)
+            put("message_at", messageAt)
+        }
+        return writableDatabase.insertWithOnConflict(
+            "whatsapp_group_messages", null, values, SQLiteDatabase.CONFLICT_IGNORE
+        ) != -1L
+    }
+
+    fun whatsappGroupMessages(groupId: Long, limit: Int = 80): List<WhatsAppGroupMessage> {
+        if (!isWhatsAppGroupTrackingEnabled(groupId)) return emptyList()
+        val result = mutableListOf<WhatsAppGroupMessage>()
+        readableDatabase.rawQuery(
+            """SELECT id,sender,body,message_at FROM whatsapp_group_messages
+               WHERE group_id=? ORDER BY message_at DESC,id DESC LIMIT ?""".trimIndent(),
+            arrayOf(groupId.toString(), limit.coerceIn(1, 200).toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) result.add(
+                WhatsAppGroupMessage(cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getLong(3))
+            )
+        }
+        return result
+    }
+
+    @Synchronized
+    fun deleteWhatsAppGroup(groupId: Long) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete("whatsapp_group_messages", "group_id=?", arrayOf(groupId.toString()))
+            db.delete("whatsapp_groups", "id=?", arrayOf(groupId.toString()))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     fun addCommunityDocument(title:String,content:String) {
         val v=ContentValues().apply { put("title",title);put("content",content);put("imported_at",System.currentTimeMillis()) }
         writableDatabase.insertOrThrow("community_docs",null,v)
@@ -185,6 +349,32 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
     }
     fun setting(key:String,default:String):String = readableDatabase.rawQuery("SELECT value FROM settings WHERE key=?",arrayOf(key)).use { c -> if(c.moveToFirst()) c.getString(0) else default }
     fun setSetting(key:String,value:String) { val v=ContentValues().apply { put("key",key);put("value",value) };writableDatabase.insertWithOnConflict("settings",null,v,SQLiteDatabase.CONFLICT_REPLACE) }
+
+    fun vehicleProfile(): VehicleProfile = VehicleProfile(
+        name = setting("vehicle_name", ""),
+        category = setting("vehicle_category", "Passenger car"),
+        fuelType = setting("vehicle_fuel_type", "Petrol"),
+        consumptionPer100Km = setting("vehicle_consumption_per_100km", "").toDoubleOrNull(),
+        energyPricePln = setting("vehicle_energy_price_pln", "").toDoubleOrNull(),
+        maintenanceCostPerKm = setting("vehicle_maintenance_per_km", "0").toDoubleOrNull() ?: 0.0
+    )
+
+    @Synchronized fun saveVehicleProfile(profile: VehicleProfile) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            setSetting("vehicle_name", profile.name.trim())
+            setSetting("vehicle_category", profile.category)
+            setSetting("vehicle_fuel_type", profile.fuelType)
+            setSetting("vehicle_consumption_per_100km", profile.consumptionPer100Km?.toString().orEmpty())
+            setSetting("vehicle_energy_price_pln", profile.energyPricePln?.toString().orEmpty())
+            setSetting("vehicle_maintenance_per_km", profile.maintenanceCostPerKm.toString())
+            setSetting("cost_per_km", profile.totalCostPerKm?.let { String.format(java.util.Locale.US, "%.4f", it) } ?: "0.85")
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
 }
 
 

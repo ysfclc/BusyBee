@@ -24,8 +24,8 @@
   <main>
     <div class="eyebrow">Driver Command Centre</div>
     <h1>BusyBee</h1>
-    <p>The Android build is generated from the current BusyBee source commit. Download only after the build status and package details below have loaded.</p>
-    <a href="/BusyBee.apk" id="download" hidden>Download BusyBee APK</a>
+    <p>The Android build is generated from the current BusyBee source commit. On Android, use the ZIP download: Brave can fail to finalise direct APK downloads. Extract <code>BusyBee.apk</code> from the archive before installing.</p>
+    <a href="/BusyBee-download.zip" id="download" hidden>Download BusyBee (ZIP)</a>
     <p id="status" role="status">Loading build information…</p>
     <dl>
       <dt>Build type</dt><dd id="variant">—</dd>
@@ -48,7 +48,7 @@
         document.getElementById('built').textContent = info.builtAt;
         document.getElementById('checksum').textContent = info.apk.sha256;
         document.getElementById('download').hidden = false;
-        document.getElementById('status').textContent = 'APK is ready · ' + Math.round(info.apk.sizeBytes / 1048576 * 10) / 10 + ' MB';
+        document.getElementById('status').textContent = 'ZIP download is ready · ' + Math.round((info.downloadArchive?.sizeBytes || info.apk.sizeBytes) / 1048576 * 10) / 10 + ' MB';
         if (info.variant === 'release') document.getElementById('notice').textContent = 'Release signature verified during the build. Keep using the same persistent signing key for future updates.';
       })
       .catch(error => { document.getElementById('status').textContent = error.message; });

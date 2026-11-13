@@ -171,3 +171,16 @@ The app and service must expose a source-health view:
 - Duplicate/conflict rate and unresolved entity matches.
 
 One provider outage must not blank the map. The user must be able to distinguish "no incident reported" from "this source is unavailable" and "this source has no coverage here".
+
+
+## 10. Current Android navigation and vehicle-cost slice
+
+The current Android implementation is a first foreground navigation vertical slice, not the target multi-source road intelligence architecture:
+
+- MapLibre renders the OpenFreeMap Liberty vector style. On startup the app requests a device location fix and centres on a fresh last-known/current position when available.
+- Destination search uses public Nominatim, restricted to Poland, accepts a current-position viewbox, and returns multiple candidates for user confirmation.
+- Route calculation uses the public OSRM driving endpoint with GeoJSON geometry, alternatives and step/maneuver data. The app displays explicit route candidates and keeps maneuver order from OSRM.
+- During foreground navigation, Android location updates drive the user marker/camera, route progress, text-to-speech maneuver prompts, arrival detection and a bounded off-route reroute attempt. Location updates stop when the Activity pauses; no foreground service/background navigation is implemented.
+- Public OSRM durations are not live-traffic ETAs. Its standard driving profile does not enforce van/truck dimensions, weights, restricted-access streets, low-emission zone eligibility or vehicle class.
+- `VehicleProfile` is private local SQLite configuration for category, fuel, consumption, energy price and maintenance per kilometre. It calculates a cost/km used by Offer Desk scoring, with an explicit generic fallback until both consumption and price are configured. Vehicle categories do not change the routing profile yet.
+- Nominatim/OSRM are replaceable adapters, subject to availability/rate limits and attribution/usage policies. They are not treated as authoritative, contractual or high-availability services.

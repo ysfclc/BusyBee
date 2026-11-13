@@ -22,7 +22,8 @@ data class DriverRecord(
     val currency: String,
     val status: String?,
     val raw: String,
-    val sourceName: String
+    val sourceName: String,
+    val durationMinutes: Double? = null
 )
 
 data class DriverFinancialRow(
@@ -88,7 +89,7 @@ object DriverCsv {
     val requiredHeaders = setOf("platform", "record_type")
     val supportedHeaders = setOf(
         "platform", "record_type", "external_id", "occurred_at", "pickup", "dropoff",
-        "distance_km", "gross", "fees", "bonus", "currency", "status"
+        "distance_km", "duration_minutes", "gross", "fees", "bonus", "currency", "status"
     )
 
     fun parse(text: String): List<Map<String, String>> {
@@ -158,7 +159,7 @@ object DriverCsv {
 }
 
 class DriverMirrorStore(context: Context) :
-    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 1) {
+    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
@@ -193,6 +194,7 @@ class DriverMirrorStore(context: Context) :
                 pickup TEXT,
                 dropoff TEXT,
                 distance_km REAL,
+                duration_minutes REAL,
                 gross REAL,
                 fees REAL,
                 bonus REAL,
@@ -208,7 +210,8 @@ class DriverMirrorStore(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Versioned migrations are added here; never destroy user evidence on upgrade.
+        if (oldVersion < 2) db.execSQL("ALTER TABLE records ADD COLUMN duration_minutes REAL")
+        // Never destroy user evidence on upgrade.
     }
 
     @Synchronized
@@ -247,6 +250,7 @@ class DriverMirrorStore(context: Context) :
                     put("pickup", row["pickup"])
                     put("dropoff", row["dropoff"])
                     put("distance_km", DriverCsv.number(row["distance_km"]) )
+                    put("duration_minutes", DriverCsv.number(row["duration_minutes"]))
                     put("gross", DriverCsv.number(row["gross"]))
                     put("fees", DriverCsv.number(row["fees"]))
                     put("bonus", DriverCsv.number(row["bonus"]))
@@ -260,6 +264,84 @@ class DriverMirrorStore(context: Context) :
             db.execSQL("UPDATE imports SET inserted_count=? WHERE id=?", arrayOf(inserted, importId))
             db.setTransactionSuccessful()
             return rows.size to inserted
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /**
+     * Persists a screen observation only after the driver reviews and confirms it.
+     * The raw OCR text is retained as evidence; unknown financial fields remain NULL.
+     */
+    @Synchronized
+    fun saveReviewedNativeObservation(
+        platform: String,
+        recordType: String,
+        capturedAt: Long,
+        visibleText: String,
+        gross: Double?,
+        fees: Double?,
+        bonus: Double?,
+        distanceKm: Double?,
+        durationMinutes: Double?,
+        currency: String = "PLN"
+    ): Long {
+        val safePlatform = platform.trim().take(60)
+        require(safePlatform.matches(Regex("[\\p{L}0-9 ._-]{2,60}"))) { "Enter a valid driver platform name" }
+        val type = recordType.trim().lowercase(Locale.ROOT)
+        require(type in setOf("offer", "trip", "ride", "completed_trip", "payout", "adjustment")) {
+            "Choose a supported record type"
+        }
+        require(visibleText.isNotBlank()) { "Original screen evidence is missing" }
+        listOf(gross, fees, bonus, distanceKm, durationMinutes).filterNotNull().forEach {
+            require(it.isFinite() && it >= 0.0) { "Reviewed values must be valid non-negative numbers" }
+        }
+        val safeCurrency = currency.trim().uppercase(Locale.ROOT).ifBlank { "PLN" }
+        require(safeCurrency.matches(Regex("[A-Z]{3}"))) { "Use a three-letter currency code" }
+        val raw = visibleText.take(5000)
+        val occurredAt = java.time.Instant.ofEpochMilli(capturedAt).toString()
+        val fingerprint = sha256(
+            listOf(safePlatform, type, occurredAt, raw, gross, fees, bonus, distanceKm, safeCurrency).joinToString("|")
+        )
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val importedAt = System.currentTimeMillis()
+            val importId = db.insertOrThrow("imports", null, ContentValues().apply {
+                put("source_name", "Android screen capture")
+                put("imported_at", importedAt)
+                put("row_count", 1)
+                put("inserted_count", 0)
+            })
+            db.insertOrThrow("raw_evidence", null, ContentValues().apply {
+                put("import_id", importId)
+                put("row_number", 1)
+                put("fingerprint", fingerprint)
+                put("raw", raw)
+                put("source_name", "Android screen capture")
+            })
+            val recordId = db.insertOrThrow("records", null, ContentValues().apply {
+                put("fingerprint", fingerprint)
+                put("import_id", importId)
+                put("platform", safePlatform)
+                put("record_type", type)
+                putNull("external_id")
+                put("occurred_at", occurredAt)
+                putNull("pickup")
+                putNull("dropoff")
+                if (distanceKm == null) putNull("distance_km") else put("distance_km", distanceKm)
+                if (durationMinutes == null) putNull("duration_minutes") else put("duration_minutes", durationMinutes)
+                if (gross == null) putNull("gross") else put("gross", gross)
+                if (fees == null) putNull("fees") else put("fees", fees)
+                if (bonus == null) putNull("bonus") else put("bonus", bonus)
+                put("currency", safeCurrency)
+                put("status", "driver-reviewed")
+                put("raw", raw)
+                put("source_name", "Android screen capture")
+            })
+            db.execSQL("UPDATE imports SET inserted_count=1 WHERE id=?", arrayOf(importId))
+            db.setTransactionSuccessful()
+            return recordId
         } finally {
             db.endTransaction()
         }
@@ -305,17 +387,18 @@ class DriverMirrorStore(context: Context) :
     fun recent(limit: Int = 30): List<DriverRecord> {
         val records = mutableListOf<DriverRecord>()
         readableDatabase.rawQuery(
-            "SELECT id,platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,gross,fees,bonus,currency,status,raw,source_name FROM records ORDER BY COALESCE(occurred_at,'') DESC,id DESC LIMIT ?",
+            "SELECT id,platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,duration_minutes,gross,fees,bonus,currency,status,raw,source_name FROM records ORDER BY COALESCE(occurred_at,'') DESC,id DESC LIMIT ?",
             arrayOf(limit.toString())
         ).use { c ->
             while (c.moveToNext()) records.add(DriverRecord(
                 c.getLong(0), c.getString(1), c.getString(2), c.getString(3), c.getString(4),
                 c.getString(5), c.getString(6),
                 if (c.isNull(7)) null else c.getDouble(7),
-                if (c.isNull(8)) null else c.getDouble(8),
                 if (c.isNull(9)) null else c.getDouble(9),
                 if (c.isNull(10)) null else c.getDouble(10),
-                c.getString(11), c.getString(12), c.getString(13), c.getString(14)
+                if (c.isNull(11)) null else c.getDouble(11),
+                c.getString(12), c.getString(13), c.getString(14), c.getString(15),
+                if (c.isNull(8)) null else c.getDouble(8)
             ))
         }
         return records
