@@ -59,7 +59,7 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 1. Install the debug APK on the target Android device and verify launch, map, navigation, and data persistence. It has a `.debug` package ID and cannot update a release installation.
 2. When the team's Vercel deployment API quota resets, trigger the standard protected static deployment and confirm `/BusyBee.apk` and `/build-info.json` are available there.
 3. Configure the same persistent release keystore in Vercel only if an install-over-existing release APK is required; never create a replacement key.
-4. Keep PR #3, #4 and #5 open for review; test execution is now verified on the Vercel Sandbox, but do not merge without review.
+4. Keep PR #3, #4, #5 and #6 open for review; PR #6 is stacked on PR #5 and covers the Android tab-host fix plus brand v0.1. Do not merge without review.
 3. Validate the generic CSV contract against a real user-owned Uber or Bolt export and implement only evidence-backed provider adapters.
 4. Resolve duplicate/correction semantics before claiming statement reconciliation; then choose one additional road-intelligence source for a provenance/freshness/failure-tested vertical slice.
 
