@@ -32,3 +32,8 @@ This register tracks material product, data-integrity, safety and delivery risks
 - Current in-app guidance is foreground-only. Location updates are removed on Activity pause; this is not a background navigation service and must not be relied upon with the app closed.
 - Vehicle profiles feed cost-per-kilometre economics only. They do not currently constrain route selection for van/truck height, gross weight, width, low-emission zones or vehicle access classes.
 - Stack diagnostics omit exception messages and bound frame count/length. Continue to avoid logging entered destinations, trip content or private earnings.
+
+
+## R-09 — Target-device runtime instability (updated 2026-11-13)
+
+**Status: Open — release blocker.** User reports repeated action failures and an IllegalStateException, plus incorrect map/routing and non-working navigation/vehicle selection. Existing Robolectric tests and Vercel builds have not reproduced or cleared these failures on the target phone. Capture the DIAG LAST ACTION FAILURE report (or Android logcat), identify the exact app-owned stack frame, reproduce the root cause, add a regression test, and verify the original action on the target device. Do not infer a root cause from the exception class. No stability/release claim until the target-device smoke matrix passes.
