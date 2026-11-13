@@ -139,10 +139,10 @@ class MainActivity : AppCompatActivity() {
             instance.setStyle(Style.Builder().fromUri(OPENFREE_MAP_STYLE)) {
                 mapStyleState.markReady()
                 CrashDiagnostics.record(this,"map:style-loaded")
-                lastLocation?.let(::updateDriverLocation)
-                renderRoadEvents()
                 val initialTarget=lastLocation?.let { LatLng(it.latitude,it.longitude) } ?: KRAKOW
                 instance.cameraPosition=CameraPosition.Builder().target(initialTarget).zoom(15.0).tilt(48.0).build()
+                lastLocation?.let(::updateDriverLocation)
+                renderRoadEvents()
                 mapStatus?.text="● MAP ONLINE"
                 refreshRoadIntelligence()
                 requestLocation()
@@ -246,10 +246,14 @@ class MainActivity : AppCompatActivity() {
         actions.addView(action("◎ LOCATE",true){requestLocation()},LinearLayout.LayoutParams(0,dp(42),1f))
         actions.addView(action("↻ REFRESH",false){refreshRoadIntelligence()},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
         val threeD=action(if(tilted)"3D ON" else "3D OFF",false){
-            tilted=!tilted
-            val p=map?.cameraPosition
-            if(p!=null)map?.animateCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder().target(p.target?:KRAKOW).zoom(p.zoom).bearing(p.bearing).tilt(if(tilted)42.0 else 0.0).build()),300)
-            threeDButton?.text=if(tilted)"3D ON" else "3D OFF"
+            if(!mapStyleState.isReady) {
+                mapStatus?.text="● MAP IS STILL LOADING"
+            } else {
+                tilted=!tilted
+                val p=map?.cameraPosition
+                if(p!=null)map?.animateCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder().target(p.target?:KRAKOW).zoom(p.zoom).bearing(p.bearing).tilt(if(tilted)42.0 else 0.0).build()),300)
+                threeDButton?.text=if(tilted)"3D ON" else "3D OFF"
+            }
         }
         threeDButton=threeD
         actions.addView(threeD,LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
