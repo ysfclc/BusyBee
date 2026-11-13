@@ -207,12 +207,15 @@ class MainActivity : AppCompatActivity() {
             uiCallbacks.post {
                 CrashDiagnostics.record(this,"map:ready")
                 map=instance
-                activeMapStyleUri=palette.mapStyleUri
-                instance.setStyle(Style.Builder().fromUri(activeMapStyleUri)) {
-                    uiCallbacks.post {
-                        mapStyleState.markReady()
-                        CrashDiagnostics.record(this,"map:style-loaded")
-                        activateMapAfterStyleIfResumed()
+                val initialStyleUri=palette.mapStyleUri
+                activeMapStyleUri=initialStyleUri
+                instance.setStyle(Style.Builder().fromUri(initialStyleUri)) {
+                    if(activeMapStyleUri==initialStyleUri) {
+                        uiCallbacks.post {
+                            mapStyleState.markReady()
+                            CrashDiagnostics.record(this,"map:style-loaded")
+                            activateMapAfterStyleIfResumed()
+                        }
                     }
                 }
             }
@@ -322,13 +325,15 @@ class MainActivity : AppCompatActivity() {
         mapStyleState.markLoading()
         try {
             active.setStyle(Style.Builder().fromUri(nextStyle)) {
-                uiCallbacks.post {
-                    mapStyleState.markReady()
-                    camera?.let { active.cameraPosition=it }
-                    renderRoadEvents()
-                    lastLocation?.let(::updateDriverLocation)
-                    redrawActiveRoute()
-                    mapStatus?.text=if(navigating)"● NAVIGATION GPS ACTIVE" else "● MAP "+daylightPhase.name
+                if(activeMapStyleUri==nextStyle) {
+                    uiCallbacks.post {
+                        mapStyleState.markReady()
+                        camera?.let { active.cameraPosition=it }
+                        renderRoadEvents()
+                        lastLocation?.let(::updateDriverLocation)
+                        redrawActiveRoute()
+                        mapStatus?.text=if(navigating)"● NAVIGATION GPS ACTIVE" else "● MAP "+daylightPhase.name
+                    }
                 }
             }
         } catch(error:Exception) {
@@ -1716,8 +1721,9 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onPostResume() {
         super.onPostResume()
-        // onResume() runs before the Activity lifecycle reaches RESUMED on some API levels.
-        // Retry any style-ready MapLibre activation at the post-resume boundary.
+        // onResume() can run before lifecycle reaches RESUMED. MapLibre style
+        // switches are deferred until this boundary to avoid mutating a paused view.
+        if(map!=null && activeMapStyleUri!=palette.mapStyleUri) reloadMapStyle()
         activateMapAfterStyleIfResumed()
     }
 
