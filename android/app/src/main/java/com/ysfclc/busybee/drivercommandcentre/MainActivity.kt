@@ -234,6 +234,7 @@ class MainActivity : AppCompatActivity() {
                 val initialStyleUri=palette.mapStyleUri
                 activeMapStyleUri=initialStyleUri
                 instance.setStyle(Style.Builder().fromUri(initialStyleUri)) { loadedStyle ->
+                    applyLocalRoadLabels(loadedStyle)
                     install3DBuildings(loadedStyle)
                     if(activeMapStyleUri==initialStyleUri) {
                         uiCallbacks.post {
@@ -357,6 +358,7 @@ class MainActivity : AppCompatActivity() {
         mapStyleState.markLoading()
         try {
             active.setStyle(Style.Builder().fromUri(nextStyle)) { loadedStyle ->
+                applyLocalRoadLabels(loadedStyle)
                 install3DBuildings(loadedStyle)
                 if(activeMapStyleUri==nextStyle) {
                     uiCallbacks.post {
@@ -826,6 +828,33 @@ class MainActivity : AppCompatActivity() {
         map?.animateCamera(CameraUpdateFactory.newCameraPosition(
             CameraPosition.Builder().target(cameraTarget).zoom(zoom).bearing(bearing).tilt(tilt).build()
         ),650)
+    }
+
+    /**
+     * OpenFreeMap Liberty's default road-label expression prefers name_en over
+     * the local OSM name. In Poland that can display an English alias instead
+     * of the actual street name. Prefer the local name first, with language
+     * variants retained only as fallbacks.
+     */
+    private fun applyLocalRoadLabels(style:Style) {
+        val roadName=if(Locale.getDefault().language=="pl") {
+            Expression.coalesce(
+                Expression.get("name:pl"),
+                Expression.get("name"),
+                Expression.get("name:latin"),
+                Expression.get("name_en")
+            )
+        } else {
+            Expression.coalesce(
+                Expression.get("name"),
+                Expression.get("name:latin"),
+                Expression.get("name_en")
+            )
+        }
+        listOf("highway-name-minor","highway-name-major","highway-name-path").forEach { id ->
+            val layer=style.getLayer(id) as? SymbolLayer ?: return@forEach
+            layer.setProperties(PropertyFactory.textField(roadName))
+        }
     }
 
     private fun install3DBuildings(style:Style) {
