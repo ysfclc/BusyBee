@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     private var threeDButton:TextView?=null
     private lateinit var nav:LinearLayout
     private val worker=Executors.newFixedThreadPool(2)
+    private val uiCallbacks by lazy { LifecycleSafeUiDispatcher(this) }
     private var map:MapLibreMap?=null
     private val mapStyleState=MapStyleState()
     private var lastLocation:Location?=null
@@ -288,14 +289,14 @@ class MainActivity : AppCompatActivity() {
             try {
                 val candidates=RoutePlanner.searchDestinations(query,origin)
                 require(candidates.isNotEmpty()) { "No matching destination was found in Poland" }
-                runOnUiThread {
+                uiCallbacks.post {
                     val chooseDestination: (Int)->Unit = { selected ->
                         val candidate=candidates[selected]
                         routeSummary?.text="Calculating road routes to ${candidate.displayName}…"
                         worker.execute {
                             try {
                                 val plans=RoutePlanner.planAlternatives(origin,candidate)
-                                runOnUiThread {
+                                uiCallbacks.post {
                                     val labels=plans.mapIndexed { index, plan ->
                                         val kind=if(index==0)"FASTEST" else "ALTERNATIVE $index"
                                         String.format(Locale.US,"%s · %.1f km · %.0f min",kind,plan.distanceKm,plan.durationMinutes)
@@ -310,7 +311,7 @@ class MainActivity : AppCompatActivity() {
                                         .show()
                                 }
                             } catch(error:Exception) {
-                                runOnUiThread {
+                                uiCallbacks.post {
                                     routeSummary?.text="Route unavailable: ${error.javaClass.simpleName}. Check connection and try again."
                                     mapStatus?.text="● ROUTING UNAVAILABLE"
                                 }
@@ -325,7 +326,7 @@ class MainActivity : AppCompatActivity() {
                         .show()
                 }
             } catch(error:Exception) {
-                runOnUiThread {
+                uiCallbacks.post {
                     routeSummary?.text="Destination search failed: ${error.javaClass.simpleName}"
                     mapStatus?.text="● SEARCH UNAVAILABLE"
                 }
@@ -464,7 +465,7 @@ class MainActivity : AppCompatActivity() {
             worker.execute {
                 try {
                     val updated=RoutePlanner.planToCoordinates(current,route.destination,route.destinationName).first()
-                    runOnUiThread {
+                    uiCallbacks.post {
                         if(navigating) {
                             displayRoute(updated,current,"REROUTED")
                             navigating=true
@@ -476,7 +477,7 @@ class MainActivity : AppCompatActivity() {
                         rerouteInProgress=false
                     }
                 } catch(error:Exception) {
-                    runOnUiThread {
+                    uiCallbacks.post {
                         rerouteInProgress=false
                         offRouteReadings=0
                         navigationStatus?.text="REROUTE FAILED · FOLLOW THE MAP OR STOP"
@@ -505,7 +506,7 @@ class MainActivity : AppCompatActivity() {
             var events:List<RoadEvent> = emptyList();var roadError:String?=null
             try{events=fetchRoadEvents(center.latitude,center.longitude)}catch(e:Exception){roadError=e.message}
             val weather=try{fetchWeather(center.latitude,center.longitude)}catch(e:Exception){"Weather source unavailable"}
-            runOnUiThread{
+            uiCallbacks.post {
                 roadEvents=events;weatherSummary=weather;weatherText?.text=weather;renderRoadEvents()
                 mapStatus?.text=if(roadError==null)"● ROAD FEED UPDATED" else "● PARTIAL SOURCE COVERAGE"
                 mapSummary?.text=events.size.toString()+" mapped road observations · OpenStreetMap / Overpass"
