@@ -25,7 +25,8 @@ class RoutePlannerTest {
         val url = RoutePlanner.destinationSearchUrl("ulica Długa 8", LatLng(50.061, 19.937))
         assertTrue(url.contains("accept-language=pl"))
         assertTrue(url.contains("countrycodes=pl"))
-        assertTrue(url.contains("bounded=1"))
+        assertTrue(url.contains("viewbox="))
+        assertTrue(!url.contains("bounded=1"))
         assertTrue(url.contains("viewbox="))
     }
 
