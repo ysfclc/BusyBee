@@ -106,3 +106,15 @@ A follow-up workflow run #118 (`43432885303`) on the updated PR head also failed
 
 
 Follow-up workflow run #124 (`43433780437`) after the BB-007 source correction failed before job steps were allocated. Its retry (`131913684624`) also failed with `steps: null`; no Android compilation or APK task executed. This remains an infrastructure blocker, not a code/test failure.
+
+
+## BB-008 — Identical ride notifications permanently deduplicated
+
+- **Severity:** High (incoming-offer loss).
+- **Area:** Android notification listener / offer capture.
+- **Evidence:** `DriverCommandStore.captureNotice()` previously computed the unique notification fingerprint from only platform, title and body. The `notices.fingerprint` column is UNIQUE, so a later, genuinely new offer with identical visible text was silently ignored for the lifetime of the local database.
+- **Expected:** Reposting the same Android notification should be idempotent, but a new notification with identical text and a different Android `postTime` must be retained as a separate event.
+- **Actual before correction:** Identical text from the same platform collided regardless of capture time; the insert used CONFLICT_IGNORE and gave no visible indication that the offer was dropped.
+- **Correction:** Fingerprint now includes the Android notification post timestamp, with NUL-delimited fields and UTF-8 SHA-256. Same notification/time remains deduplicated; a new post time becomes a new record.
+- **Regression coverage authored:** Four pure unit tests cover same-notification dedupe, repeated identical text at a later timestamp, changed content and platform separation.
+- **Verification status:** Source commit and test file read-back required; compilation and tests remain unexecuted until a working Android runner is available. Existing database schema remains compatible; no migration is required because the fingerprint is stored as an opaque unique string.
