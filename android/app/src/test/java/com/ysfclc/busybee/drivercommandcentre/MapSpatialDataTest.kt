@@ -3,8 +3,11 @@ package com.ysfclc.busybee.drivercommandcentre
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.maplibre.android.geometry.LatLng
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class MapSpatialDataTest {
     @Test
     fun parsesNamedBuildingsAndAddressedBuildings() {
