@@ -1,3 +1,31 @@
+## 2026-11-14 — Map navigation and real-world detail correction
+
+**Status:** source committed on draft PR #9; Android build, tests and device verification pending.
+
+**Source revision:** `48dce0278c266a196423b5de119c5771dbf73bb6`  
+**Branch:** `feat/map-first-route-dock-2026-11-13`  
+**PR:** [#9 — compact map dock and purpose-built driver workspaces](https://github.com/ysfclc/BusyBee/pull/9) (draft, unmerged)
+
+Delivered in source:
+- Replaced the generic map pin with a custom top-down car marker; foreground GPS moves it.
+- Navigation camera follows smoothed GPS heading, targets ahead of the vehicle, and uses zoom 18.2 / 58° pitch in 3D mode. Manual pan suspends follow; recenter resumes it.
+- Daytime basemap switched to OpenFreeMap Liberty; dusk/night remain Fiord/Dark. Runtime 3D building extrusion is added to styles that do not already provide it.
+- Replaced pure-white daytime UI surfaces with a tinted green/stone palette.
+- Fixed local street-name precedence: the default OpenFreeMap style can prefer `name_en` over local OSM `name`; BusyBee now prefers `name:pl` (on Polish locales), then local `name`, then Latin/English fallbacks across the three styles.
+- Nominatim destination search prefers Polish names and biases to the driver's area without hard-bounding intercity destinations. OSRM maneuver steps fall back to road references when names are missing.
+- Added on-demand Overpass detail lookup for named/addressed building ways and multipolygon relations, plus entrance/door nodes. Building names/addresses and amber entrance/Klatka labels render at zoom-gated levels. A label such as `Klatka A` is shown only when OSM explicitly maps a staircase entrance and its reference.
+- Added map context counts with OSM attribution and throttled marker redraws.
+
+Regression tests added for local road-name policy, OSM building/entrance/relation parsing, no fabricated stairwell letters, camera look-ahead, heading wrap smoothing, Polish geocoding bias and road-reference fallback.
+
+**Scope boundary:** this is GPS-driven forward-perspective navigation with 3D building context. It is not a proprietary Waze-like live-traffic engine or photorealistic 3D road mesh. Map labels, building names and stairwell/entrance coverage depend on OSM data quality.
+
+**Verification:** the current PR head has no PR-triggered Actions run. The latest available run #258 (for the preceding source revision) failed before runner/job-step allocation; its retry was cancelled before allocation. No Gradle/test command ran. Vercel reports a build-rate-limit failure. Android compilation, unit-test execution, APK/signature/hash, emulator and Redmi driving checks remain unverified.
+
+Do not merge PR #9 until the source builds, tests run, a signed APK is produced, and the map is verified on the target device.
+
+---
+
 # Phase Log
 
 ## 2026-11-05 — Phase 1: product and architecture lock
