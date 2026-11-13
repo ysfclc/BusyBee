@@ -1024,7 +1024,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(requestCode==LOCATION_REQUEST&&grantResults.any{it==PackageManager.PERMISSION_GRANTED})requestLocation()}
     override fun onStart(){CrashDiagnostics.record(this,"lifecycle:onStart");super.onStart();mapView.onStart()}
-    override fun onResume(){CrashDiagnostics.record(this,"lifecycle:onResume");super.onResume();mapView.onResume();if(::locationManager.isInitialized && (navigating || followLocation)) startLocationUpdates()}
+    override fun onResume(){
+        CrashDiagnostics.record(this,"lifecycle:onResume")
+        super.onResume()
+        mapView.onResume()
+        if(::locationManager.isInitialized) {
+            // Apply the newest fix if a callback arrived after onPause() removed updates.
+            lastLocation?.let(::updateDriverLocation)
+            if(navigating || followLocation) startLocationUpdates()
+        }
+    }
     override fun onPause(){CrashDiagnostics.record(this,"lifecycle:onPause");try{locationManager.removeUpdates(locationListener)}catch(_:Exception){};mapView.onPause();super.onPause()}
     override fun onStop(){CrashDiagnostics.record(this,"lifecycle:onStop");mapView.onStop();super.onStop()}
     override fun onLowMemory(){super.onLowMemory();mapView.onLowMemory()}
