@@ -22,7 +22,7 @@ The current feature branch now changes the primary integration model from repeat
 
 The draft branch now contains the following corrective implementation:
 
-- A custom top-down vehicle marker replaces the generic map pin. Foreground GPS updates move it; navigation camera-follow uses GPS course/bearing, a look-ahead target, zoom 18.2 and 58-degree pitch in 3D mode. The locate control explicitly re-enters follow mode.
+- A custom top-down vehicle marker replaces the generic map pin. Foreground GPS updates move it; navigation camera-follow uses smoothed GPS course/bearing, a look-ahead target, zoom 18.2 and 58-degree pitch in 3D mode. A deliberate map gesture pauses follow until the locate control re-enters follow mode.
 - OpenFreeMap Liberty is the daytime basemap; Fiord and Dark remain dusk/night. A MapLibre fill-extrusion building layer is installed for styles that do not already have one. This is 3D building context and a forward-facing perspective, not a photorealistic 3D road mesh.
 - OpenStreetMap/Overpass supplies named/addressed building ways and multipolygon relations, house-number addresses and mapped entrance/door nodes on demand around the map centre. Labels are zoom-gated to avoid clutter. Named building/address labels and amber entrance/Klatka text pills are visible on the map. Entrance nodes can expose a mapped stairwell type, reference, level or door; individual stairwell letters are shown only when the source actually contains them.
 - Nominatim destination search prefers Polish names and uses a nearby viewbox as a ranking bias, but does not hard-bound results, so destinations in other Polish cities remain searchable. OSRM maneuver instructions use a road reference when the road-name field is absent.
