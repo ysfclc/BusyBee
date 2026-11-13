@@ -16,9 +16,9 @@ import java.util.ArrayDeque
  * control. The in-app disclosure is shown before opening those settings.
  */
 class DriverAppAccessibilityService : AccessibilityService() {
-    private var lastReadAt = 0L
-    private var lastSnapshotFingerprint = ""
-    private var lastSnapshotAt = 0L
+    private val lastReadAtByPackage = mutableMapOf<String,Long>()
+    private val lastSnapshotFingerprintByPackage = mutableMapOf<String,String>()
+    private val lastSnapshotAtByPackage = mutableMapOf<String,Long>()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
@@ -28,8 +28,8 @@ class DriverAppAccessibilityService : AccessibilityService() {
         val platform = RidePlatformPackages.platformFor(packageName) ?: return
 
         val now = System.currentTimeMillis()
-        if (now - lastReadAt < MIN_EVENT_INTERVAL_MS) return
-        lastReadAt = now
+        if (now - (lastReadAtByPackage[packageName] ?: 0L) < MIN_EVENT_INTERVAL_MS) return
+        lastReadAtByPackage[packageName] = now
 
         val root = rootInActiveWindow ?: return
         if (root.packageName?.toString() != packageName) return
@@ -38,9 +38,11 @@ class DriverAppAccessibilityService : AccessibilityService() {
 
         val parsed = DriverScreenTextParser.parse(platform, visibleText, now) ?: return
         val fingerprint = sha256(platform + "\u0000" + parsed.screenType + "\u0000" + parsed.visibleText)
-        if (fingerprint == lastSnapshotFingerprint && now - lastSnapshotAt < DUPLICATE_WINDOW_MS) return
-        lastSnapshotFingerprint = fingerprint
-        lastSnapshotAt = now
+        if (fingerprint == lastSnapshotFingerprintByPackage[packageName] &&
+            now - (lastSnapshotAtByPackage[packageName] ?: 0L) < DUPLICATE_WINDOW_MS
+        ) return
+        lastSnapshotFingerprintByPackage[packageName] = fingerprint
+        lastSnapshotAtByPackage[packageName] = now
 
         val rowId = runCatching {
             DriverAppCaptureStore(applicationContext).save(parsed)
