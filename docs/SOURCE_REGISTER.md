@@ -25,8 +25,8 @@ The register is deliberately status-based. A source is promoted to **connected**
 | Kraków MSIP | Municipal GIS, roads, infrastructure and potential 3D assets | Open datasets, WFS/ArcGIS services | Candidate — assess | Dataset-specific licence, update cadence, service terms |
 | ZDMK Kraków | Roadworks and traffic restrictions | Published notices/data channels | Candidate — assess | Machine-readable feed/API availability not yet verified |
 | ZTP Kraków | GTFS and real-time public transport information | GTFS / GTFS-Realtime feeds | Candidate — assess | Feed schema, update cadence, attribution and availability |
-| GDDKiA | National-road roadworks, accidents and disruption events | Geoportal disruption viewer; National Access Point DATEX II | Candidate — viewer confirmed 2026-10-29; no app feed connected | Viewer service endpoint and reuse terms still need verification; no live in-app layer is claimed |
-| Polish National Access Point (NAP) | Current national-road events in DATEX II XML / WGS84 | SOAP Client Pull or Push on Occurrence; receiver registration and client certificate | Public catalogue; credentialed integration not connected | Register as a data recipient; validate DATEX version, access terms, freshness, coverage and certificate lifecycle |
+| GDDKiA / Geoportal disruption layer | Current national-road maintenance works, accidents and other disruptions; road number, start/end, chainage/extent and update time | Official Geoportal viewer layer published 2026-10-28 from KPD data | Official viewer confirmed; not connected to BusyBee | The exact reusable WMS/service endpoint and app reuse/attribution terms are not yet verified. Viewer presence is not permission to scrape/embed the website. |
+| Polish National Access Point (KPD / NAP) | Current national-road disruptions in DATEX II XML / WGS84 | DATEX II 3.4/3.5/3.7; Push on Occurrence preferred; Client Snapshot Pull for recovery/snapshot | Public service catalogue; authenticated recipient integration not connected | Register as a data recipient, obtain/maintain required client certificate, inspect WSDL/schema and test coverage/freshness. This feed describes GDDKiA-managed national roads, not every municipal street. |
 | Geoportal / national spatial services | Spatial reference and infrastructure datasets | WMS/WFS/other services | Candidate — assess | Dataset-level licence and update frequency |
 
 ## 3. Environmental and contextual feeds
@@ -61,7 +61,7 @@ Priority is based on access feasibility, usefulness and cost—not provider pres
 
 1. **Baseline geography and local public feeds:** OSM, Kraków MSIP, ZTP, and verifiable municipal/national feeds.
 2. **Commercial parallel benchmark:** trial TomTom, HERE and Mapbox in the same Kraków routes and compare coverage, latency, ETA variance, incident quality and cost. Evaluate Google Navigation SDK as a distinct navigation experience.
-3. **National road feeds:** apply for GDDKiA/KPD receiver credentials and client certificate; evaluate the GDDKiA Geoportal disruption viewer as a distinct display/service candidate. Do not substitute a browser page for a stable API.
+3. **National road feeds:** apply for GDDKiA/KPD recipient registration and client-certificate access; inspect the DATEX II 3.4 WSDL and Snapshot Pull / Push on Occurrence test flow. Treat the official Geoportal disruption layer as a reference viewer until a reusable service endpoint and terms are confirmed.
 4. **First-party observations:** driver report flow and opt-in Android location.
 5. **Partner-only feeds:** pursue Waze for Cities if eligibility and value justify the application.
 6. **Additional contextual sources:** weather, air quality, events and parking after the ingestion pipeline is proven.
