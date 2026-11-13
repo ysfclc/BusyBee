@@ -1008,7 +1008,22 @@ class MainActivity : AppCompatActivity() {
             addView(action(if(liveListenerEnabled)"MANAGE ANDROID LIVE LISTENER" else "ENABLE ANDROID LIVE LISTENER",true){openLiveListenerSettings()})
             addView(label("NOTIFICATIONS",9f,MINT,true).apply{setPadding(0,dp(12),0,dp(4))})
             addView(label("The same Android listener can turn new ride-app notifications into BusyBee alerts. Notifications are a second signal, not the only data path.",9f,MUTED,false).apply{setPadding(0,dp(2),0,dp(7))})
-            addView(action(if(DriverAlertManager.notificationsAllowed(this@MainActivity))"BUSYBEE ALERTS · ALLOWED" else "ENABLE BUSYBEE ALERTS",false){requestBusyBeeAlerts()})
+            val notificationPermission=DriverAlertManager.notificationsAllowed(this@MainActivity)
+            val alertsOn=DriverAlertManager.alertsEnabled(this@MainActivity)
+            addView(label(if(alertsOn)"BUSYBEE ALERTS · ON" else "BUSYBEE ALERTS · MUTED",9f,if(alertsOn)MINT:AMBER,true).apply{setPadding(0,dp(3),0,dp(4))})
+            addView(action(
+                when {
+                    !notificationPermission -> "GRANT NOTIFICATION PERMISSION"
+                    alertsOn -> "MUTE BUSYBEE ALERTS"
+                    else -> "TURN ON BUSYBEE ALERTS"
+                },false
+            ){
+                if(!notificationPermission) requestBusyBeeAlerts()
+                else {
+                    DriverAlertManager.setAlertsEnabled(this@MainActivity,!alertsOn)
+                    showTab("OFFERS")
+                }
+            })
             addView(action(if(notificationAccessEnabled())"RIDE-APP NOTIFICATION ACCESS · ON" else "ENABLE RIDE-APP NOTIFICATION ACCESS",false){startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))}.apply{setPadding(0,dp(7),0,dp(7))})
         })
 
@@ -1519,9 +1534,9 @@ class MainActivity : AppCompatActivity() {
 
         val active=card()
         active.addView(label("ACTIVE MAP & DEVICE SOURCES",10f,MINT,true))
-        sourceRow(active,"Map · OpenFreeMap / OpenStreetMap","Vector road network, names, land use and building geometry · current ${daylightPhase.name.lowercase()} style","LIVE · ${daylightPhase.name}")
-        sourceRow(active,"Mapped road observations · Overpass","OpenStreetMap-tagged construction and hazard objects · not live traffic speed","LIVE WHEN ENDPOINT RESPONDS")
-        sourceRow(active,"Weather · Open-Meteo","Current weather context near the map centre · not a road-incident feed","LIVE WHEN ENDPOINT RESPONDS")
+        sourceRow(active,"Map · OpenFreeMap / OpenStreetMap","Vector road network, names, land use and building geometry · current ${daylightPhase.name.lowercase()} style","ACTIVE BASE MAP · ${daylightPhase.name}")
+        sourceRow(active,"Mapped road observations · Overpass","On-demand OpenStreetMap-tagged construction and hazard objects · not live traffic speed","ON-DEMAND · NOT TRAFFIC SPEED")
+        sourceRow(active,"Weather · Open-Meteo","On-demand current weather context near the map centre · not a road-incident feed","ON-DEMAND · WEATHER ONLY")
         sourceRow(active,"Driver location · Android GPS","Location, speed and bearing used for the driver marker and foreground navigation",if(locationGranted)"PERMISSION GRANTED" else "PERMISSION REQUIRED")
         sourceRow(active,"Driver apps · read-only live listener","Uber Driver and Bolt Driver visible UI text-change events, filtered by package · explicit Android Accessibility opt-in",if(isDriverAppLiveListenerEnabled())"ENABLED BY YOU" else "AVAILABLE · USER OPT-IN")
         sourceRow(active,"Driver app · visual fallback","One-session Android app-window capture with on-device OCR for screens that expose no readable UI text","MANUAL · PER-SESSION CONSENT")
@@ -1560,7 +1575,7 @@ class MainActivity : AppCompatActivity() {
     }
     private fun sourceRow(parent:LinearLayout,name:String,detail:String,status:String){
         val row=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(0,dp(9),0,dp(9))}
-        val healthy=status.startsWith("LIVE") || status.startsWith("ENABLED") || status.startsWith("ALLOWED") || status.startsWith("PERMISSION GRANTED") || status=="USER SELECTED"
+        val healthy=status.startsWith("LIVE") || status.startsWith("ACTIVE") || status.startsWith("ENABLED") || status.startsWith("ALLOWED") || status.startsWith("PERMISSION GRANTED") || status=="USER SELECTED"
         row.addView(label(name,11f,WHITE,true))
         row.addView(label(detail,9f,MUTED,false).apply{setPadding(0,dp(3),0,dp(4))})
         row.addView(label(status,8f,if(healthy)MINT else AMBER,true))
@@ -1596,6 +1611,11 @@ class MainActivity : AppCompatActivity() {
         if(Build.VERSION.SDK_INT>=33 &&
             ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,arrayOf(Manifest.permission.POST_NOTIFICATIONS),NOTIFICATION_REQUEST)
+            return
+        }
+        val manager=getSystemService(android.app.NotificationManager::class.java)
+        if(!manager.areNotificationsEnabled()) {
+            startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,packageName))
             return
         }
         DriverAlertManager.setAlertsEnabled(this,true)
