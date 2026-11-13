@@ -18,7 +18,6 @@ import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.util.Log
 import android.widget.ArrayAdapter
 import android.widget.EditText
@@ -1004,33 +1003,11 @@ class MainActivity : AppCompatActivity() {
     }
     private fun openUri(uri:Uri){try{startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri,"*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))}catch(_:Exception){Toast.makeText(this,"No app can open this document.",Toast.LENGTH_SHORT).show()}}
 
-    /**
-     * ScrollView permits exactly one direct child. Screen builders intentionally append
-     * many sections, so route those additions into a single vertical content column.
-     * This fixes tab construction for OFFERS, EARNINGS, DRIVER HUB and SOURCES.
-     */
-    private inner class ScreenScrollView : ScrollView(this@MainActivity) {
-        private val body = LinearLayout(this@MainActivity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(24))
-        }
-
-        init {
-            isFillViewport = true
-            setBackgroundColor(BG)
-            super.addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        }
-
-        override fun addView(child: View?) {
-            body.addView(child)
-        }
-
-        override fun addView(child: View?, params: ViewGroup.LayoutParams?) {
-            body.addView(child, params)
-        }
+    private fun columnScroll(): ScrollView = ScrollableColumn(this).apply {
+        isFillViewport = true
+        setBackgroundColor(BG)
+        contentLayout.setPadding(dp(14), dp(12), dp(14), dp(24))
     }
-
-    private fun columnScroll(): ScrollView = ScreenScrollView()
     private fun section(title:String,subtitle:String)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(2),dp(13),dp(2),dp(9));addView(label(title,12f,WHITE,true));addView(label(subtitle,10f,MUTED,false).apply{setPadding(0,dp(3),0,0)})}
     private fun card()=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(14),dp(13),dp(14),dp(13));background=rounded(CARD,17);layoutParams=LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)}}
     private fun metric(title:String,value:String)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(9),dp(10),dp(7),dp(9));background=rounded(0xFF1A2D37.toInt(),12);addView(label(title,9f,MUTED,true));addView(label(value,12f,WHITE,true).apply{setPadding(0,dp(6),0,0)})}
