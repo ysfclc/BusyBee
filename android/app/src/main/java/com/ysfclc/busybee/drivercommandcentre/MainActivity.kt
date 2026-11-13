@@ -1140,7 +1140,10 @@ class MainActivity : AppCompatActivity() {
                 heading.addView(View(this@MainActivity),LinearLayout.LayoutParams(0,1,1f))
                 heading.addView(label(dateTime(observation.capturedAt),9f,MUTED,false))
                 addView(heading)
-                addView(label(observation.visibleText.take(180),10f,WHITE,false).apply{setPadding(0,dp(6),0,dp(5));maxLines=3})
+                addView(label(if(observation.sourceType=="ACCESSIBILITY_UI")"LIVE UI LISTENER" else "MANUAL SCREEN OCR",8f,AMBER,true).apply{setPadding(0,dp(3),0,dp(2))})
+                addView(label(observation.visibleText.take(180),10f,WHITE,false).apply{setPadding(0,dp(3),0,dp(5));maxLines=3})
+                val routeText=listOfNotNull(observation.pickup,observation.dropoff).joinToString(" → ")
+                if(routeText.isNotBlank()) addView(label(routeText,9f,WHITE,true).apply{setPadding(0,dp(2),0,dp(4))})
                 addView(label("Detected "+money(observation.detectedAmount)+"  ·  "+(observation.distanceKm?.let{"%.1f km".format(Locale.US,it)}?:"distance unknown")+"  ·  "+(observation.durationMinutes?.let{"%.0f min".format(Locale.US,it)}?:"time unknown"),9f,MUTED,false))
                 val actions=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
                 actions.addView(action("REVIEW & SAVE",true){reviewNativeObservation(observation)},LinearLayout.LayoutParams(0,dp(38),1f))
@@ -1266,13 +1269,17 @@ class MainActivity : AppCompatActivity() {
         val amount=field("Amount / gross (confirm or correct)",observation.detectedAmount?.toString().orEmpty())
         val fees=field("Platform fees (blank = unknown)","")
         val bonus=field("Bonus (blank = unknown)","")
+        val pickup=field("Pickup / start address (optional)",observation.pickup.orEmpty())
+        val dropoff=field("Drop-off / destination (optional)",observation.dropoff.orEmpty())
         val distance=field("Trip distance km",observation.distanceKm?.toString().orEmpty())
         val duration=field("Trip duration minutes",observation.durationMinutes?.toString().orEmpty())
         val currency=field("Currency code","PLN")
+        val sourceLabel=if(observation.sourceType=="ACCESSIBILITY_UI")"LIVE ANDROID UI OBSERVATION" else "MANUAL ANDROID SCREEN OCR"
+        form.addView(label("SOURCE · "+sourceLabel,9f,MINT,true).apply{setPadding(0,0,0,dp(5))})
         form.addView(label("RECORD TYPE",10f,MUTED,true))
         form.addView(type)
-        listOf(amount,fees,bonus,distance,duration,currency).forEach { form.addView(it) }
-        form.addView(label("Original on-device OCR evidence",10f,MINT,true).apply { setPadding(0,dp(7),0,dp(4)) })
+        listOf(amount,fees,bonus,pickup,dropoff,distance,duration,currency).forEach { form.addView(it) }
+        form.addView(label("Original on-device evidence",10f,MINT,true).apply { setPadding(0,dp(7),0,dp(4)) })
         form.addView(label(observation.visibleText,10f,MUTED,false).apply { maxLines=8 })
         val scroll=ScrollView(this).apply { addView(form) }
         AlertDialog.Builder(this)
@@ -1302,7 +1309,10 @@ class MainActivity : AppCompatActivity() {
                         bonus=parsed(bonus,"Bonus"),
                         distanceKm=parsed(distance,"Distance"),
                         durationMinutes=parsed(duration,"Duration"),
-                        currency=currency.text.toString()
+                        currency=currency.text.toString(),
+                        pickup=pickup.text.toString(),
+                        dropoff=dropoff.text.toString(),
+                        sourceName=if(observation.sourceType=="ACCESSIBILITY_UI")"Android live UI listener" else "Android screen capture"
                     )
                     DriverAppCaptureStore(this).delete(observation.id)
                     Toast.makeText(this,"Driver-reviewed record saved with original screen evidence.",Toast.LENGTH_LONG).show()
