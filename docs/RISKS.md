@@ -37,3 +37,16 @@ This register tracks material product, data-integrity, safety and delivery risks
 ## R-09 — Target-device runtime instability (updated 2026-11-13)
 
 **Status: Open — release blocker.** User reports repeated action failures and an IllegalStateException, plus incorrect map/routing and non-working navigation/vehicle selection. Existing Robolectric tests and Vercel builds have not reproduced or cleared these failures on the target phone. Capture the DIAG LAST ACTION FAILURE report (or Android logcat), identify the exact app-owned stack frame, reproduce the root cause, add a regression test, and verify the original action on the target device. Do not infer a root cause from the exception class. No stability/release claim until the target-device smoke matrix passes.
+
+
+## R-12 — Missing user record controls (added 2026-11-13)
+
+**Status: Open — product completeness blocker.** Source audit found create-only or limited-status flows for driver items, documents, offers, community imports, road reports and imported trip records. Users cannot reliably correct or remove saved personal data. Add tested edit/delete/archive/undo and explicit destructive confirmations after the runtime baseline is accepted.
+
+## R-13 — Import correction and rollback gap (added 2026-11-13)
+
+**Status: Open — data integrity risk.** CSV imports are committed immediately without preview, row selection or post-commit import rollback. Raw evidence is retained and SQLite import is transactional, but there is no separate correction/exclusion ledger for normalized trip data. Preserve original evidence and implement auditable corrections only after validating the import contract against real exports.
+
+## R-14 — Asynchronous Activity lifecycle callbacks (added 2026-11-13)
+
+**Status: Candidate — not reproduced.** Route, reroute and road/weather workers post UI updates to the Activity; not every posted callback checks whether the Activity is finishing/destroyed before touching views or showing dialogs. Reproduce with lifecycle interruption and device logs before attributing any crash to this path. No speculative patch.
