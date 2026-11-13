@@ -44,7 +44,7 @@ object RoutePlanner {
         require(query.isNotBlank()) { "Enter a destination" }
         val bias = near?.let {
             val bounds = listOf(it.longitude - 0.35, it.latitude + 0.35, it.longitude + 0.35, it.latitude - 0.35)
-            "&viewbox=" + bounds.joinToString(",") { value -> String.format(Locale.US, "%.6f", value) } + "&bounded=1"
+            "&viewbox=" + bounds.joinToString(",") { value -> String.format(Locale.US, "%.6f", value) }
         }.orEmpty()
         return "$NOMINATIM?format=jsonv2&limit=5&addressdetails=1&countrycodes=pl&accept-language=pl$bias&q=" +
             URLEncoder.encode(query.trim(), "UTF-8")
