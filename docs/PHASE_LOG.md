@@ -2,7 +2,7 @@
 
 **Status:** source committed on draft PR #9; Android build, tests and device verification pending.
 
-**Source revision:** `48dce0278c266a196423b5de119c5771dbf73bb6`  
+**Source revision:** `447d15f8acd69c11dd075b729daceae23b6bbfc7`  
 **Branch:** `feat/map-first-route-dock-2026-11-13`  
 **PR:** [#9 — compact map dock and purpose-built driver workspaces](https://github.com/ysfclc/BusyBee/pull/9) (draft, unmerged)
 
@@ -14,7 +14,7 @@ Delivered in source:
 - Fixed local street-name precedence: the default OpenFreeMap style can prefer `name_en` over local OSM `name`; BusyBee now prefers `name:pl` (on Polish locales), then local `name`, then Latin/English fallbacks across the three styles.
 - Nominatim destination search prefers Polish names and biases to the driver's area without hard-bounding intercity destinations. OSRM maneuver steps fall back to road references when names are missing.
 - Added on-demand Overpass detail lookup for named/addressed building ways and multipolygon relations, plus entrance/door nodes. Building names/addresses and amber entrance/Klatka labels render at zoom-gated levels. A label such as `Klatka A` is shown only when OSM explicitly maps a staircase entrance and its reference.
-- Added map context counts with OSM attribution and throttled marker redraws.
+- Added map context counts with OSM attribution and throttled marker redraws. Place lookups follow the visible camera centre after a manual pan instead of fetching around an off-screen GPS fix.
 
 Regression tests added for local road-name policy, OSM building/entrance/relation parsing, no fabricated stairwell letters, camera look-ahead, heading wrap smoothing, Polish geocoding bias and road-reference fallback.
 
