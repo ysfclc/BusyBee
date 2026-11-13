@@ -170,3 +170,11 @@ The next narrow stabilization change should separate “style is ready” from �
 
 
 - Follow-up run #118 (`43432885303`), triggered by the documentation checkpoint commit on the current PR head, also failed before job steps were allocated (job `131910538716`, `steps: null`). This confirms the current GitHub Actions runner path is still not reaching the build workflow; no Gradle/APK step executed.
+
+
+## BB-007 narrow correction — source implemented, verification pending
+
+- `MapStyleState` now records style readiness separately from activation and exposes a one-time activation claim requiring both a resumed Activity and an available map instance.
+- `MainActivity` routes style completion through `activateMapAfterStyleIfResumed()` and retries at `onPostResume()`, so a style callback that arrives while paused remains pending until the Activity is resumed.
+- Expanded `MapStyleStateTest` coverage for paused deferral, map-instance prerequisite and one-time activation.
+- Source was read back after edits. No compile, unit test, APK build or device test has succeeded; do not treat the correction as verified runtime behavior.
