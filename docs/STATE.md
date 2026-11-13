@@ -163,3 +163,14 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - **Verified:** Source line locations were read from GitHub; the risk and stabilization records are being updated with exact flow names and verification requirements.
 - **Not done/next:** No root cause is assigned to BB-002. Capture the DIAG LAST ACTION FAILURE/logcat and reproduce lifecycle interruption while each worker is in flight before authorizing a fix.
 - **Risks/landmines:** Guarding only `displayRoute()` is insufficient; the complete callback body, dialogs, Toasts, map annotation calls and Activity-owned state need lifecycle consideration. A source-level guard still requires target-device verification.
+
+
+## Session handoff — 2026-11-13 (lifecycle callback mitigation)
+
+- **Done:** Added `LifecycleSafeUiDispatcher` and routed all seven worker-to-main-thread callback sites in `MainActivity.kt` through its pre-post and execution-time Activity lifecycle checks.
+- **Done:** Added two Robolectric regression tests: drop a callback queued before Activity destruction; deliver a callback while Activity remains alive.
+- **State changed:** Source code and tests committed to the existing PR #8 branch. No PR merge, APK build, release or billing change.
+- **Verified:** GitHub read-back confirms all seven callback replacements and both new files. Static source scan found no remaining `runOnUiThread` calls in `MainActivity.kt`.
+- **Not verified:** Tests have not executed. GitHub Actions run 99 (43420894556) failed before any job steps were allocated; no steps or job logs were returned. Vercel Sandbox resume was rejected with HTTP 402 due to Hobby usage limit, with reset reported as 2026-12-01T00:00:00Z.
+- **Not done/next:** Execute Android unit tests when a runner is available; then exercise destination search, route alternatives, reroute and road refresh while destroying/backgrounding the Activity. Capture the user's original DIAG/logcat separately to determine whether BB-002 shares this cause.
+- **Risks/landmines:** The dispatcher protects the worker callback paths found in the audit; it does not prove MapLibre native lifecycle safety, fix other possible causes of IllegalStateException, or provide device verification. No stability/release claim.
