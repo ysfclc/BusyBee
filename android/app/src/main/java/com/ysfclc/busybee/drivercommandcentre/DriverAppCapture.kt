@@ -147,7 +147,7 @@ object DriverScreenTextParser {
                 .trim(' ', ':', '-', '–', '—', '·')
                 .take(180)
             if (cleaned.length < 3) continue
-            if (Regex("""^(?:in\\s+)?[0-9]+(?:[,.][0-9]+)?\\s*(?:m|min|mins|minutes?|km)$""",RegexOption.IGNORE_CASE).matches(cleaned)) continue
+            if (Regex("""^(?:in\s+)?[0-9]+(?:[,.][0-9]+)?\s*(?:m|min|mins|minutes?|km)$""", RegexOption.IGNORE_CASE).matches(cleaned)) continue
             if (cleaned.lowercase(Locale.ROOT) in setOf("accept","navigate","cancel","complete","dropoff","pickup","destination")) continue
             return cleaned
         }
