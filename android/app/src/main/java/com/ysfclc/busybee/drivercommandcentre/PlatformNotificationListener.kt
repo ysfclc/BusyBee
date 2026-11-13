@@ -1,7 +1,6 @@
 package com.ysfclc.busybee.drivercommandcentre
 
 import android.app.Notification
-import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 
@@ -24,32 +23,33 @@ internal object WhatsAppNotificationParser {
         val messages: List<Triple<String, String, Long>>
     )
 
-    fun parse(notification: Notification): GroupUpdate? {
-        val extras = notification.extras
-        val style = Notification.MessagingStyle.extractMessagingStyleFromNotification(notification)
-        val isGroup = if (Build.VERSION.SDK_INT >= 28) {
-            extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, style?.isGroupConversation == true)
-        } else {
-            style?.isGroupConversation == true
-        }
+    /**
+     * Uses only Android's public notification extras. WhatsApp does not expose
+     * its private chat database to this listener. A message is available only
+     * when WhatsApp places its group conversation title and message preview in
+     * an Android notification.
+     */
+    fun parse(notification: Notification, postedAt: Long): GroupUpdate? {
+        val extras = notification.extras ?: return null
+        val isGroup = extras.getBoolean("android.isGroupConversation", true)
         if (!isGroup) return null
 
-        val title = style?.conversationTitle?.toString()
-            ?.takeIf { it.isNotBlank() }
-            ?: extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()
-                ?.takeIf { it.isNotBlank() }
+        val title = extras.getCharSequence("android.conversationTitle")
+            ?.toString()?.trim()?.takeIf { it.isNotBlank() }
             ?: return null
+        val body = (
+            extras.getCharSequence("android.bigText")
+                ?: extras.getCharSequence("android.text")
+            )?.toString()?.trim()?.takeIf { it.isNotBlank() }
+            ?: return GroupUpdate(title.take(160), emptyList())
 
-        val messages = style?.messages.orEmpty().mapNotNull { message ->
-            val body = message.text?.toString()?.trim().orEmpty()
-            if (body.isBlank()) null
-            else Triple(
-                message.sender?.toString().orEmpty().ifBlank { "Unknown sender" },
-                body,
-                message.timestamp
-            )
-        }
-        return GroupUpdate(title.take(160), messages)
+        val sender = extras.getCharSequence("android.title")
+            ?.toString()?.trim()?.takeIf { it.isNotBlank() }
+            ?: "WhatsApp participant"
+        return GroupUpdate(
+            groupTitle = title.take(160),
+            messages = listOf(Triple(sender.take(120), body.take(4000), postedAt))
+        )
     }
 }
 
@@ -76,12 +76,12 @@ class PlatformNotificationListener : NotificationListenerService() {
     }
 
     private fun captureSelectedWhatsAppGroup(sbn: StatusBarNotification) {
-        val update = WhatsAppNotificationParser.parse(sbn.notification) ?: return
+        val update = WhatsAppNotificationParser.parse(sbn.notification, sbn.postTime) ?: return
         val store = DriverCommandStore(applicationContext)
         val groupId = store.observeWhatsAppGroup(sbn.packageName, update.groupTitle, sbn.postTime) ?: return
 
-        // Discover the group even while tracking is off, but do not persist the
-        // notification's message text until the driver enables this exact group.
+        // Group discovery works while tracking is off, but message text is not
+        // persisted until the driver enables this exact group.
         if (!store.isWhatsAppGroupTrackingEnabled(groupId)) return
         update.messages.forEach { (sender, body, timestamp) ->
             store.captureTrackedWhatsAppMessage(groupId, sender, body, timestamp)
