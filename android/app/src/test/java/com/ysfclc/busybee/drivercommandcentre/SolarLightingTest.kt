@@ -43,7 +43,7 @@ class SolarLightingTest {
         val dusk = BusyBeePalettes.forPhase(DaylightPhase.DUSK)
         val night = BusyBeePalettes.forPhase(DaylightPhase.NIGHT)
 
-        assertEquals("https://tiles.openfreemap.org/styles/bright", day.mapStyleUri)
+        assertEquals("https://tiles.openfreemap.org/styles/liberty", day.mapStyleUri)
         assertEquals("https://tiles.openfreemap.org/styles/fiord", dusk.mapStyleUri)
         assertEquals("https://tiles.openfreemap.org/styles/dark", night.mapStyleUri)
         assertNotEquals(day.accent, night.accent)
