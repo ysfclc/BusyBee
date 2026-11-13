@@ -178,3 +178,6 @@ The next narrow stabilization change should separate “style is ready” from �
 - `MainActivity` routes style completion through `activateMapAfterStyleIfResumed()` and retries at `onPostResume()`, so a style callback that arrives while paused remains pending until the Activity is resumed.
 - Expanded `MapStyleStateTest` coverage for paused deferral, map-instance prerequisite and one-time activation.
 - Source was read back after edits. No compile, unit test, APK build or device test has succeeded; do not treat the correction as verified runtime behavior.
+
+
+- After implementing the BB-007 source correction, workflow run #124 (`43433780437`) on the updated branch also failed before any job steps were allocated. One retry was queued and then failed with an empty step list (`131913684624`). No Gradle, unit-test, APK assembly or signing task ran.
