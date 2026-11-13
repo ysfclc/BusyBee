@@ -15,8 +15,22 @@ The current feature branch now changes the primary integration model from repeat
 - It does not click, gesture, type, accept/decline, record audio, save screenshots, inspect other apps, or access private app databases. The driver receives an in-app disclosure before Android Accessibility Settings is opened. The user can disable it in system settings. App screens that expose no accessibility text remain unsupported.
 - Ride-app notifications are an additional event signal. New relevant notifications and newly stored live UI observations can trigger a generic BusyBee notification linking to Offers or Earnings. Raw route/address/passenger/earnings values are not put in lock-screen notification text.
 - MediaProjection with on-device OCR remains a manual per-session fallback for screens whose visible content is not exposed to accessibility.
-- Day, dusk and night palettes use the sun's elevation at the last permitted location. If location is unavailable, local clock is used until a fix arrives. The map switches between OpenFreeMap Bright, Fiord and Dark styles while preserving camera/route state.
+- Day, dusk and night palettes use the sun's elevation at the last permitted location. If location is unavailable, local clock is used until a fix arrives. The map switches between OpenFreeMap Liberty, Fiord and Dark styles while preserving camera/route state. The daylight native palette uses tinted green/stone surfaces rather than pure-white panels.
 - The Sources workspace reports actual permissions and connection status rather than describing an unenabled capability as connected.
+
+## Map usability correction — 2026-11-14
+
+The draft branch now contains the following corrective implementation:
+
+- A custom top-down vehicle marker replaces the generic map pin. Foreground GPS updates move it; navigation camera-follow uses GPS course/bearing, a look-ahead target, zoom 18.2 and 58-degree pitch in 3D mode. The locate control explicitly re-enters follow mode.
+- OpenFreeMap Liberty is the daytime basemap; Fiord and Dark remain dusk/night. A MapLibre fill-extrusion building layer is installed for styles that do not already have one. This is 3D building context and a forward-facing perspective, not a photorealistic 3D road mesh.
+- OpenStreetMap/Overpass supplies named buildings, house-number addresses and mapped entrance/door nodes on demand around the map centre. Labels are zoom-gated to avoid clutter. Entrance nodes can expose a mapped stairwell type, reference, level or door; individual stairwell letters are shown only when the source actually contains them.
+- Nominatim destination search prefers Polish names and uses a nearby viewbox as a ranking bias, but does not hard-bound results, so destinations in other Polish cities remain searchable. OSRM maneuver instructions use a road reference when the road-name field is absent.
+- A compact map context line shows counts of mapped road observations, buildings and entrances. Place marker redraws are throttled by zoom changes and forced only when new place data or a new style arrives.
+
+**Data-quality boundary:** basemap street labels and building/entrance data remain dependent on OpenStreetMap/OpenFreeMap coverage. An unlabelled entrance is not evidence that a stairwell does not exist; a missing letter must not be guessed. OSRM names/references are still OSM-derived and may themselves be incomplete or incorrect. No live traffic feed is implied.
+
+**Verification:** parser and camera-math regression tests were added. No Android build, test run, APK or target-device navigation test has yet verified this source increment.
 
 **Important verification boundary:** this is source code on a draft branch. It has not been built, tested on the target phone, or reviewed by Google Play. Accessibility-based reading is not an official Uber/Bolt API, cannot see hidden/private data, and may not work on custom/secure driver-app screens. If distributing through Google Play, the Accessibility API disclosure/declaration requirements must be reviewed; approval must not be assumed.
 
