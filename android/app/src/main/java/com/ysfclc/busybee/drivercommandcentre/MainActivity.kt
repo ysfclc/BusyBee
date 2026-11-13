@@ -1009,7 +1009,7 @@ class MainActivity : AppCompatActivity() {
             addView(label("With your Android Accessibility permission, BusyBee observes visible text-change events only inside Uber Driver and Bolt Driver. It extracts relevant trip, offer and earnings text locally, then puts it in your review inbox. It does not read other apps, tap controls, accept/decline rides, record audio or save screenshots.",9f,MUTED,false).apply{setPadding(0,dp(5),0,dp(9))})
             addView(action(if(liveListenerEnabled)"MANAGE ANDROID LIVE LISTENER" else "ENABLE ANDROID LIVE LISTENER",true){openLiveListenerSettings()})
             addView(label("NOTIFICATIONS",9f,MINT,true).apply{setPadding(0,dp(12),0,dp(4))})
-            addView(label("The same Android listener can turn new ride-app notifications into BusyBee alerts. Notifications are a second signal, not the only data path.",9f,MUTED,false).apply{setPadding(0,dp(2),0,dp(7))})
+            addView(label("Android's notification listener can turn new ride-app notifications into BusyBee alerts. Notifications are a second signal, not the only data path.",9f,MUTED,false).apply{setPadding(0,dp(2),0,dp(7))})
             val notificationPermission=DriverAlertManager.notificationsAllowed(this@MainActivity)
             val alertsOn=DriverAlertManager.alertsEnabled(this@MainActivity)
             addView(label(if(alertsOn)"BUSYBEE ALERTS · ON" else "BUSYBEE ALERTS · MUTED",9f,if(alertsOn)MINT:AMBER,true).apply{setPadding(0,dp(3),0,dp(4))})
