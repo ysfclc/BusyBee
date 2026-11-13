@@ -1,3 +1,5 @@
+> **Current product requirements:** [Canonical Product Contract](docs/PRODUCT_CONTRACT.md). The latest implementation replaces notification-only/CSV-first/chat-export shortcuts with user-consented native driver-app capture, driver-selected WhatsApp groups, and a map-first workspace. This is an implementation candidate, not device-accepted product completion.
+
 # BusyBee — Driver Command Centre
 
 BusyBee is the product brand for **Driver Command Centre**: an Android-native driver intelligence platform combining a private cross-platform Driver Data Mirror with a provider-neutral Road Intelligence Aggregator. The map is the spatial interface, not the product itself.
