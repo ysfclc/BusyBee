@@ -21,10 +21,11 @@ internal object NavigationGuidance {
         require(distanceMeters.isFinite())
         require(stage in 1..3)
         val cleanInstruction = instruction.trim().ifBlank { "Continue along the highlighted route." }
+        val spokenInstruction = cleanInstruction.replaceFirstChar { it.lowercase() }
         return if (stage == 3) {
-            "Now, $cleanInstruction"
+            "Now, $spokenInstruction"
         } else {
-            "In ${distanceMeters.toInt().coerceAtLeast(0)} metres, $cleanInstruction"
+            "In ${distanceMeters.toInt().coerceAtLeast(0)} metres, $spokenInstruction"
         }
     }
 }
