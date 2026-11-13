@@ -284,7 +284,10 @@ class DriverMirrorStore(context: Context) :
         bonus: Double?,
         distanceKm: Double?,
         durationMinutes: Double?,
-        currency: String = "PLN"
+        currency: String = "PLN",
+        pickup: String? = null,
+        dropoff: String? = null,
+        sourceName: String = "Android screen capture"
     ): Long {
         val safePlatform = platform.trim().take(60)
         require(safePlatform.matches(Regex("[\\p{L}0-9 ._-]{2,60}"))) { "Enter a valid driver platform name" }
@@ -299,16 +302,21 @@ class DriverMirrorStore(context: Context) :
         val safeCurrency = currency.trim().uppercase(Locale.ROOT).ifBlank { "PLN" }
         require(safeCurrency.matches(Regex("[A-Z]{3}"))) { "Use a three-letter currency code" }
         val raw = visibleText.take(5000)
+        val safePickup = pickup?.trim()?.take(180)?.ifBlank { null }
+        val safeDropoff = dropoff?.trim()?.take(180)?.ifBlank { null }
+        val safeSourceName = sourceName.trim().takeIf {
+            it in setOf("Android live UI listener", "Android screen capture", "Android MediaProjection OCR")
+        } ?: "Android screen capture"
         val occurredAt = java.time.Instant.ofEpochMilli(capturedAt).toString()
         val fingerprint = sha256(
-            listOf(safePlatform, type, occurredAt, raw, gross, fees, bonus, distanceKm, safeCurrency).joinToString("|")
+            listOf(safePlatform, type, occurredAt, raw, gross, fees, bonus, distanceKm, safeCurrency, safePickup, safeDropoff, safeSourceName).joinToString("|")
         )
         val db = writableDatabase
         db.beginTransaction()
         try {
             val importedAt = System.currentTimeMillis()
             val importId = db.insertOrThrow("imports", null, ContentValues().apply {
-                put("source_name", "Android screen capture")
+                put("source_name", safeSourceName)
                 put("imported_at", importedAt)
                 put("row_count", 1)
                 put("inserted_count", 0)
@@ -318,7 +326,7 @@ class DriverMirrorStore(context: Context) :
                 put("row_number", 1)
                 put("fingerprint", fingerprint)
                 put("raw", raw)
-                put("source_name", "Android screen capture")
+                put("source_name", safeSourceName)
             })
             val recordId = db.insertOrThrow("records", null, ContentValues().apply {
                 put("fingerprint", fingerprint)
@@ -327,8 +335,8 @@ class DriverMirrorStore(context: Context) :
                 put("record_type", type)
                 putNull("external_id")
                 put("occurred_at", occurredAt)
-                putNull("pickup")
-                putNull("dropoff")
+                if (safePickup == null) putNull("pickup") else put("pickup", safePickup)
+                if (safeDropoff == null) putNull("dropoff") else put("dropoff", safeDropoff)
                 if (distanceKm == null) putNull("distance_km") else put("distance_km", distanceKm)
                 if (durationMinutes == null) putNull("duration_minutes") else put("duration_minutes", durationMinutes)
                 if (gross == null) putNull("gross") else put("gross", gross)
@@ -337,7 +345,7 @@ class DriverMirrorStore(context: Context) :
                 put("currency", safeCurrency)
                 put("status", "driver-reviewed")
                 put("raw", raw)
-                put("source_name", "Android screen capture")
+                put("source_name", safeSourceName)
             })
             db.execSQL("UPDATE imports SET inserted_count=1 WHERE id=?", arrayOf(importId))
             db.setTransactionSuccessful()
