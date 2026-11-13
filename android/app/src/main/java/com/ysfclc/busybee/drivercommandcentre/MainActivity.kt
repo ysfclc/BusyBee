@@ -65,6 +65,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var nav:LinearLayout
     private val worker=Executors.newFixedThreadPool(2)
     private var map:MapLibreMap?=null
+    private val mapStyleState=MapStyleState()
     private var lastLocation:Location?=null
     private var tilted=true
     private var roadEvents:List<RoadEvent> = emptyList()
@@ -136,7 +137,10 @@ class MainActivity : AppCompatActivity() {
             CrashDiagnostics.record(this,"map:ready")
             map=instance
             instance.setStyle(Style.Builder().fromUri(OPENFREE_MAP_STYLE)) {
+                mapStyleState.markReady()
                 CrashDiagnostics.record(this,"map:style-loaded")
+                lastLocation?.let(::updateDriverLocation)
+                renderRoadEvents()
                 val initialTarget=lastLocation?.let { LatLng(it.latitude,it.longitude) } ?: KRAKOW
                 instance.cameraPosition=CameraPosition.Builder().target(initialTarget).zoom(15.0).tilt(48.0).build()
                 mapStatus?.text="● MAP ONLINE"
@@ -260,6 +264,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun planRoute(query:String) {
+        if(!mapStyleState.isReady) {
+            routeSummary?.text="Map is still loading. Try again in a moment."
+            return
+        }
         if(query.isBlank()) {
             Toast.makeText(this,"Enter a destination first.",Toast.LENGTH_SHORT).show()
             return
@@ -322,6 +330,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun displayRoute(plan:RoutePlan,origin:LatLng,kind:String) {
+        if(!mapStyleState.isReady || isFinishing || isDestroyed) return
         stopNavigation("Route ready",announce=false)
         routePolyline?.let { map?.removeAnnotation(it) }
         routeMarkers.forEach { map?.removeAnnotation(it) };routeMarkers.clear()
@@ -392,6 +401,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateDriverLocation(location:Location) {
+        lastLocation=location
+        if(!mapStyleState.isReady || isFinishing || isDestroyed) return
         val point=LatLng(location.latitude,location.longitude)
         mapStatus?.text=if(navigating)"● NAVIGATION GPS ACTIVE" else "● LOCATION LIVE"
         val marker=driverMarker
@@ -480,6 +491,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshRoadIntelligence() {
+        if(!mapStyleState.isReady || isFinishing || isDestroyed) {
+            mapSummary?.text="Map is still loading…"
+            return
+        }
         val center=map?.cameraPosition?.target?:KRAKOW
         mapStatus?.text="● SOURCES UPDATING";mapSummary?.text="Checking mapped road events and live weather…"
         worker.execute {
@@ -539,6 +554,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderRoadEvents(){
+        if(!mapStyleState.isReady || isFinishing || isDestroyed) return
         val active=map?:return
         eventMarkers.forEach{active.removeAnnotation(it)};eventMarkers.clear()
         roadEvents.filter{selectedLayers.contains(it.category)}.forEach{e->active.addMarker(MarkerOptions().position(e.point).title(e.title).snippet(e.category+" · "+e.detail+" · OSM"))?.let{eventMarkers.add(it)}}
