@@ -47,6 +47,7 @@ class DriverScreenTextParserTest {
         assertEquals("Main Street 12, Kraków", parsed?.pickup)
         assertEquals("Rynek Główny, Kraków", parsed?.dropoff)
         assertEquals("ACCESSIBILITY_UI", parsed?.sourceType)
+        assertEquals(0.92, parsed?.parseConfidence ?: 0.0, 0.001)
     }
 
     @Test
