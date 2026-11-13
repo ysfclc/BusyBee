@@ -26,13 +26,15 @@ class MapSpatialDataTest {
         val result = MapPlaceLookup.parse(
             """{"elements":[
                 {"type":"way","id":101,"center":{"lat":50.061,"lon":19.937},"tags":{"building":"apartments","name:pl":"Kamienica Pod Aniołem","addr:street":"Świętego Jana","addr:housenumber":"12","building:levels":"4"}},
-                {"type":"way","id":102,"center":{"lat":50.062,"lon":19.938},"tags":{"building":"residential","addr:street":"Długa","addr:housenumber":"8"}}
+                {"type":"way","id":102,"center":{"lat":50.062,"lon":19.938},"tags":{"building":"residential","addr:street":"Długa","addr:housenumber":"8"}},
+                {"type":"relation","id":103,"center":{"lat":50.063,"lon":19.939},"tags":{"building":"retail","name:pl":"Pasaż Miejski"}}
             ]}"""
         )
-        assertEquals(2, result.size)
+        assertEquals(3, result.size)
         assertEquals("Kamienica Pod Aniołem", result[0].label)
         assertTrue(result[0].detail.contains("Świętego Jana 12"))
         assertEquals("Długa 8", result[1].label)
+        assertEquals("Pasaż Miejski", result[2].label)
     }
 
     @Test
@@ -78,6 +80,7 @@ class MapSpatialDataTest {
         assertTrue(query.contains("[\\"building\\"][\\"name\\"]"))
         assertTrue(query.contains("[\\"building\\"][\\"name:pl\\"]"))
         assertTrue(query.contains("[\\"building\\"][\\"official_name\\"]"))
+        assertTrue(query.contains("relation(around:"))
         assertTrue(query.contains("[\\"addr:housenumber\\"]"))
         assertTrue(query.contains("[\\"entrance\\"]"))
         assertTrue(query.contains("out center tags"))
