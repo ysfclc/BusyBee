@@ -22,20 +22,23 @@ The map is the primary spatial workspace, not a decorative tab. The Data Mirror 
 
 For each platform (Uber, Bolt, FREENOW and additional platforms as supported), implement independent adapters and clearly show capability/status:
 
-1. Official provider API/SDK where the provider grants the required driver-level access. Authenticate securely, request least-privilege scopes and support disconnect/revocation. Do not imply that fleet APIs or partner-only APIs are available to an individual driver.
-2. Android-native, driver-initiated integration where an API is unavailable: a visible user-started Android MediaProjection session with Android's system consent, on-device OCR/text extraction, platform selection and a review queue. Never silently record the screen, upload screenshots, bypass app security, or automate accept/decline actions.
-3. Package-specific Android integrations/intents only where the target app exposes a supported interface. Do not access private app databases, undocumented endpoints or use accessibility scraping as a covert substitute.
-4. Notifications are an optional secondary signal/fallback. They must never be represented as the sole or primary source of driver activity.
+1. **Official provider API/SDK first.** Where a provider grants driver-level access, authenticate securely, request least-privilege scopes and support disconnect/revocation. Do not imply that fleet APIs or partner-only APIs are available to an individual driver.
+2. **Android read-only live UI observer.** Where no usable driver API exists, BusyBee may offer an explicitly enabled Android AccessibilityService that listens only to visible UI events from the exact driver-app package(s) selected and disclosed in BusyBee. It may read visible, non-password UI text for local parsing. It must never click, gesture, type, accept/decline, change the source app, read editable/password fields, capture audio, inspect unrelated apps, or access private app databases. The user must see a prominent in-app disclosure and affirmatively open Android Accessibility Settings to enable it; the service must be easy to disable. Some app screens use custom/secure surfaces or expose no accessibility text, so coverage must be measured and shown as partial rather than promised.
+3. **Android notification signal.** A user-enabled NotificationListenerService may capture notification content Android exposes from the exact driver-app packages. This is an event signal and fallback, not the sole or primary data path. Notifications may be redacted, delayed, grouped or absent.
+4. **Manual visual fallback.** For screens that do not expose readable accessibility text, a user-started Android MediaProjection session may ask the driver to select the driver-app window. OCR runs on-device; screenshots must not be saved or uploaded. This is a fallback, not the normal listening workflow.
+5. **Supported intents/share/API integrations.** Use package-specific intents and share contracts only where the target app actually exposes them. Never use undocumented endpoints or private databases.
 
-The native bridge must support more than one named driver platform. A platform without a verified API or native app handoff must be marked with its actual capability, not advertised as connected. Every captured observation must retain platform, capture time, original visible text/evidence, extraction confidence and review status. OCR is a suggestion, not a financial record. No earnings or trip enters trusted analytics until the driver reviews/confirms it or a verified API supplies it.
+The live observer is not a provider account connection and cannot promise all data held inside Uber/Bolt. It can observe only what the active driver-app UI exposes to Android accessibility. Every observation must retain platform, capture time, source type, original visible text/evidence, parser confidence and review status. A detected amount is a suggestion, not a financial record. No earnings or trip enters trusted analytics until the driver reviews/confirms it or a verified API supplies it.
 
-API access constraints are real product states: Uber Driver API access may require approval and is not presumed available; Bolt Fleet API is not a universal individual-driver API. Investigate and document actual driver-level access separately for each platform.
+Relevant offer, trip and earnings changes should trigger a local BusyBee notification with a deep link to the appropriate review workspace. Alerts must be deduplicated and controllable by the driver; they must not expose passenger, route or earnings text on the lock screen by default.
+
+API access constraints are real product states: Uber Driver API access may require approval and is not presumed available; Bolt Fleet API is not a universal individual-driver API. Investigate and document actual driver-level access separately for each platform. Accessibility-based reading is a separate, user-enabled Android capability and must not be labelled as an official provider API connection. For Google Play distribution, prepare the applicable Accessibility API declaration and review requirements; do not assume approval.
 
 ## 3. Earnings and trip data — no CSV-first workflow
 
 CSV upload is **not required** for normal use and must not be the primary or default onboarding path. The core workflow is:
 
-**Connect/open native platform → capture actual driver-app information → review/confirm → persist with source evidence → reconcile → calculate analytics.**
+**Open driver app → Android observes its visible UI/notification events where permitted → capture locally with source provenance → notify the driver → review/confirm → persist evidence → reconcile → calculate analytics.**
 
 CSV/statement import may remain an optional secondary path for backfill, reconciliation, archive or recovery. It must not block access to the product, dominate the UI, or be required to see useful functionality. Label it as optional. Do not remove historical imports or source evidence during migration.
 
@@ -57,6 +60,8 @@ Required map behaviours:
 - Map canvas fills the usable display; top controls are compact and floating.
 - Driver location, heading-aware camera, reliable recenter, 2D/3D camera, route preview and active-navigation presentation.
 - During navigation, prioritise next manoeuvre, route progress and immediate hazards; secondary analytics must not obscure the road.
+- Day/dusk/night appearance derived from solar elevation at the last permitted driver location; use a local-clock fallback before location is available. Map style and interface palette must change together without resetting camera, active route or driver position.
+- A Waze-like event layer must be built from actual traffic/incident/closure sources with provenance and expiry. Road geometry, mapped OSM tags and weather are not traffic speed or live congestion.
 - Layer controls for roadworks, hazards, driver reports and any future licensed traffic/weather sources.
 - Distinguish actual live feeds, static map data, user reports, stale data and unavailable feeds. OSRM estimates are not live-traffic ETAs.
 - Route and destination selection must be deliberate and visible; no accidental candidate substitution.
@@ -78,7 +83,9 @@ Design requirements:
 
 ## 7. Privacy, safety and data integrity
 
-- Local-first personal data by default; explicit consent for screen capture, notifications and group tracking.
+- Local-first personal data by default; explicit, revocable consent for Accessibility-based app observation, screen capture, notifications and group tracking.
+- The live listener is package-scoped and read-only; no hidden observation of other apps, no actions inside ride apps, and no private database access. Tell the driver exactly what is read and stored before enabling it.
+- Lock-screen alerts must use generic text by default; the details remain inside BusyBee after device unlock.
 - No silent screen recording, screenshot upload, private app database access or covert accessibility automation.
 - No automatic ride acceptance/decline.
 - No fabricated data, inferred zeros, false live labels or unsupported API claims.
@@ -90,7 +97,7 @@ Design requirements:
 A phase is not complete because code compiles or an APK exists.
 
 For each delivery:
-1. Add tests for parsing, consent, storage/migration, evidence and failure paths.
+1. Add tests for parsing, package allowlists, Accessibility scope/disclosure, notification classification/deduplication, solar theme transitions, storage/migration, evidence and failure paths.
 2. Run Rust and Android unit tests; record actual counts and failures.
 3. Build APK and verify package, version, signing, SHA-256 and embedded metadata.
 4. Install/run on the target Android device and exercise the real workflow.
