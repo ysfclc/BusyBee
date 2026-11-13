@@ -72,7 +72,16 @@ class PlatformNotificationListener : NotificationListenerService() {
             extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
         ).filterNotNull().filter { it.isNotBlank() }.distinct().joinToString("\n")
         if (title.isBlank() && body.isBlank()) return
-        DriverCommandStore(applicationContext).captureNotice(platform, title, body, sbn.postTime)
+        val captured = DriverCommandStore(applicationContext).captureNotice(platform, title, body, sbn.postTime)
+        if (captured) {
+            val screenType = DriverAlertManager.classifyNotification(title, body)
+            DriverAlertManager.notifyDriverAppUpdate(
+                applicationContext,
+                platform,
+                screenType,
+                "Android notification listener"
+            )
+        }
     }
 
     private fun captureSelectedWhatsAppGroup(sbn: StatusBarNotification) {
