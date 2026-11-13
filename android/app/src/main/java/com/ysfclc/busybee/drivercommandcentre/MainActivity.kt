@@ -808,8 +808,10 @@ class MainActivity : AppCompatActivity() {
                 MarkerOptions().position(point).title("Your vehicle").snippet("Live Android GPS · heading follows road travel").icon(icon)
             )
         }
-        maybeRefreshMapPlaces(point)
-        if(!centeredOnFirstFix || followLocation) updateNavigationCamera(location)
+        if(!centeredOnFirstFix || followLocation) {
+            maybeRefreshMapPlaces(point)
+            updateNavigationCamera(location)
+        }
         centeredOnFirstFix=true
         if(navigating) updateNavigation(location)
     }
