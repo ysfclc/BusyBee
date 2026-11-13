@@ -87,6 +87,15 @@ The callbacks are posted with `runOnUiThread`; they do not all check `isFinishin
 
 **Assessment:** confirmed source-level lifecycle-safety gap; actual crash/reproduction and relation to BB-002 remain unknown. This is not a diagnosis of the reported IllegalStateException. No code patch is authorised until the exact device failure is captured. Next verification should deliberately interrupt each network operation while it is in flight and inspect the resulting DIAG/logcat evidence. A future fix must guard the complete callback body and include lifecycle regression coverage.
 
+## Lifecycle callback mitigation — implementation status (2026-11-13)
+
+- **Changed:** Added `LifecycleSafeUiDispatcher`; it rejects work if the Activity is finishing/destroyed before scheduling and rechecks on the main thread immediately before callback execution.
+- **Applied:** Replaced all seven worker-originated `runOnUiThread` callback sites in `MainActivity.kt`: destination search, route alternatives (success and failure), destination-search failure, off-route reroute (success and failure), and road/weather refresh.
+- **Regression tests authored:** `LifecycleSafeUiDispatcherTest` checks that a queued worker result is discarded after Activity destruction and that a result is delivered while the Activity is alive.
+- **Source verification:** All seven sites and both new files were read back from GitHub. No remaining `runOnUiThread` call exists in `MainActivity.kt`.
+- **Execution status:** Not run. GitHub Actions run `43420894556` (run 99) failed before any job steps were allocated; the job endpoint returned no steps and no logs. Vercel Sandbox resume returned HTTP 402 because the Hobby usage limit is exceeded; reset is reported as `2026-12-01T00:00:00Z`. No billing or plan changes were made.
+- **Assessment:** This mitigates the source-confirmed lifecycle gap but does not establish that BB-002 is fixed. Do not release or claim stability until the new tests execute, a device lifecycle interruption is exercised, and the original IllegalStateException is diagnosed independently.
+
 ## Working-baseline acceptance criteria
 
 All must pass:
