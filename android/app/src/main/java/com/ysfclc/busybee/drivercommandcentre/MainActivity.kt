@@ -359,14 +359,16 @@ class MainActivity : AppCompatActivity() {
             orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
             visibility=View.GONE
         }
-        startNavigationAction=action("START",true){startNavigation()}.apply {
+        val startAction=action("START",true){startNavigation()}.apply {
             layoutParams=LinearLayout.LayoutParams(0,dp(36),1f)
         }
-        stopNavigationAction=action("STOP",false){stopNavigation("Navigation stopped",announce=false)}.apply {
+        val stopAction=action("STOP",false){stopNavigation("Navigation stopped",announce=false)}.apply {
             layoutParams=LinearLayout.LayoutParams(0,dp(36),1f); visibility=View.GONE
         }
-        routeActions?.addView(startNavigationAction)
-        routeActions?.addView(stopNavigationAction,LinearLayout.LayoutParams(0,dp(36),1f).apply { marginStart=dp(6) })
+        startNavigationAction=startAction
+        stopNavigationAction=stopAction
+        routeActions?.addView(startAction)
+        routeActions?.addView(stopAction,LinearLayout.LayoutParams(0,dp(36),1f).apply { marginStart=dp(6) })
         routeActions?.addView(action("MAPS",false){openExternalNavigation()},
             LinearLayout.LayoutParams(0,dp(36),1f).apply { marginStart=dp(6) })
         bottom.addView(routeActions,LinearLayout.LayoutParams(-1,dp(36)).apply { topMargin=dp(7) })
@@ -449,7 +451,7 @@ class MainActivity : AppCompatActivity() {
                     val chooseDestination: (Int)->Unit = { selected ->
                         val candidate=candidates[selected]
                         routeSummary?.text="Calculating road routes to ${candidate.displayName}…"
-                                        routeSummary?.visibility=View.VISIBLE
+                        routeSummary?.visibility=View.VISIBLE
                         worker.execute {
                             try {
                                 val plans=RoutePlanner.planAlternatives(origin,candidate)
