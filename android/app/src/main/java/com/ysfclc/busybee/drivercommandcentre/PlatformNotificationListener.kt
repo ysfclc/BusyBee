@@ -31,7 +31,7 @@ internal object WhatsAppNotificationParser {
      */
     fun parse(notification: Notification, postedAt: Long): GroupUpdate? {
         val extras = notification.extras ?: return null
-        val isGroup = extras.getBoolean("android.isGroupConversation", true)
+        val isGroup = extras.getBoolean("android.isGroupConversation", false)
         if (!isGroup) return null
 
         val title = extras.getCharSequence("android.conversationTitle")
