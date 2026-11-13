@@ -116,10 +116,25 @@ fi
 # shellcheck disable=SC1090
 source "$CARGO_HOME/env"
 rustup toolchain install stable --profile minimal
-rustup target add --toolchain stable \
-  aarch64-linux-android \
-  armv7-linux-androideabi \
+# Vercel's base image may have a different default Rust toolchain. Install the
+# Android std targets into, and force every subsequent cargo invocation to use,
+# the same stable toolchain; otherwise cargo-ndk can see a toolchain with no
+# Android core library even though rustup downloaded the targets for stable.
+rustup default stable
+export RUSTUP_TOOLCHAIN=stable
+ANDROID_RUST_TARGETS=(
+  aarch64-linux-android
+  armv7-linux-androideabi
   x86_64-linux-android
+)
+rustup target add --toolchain stable "${ANDROID_RUST_TARGETS[@]}"
+for target in "${ANDROID_RUST_TARGETS[@]}"; do
+  if ! rustup target list --installed --toolchain stable | grep -Fxq "$target"; then
+    echo "Rust Android target was not installed for stable: $target" >&2
+    exit 1
+  fi
+done
+rustc --version
 if ! command -v cargo-ndk >/dev/null 2>&1; then
   cargo install --locked cargo-ndk
 fi
