@@ -2,7 +2,7 @@
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
-**Latest source commit:** `8d51dd3206e0e26af8f799b994bc64b05614bb13`  
+**Latest source commit:** `48dce0278c266a196423b5de119c5771dbf73bb6`  
 **Status:** implementation authored; build/test/device verification blocked and pending. PR #9 is draft and stacked on PR #8; neither is merged.
 
 
@@ -10,7 +10,7 @@
 
 The user explicitly rejected the prior map because it had no recognisable vehicle marker, no forward-driving camera, weak/white visual treatment and insufficient real-world detail. This increment addresses those concrete failures in the draft source:
 
-- Replaced MapLibre's generic default pin with a custom top-down vehicle marker. Foreground GPS updates move the marker; during navigation, the camera follows the GPS course, looks ahead of the vehicle, uses zoom 18.2 and a 58-degree forward pitch when 3D mode is enabled. The recenter control re-enables follow mode.
+- Replaced MapLibre's generic default pin with a custom top-down vehicle marker. Foreground GPS updates move the marker; during navigation, the camera follows the GPS course, looks ahead of the vehicle, uses zoom 18.2 and a 58-degree forward pitch when 3D mode is enabled. The recenter control re-enables follow mode. GPS heading is smoothed across the 0/360-degree boundary to reduce camera snapping; a deliberate map gesture suspends follow until recenter is tapped.
 - Uses OpenFreeMap Liberty for daytime mapping. Fiord and Dark remain the dusk/night styles. A 3D building extrusion layer is added to styles that do not already provide one; Liberty's existing extrusion is not duplicated.
 - The daylight palette now uses tinted green/stone surfaces rather than pure-white panels and cards.
 - Added on-demand OpenStreetMap/Overpass detail lookup for named/addressed building ways and multipolygon relations, plus mapped entrance/door nodes. Building labels appear from zoom 15.5; entrance markers appear from zoom 17. Mapped `entrance=staircase` is labelled as a stairwell; entrance references are shown as references. No missing stairwell letter or entrance is fabricated. Entrance labels are rendered as visible amber text pills (for example `Klatka A` when the OSM node explicitly has `entrance=staircase` and `ref=A`), not anonymous dots.
