@@ -25,7 +25,7 @@ class MapSpatialDataTest {
     fun parsesNamedBuildingsAndAddressedBuildings() {
         val result = MapPlaceLookup.parse(
             """{"elements":[
-                {"type":"way","id":101,"center":{"lat":50.061,"lon":19.937},"tags":{"building":"apartments","name:pl":"Kamienica Pod Aniołem","name":"House of Angels","addr:street":"Świętego Jana","addr:housenumber":"12","building:levels":"4"}},
+                {"type":"way","id":101,"center":{"lat":50.061,"lon":19.937},"tags":{"building":"apartments","name:pl":"Kamienica Pod Aniołem","addr:street":"Świętego Jana","addr:housenumber":"12","building:levels":"4"}},
                 {"type":"way","id":102,"center":{"lat":50.062,"lon":19.938},"tags":{"building":"residential","addr:street":"Długa","addr:housenumber":"8"}}
             ]}"""
         )
@@ -76,6 +76,8 @@ class MapSpatialDataTest {
     fun overpassQueryRequestsBuildingAddressesAndEntrances() {
         val query = MapPlaceLookup.query(50.061, 19.937)
         assertTrue(query.contains("[\\"building\\"][\\"name\\"]"))
+        assertTrue(query.contains("[\\"building\\"][\\"name:pl\\"]"))
+        assertTrue(query.contains("[\\"building\\"][\\"official_name\\"]"))
         assertTrue(query.contains("[\\"addr:housenumber\\"]"))
         assertTrue(query.contains("[\\"entrance\\"]"))
         assertTrue(query.contains("out center tags"))
