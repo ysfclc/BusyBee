@@ -737,11 +737,19 @@ class MainActivity : AppCompatActivity() {
             commands.setSetting("min_rating",minRating.text.toString().replace(',','.').ifBlank{"0"})
             showTab("OFFERS")
         });root.addView(rules)
-        val capture=card();capture.addView(label("PLATFORM SIGNALS",11f,MINT,true))
-        capture.addView(label("Read visible ride-platform notifications after you explicitly enable Android notification access. No private app database access.",11f,MUTED,false))
-        capture.addView(action(if(notificationAccessEnabled())"NOTIFICATION ACCESS ENABLED · SETTINGS" else "ENABLE UBER / BOLT OFFER CAPTURE",false){startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))})
+        val capture=card()
+        capture.addView(label("NATIVE DRIVER APP BRIDGE",11f,MINT,true))
+        capture.addView(label("Read the live Uber Driver or Bolt Driver screen through Android's own screen-sharing consent. Text is extracted locally; screenshots are not saved or uploaded. Review every result before it enters your Driver Mirror.",11f,MUTED,false))
+        val captureButtons=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+        captureButtons.addView(action("CAPTURE UBER",true){launchDriverScreenCapture("Uber")},LinearLayout.LayoutParams(0,dp(42),1f))
+        captureButtons.addView(action("CAPTURE BOLT",false){launchDriverScreenCapture("Bolt")},LinearLayout.LayoutParams(0,dp(42),1f).apply { marginStart=dp(7) })
+        capture.addView(captureButtons.apply { setPadding(0,dp(10),0,dp(7)) })
+        capture.addView(action("STOP SCREEN CAPTURE",false){stopDriverScreenCapture()},LinearLayout.LayoutParams(-1,dp(38)))
+        capture.addView(label("API CONNECTIONS",10f,WHITE,true).apply { setPadding(0,dp(12),0,dp(3)) })
+        capture.addView(label("Uber's Driver API requires approved access. Bolt's published Fleet API is for fleet partners. The native bridge is the direct, user-controlled Android path while API access is unavailable.",10f,MUTED,false))
+        capture.addView(action(if(notificationAccessEnabled())"NOTIFICATION FALLBACK · ENABLED" else "ENABLE NOTIFICATION FALLBACK",false){startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))}.apply { setPadding(0,dp(8),0,dp(8)) })
         root.addView(capture)
-        val add=card();add.addView(label("MANUAL OFFER",11f,MINT,true));add.addView(label("Complete details when the platform notification does not expose enough information.",10f,MUTED,false))
+        val add=card();add.addView(label("MANUAL CORRECTION",11f,MINT,true));add.addView(label("Use this only to correct an offer when the source screen cannot be read. No automatic acceptance or decline.",10f,MUTED,false))
         addViewAction(add,"＋ ADD OFFER"){offerDialog()};root.addView(add)
         val ranked=OfferEngine.rank(commands.offers(),num("cost_per_km",0.85),num("min_per_hour",35.0),num("max_pickup",8.0),num("min_rating",0.0))
         root.addView(section("RANKED OFFERS",ranked.size.toString()+" offers meet your rules · sorted by estimated net PLN/hour"))
@@ -850,22 +858,37 @@ class MainActivity : AppCompatActivity() {
                 analytics.dataWarnings.forEach { warning -> addView(label("• "+warning,10f,MUTED,false).apply{setPadding(0,dp(5),0,0)}) }
             })
         }
-        root.addView(section("IMPORT HISTORY & ORIGINAL EVIDENCE","Every import is retained with its raw rows and source filename."))
+        val captures=DriverAppCaptureStore(this).recent(20)
+        root.addView(section("NATIVE APP CAPTURE · REVIEW QUEUE",captures.size.toString()+" screen observations waiting for your confirmation"))
+        if(captures.isEmpty()) root.addView(card().apply {
+            addView(label("No pending screen observations",13f,WHITE,true))
+            addView(label("Start a session from Offer Desk, select the Uber/Bolt Driver window in Android, and open trip or earnings details. BusyBee reads visible text locally.",10f,MUTED,false))
+        })
+        captures.forEach { observation ->
+            root.addView(card().apply {
+                addView(label(observation.platform.uppercase()+" · "+observation.screenType+" · "+dateTime(observation.capturedAt),10f,MINT,true))
+                addView(label(observation.visibleText.take(240),10f,WHITE,false).apply { setPadding(0,dp(6),0,dp(6)); maxLines=4 })
+                addView(label("Detected amount "+money(observation.detectedAmount)+" · "+(observation.distanceKm?.let{"%.1f km".format(Locale.US,it)}?:"distance unknown")+" · "+(observation.durationMinutes?.let{"%.0f min".format(Locale.US,it)}?:"duration unknown"),9f,MUTED,false))
+                val actions=LinearLayout(this@MainActivity).apply { orientation=LinearLayout.HORIZONTAL }
+                actions.addView(action("REVIEW & SAVE",true){reviewNativeObservation(observation)},LinearLayout.LayoutParams(0,dp(38),1f))
+                actions.addView(action("DISCARD",false){DriverAppCaptureStore(this@MainActivity).delete(observation.id);showTab("EARNINGS")},LinearLayout.LayoutParams(dp(94),dp(38)).apply { marginStart=dp(7) })
+                addView(actions.apply { setPadding(0,dp(9),0,0) })
+            })
+        }
+        root.addView(section("LEGACY IMPORT EVIDENCE","Older CSV imports remain available in your history; new records are collected from native app screens and reviewed here."))
         mirror.importHistory().forEach { entry -> root.addView(label("• "+entry,10f,MUTED,false).apply{setPadding(dp(5),dp(3),0,dp(3))}) }
-        mirror.evidencePreview(5).forEach { evidence -> root.addView(card().apply { addView(label(evidence,9f,MUTED,false)) }) }
-        root.addView(section("RECENT MIRRORED ACTIVITY","Source-backed records; missing fields remain unknown."))
+        root.addView(section("RECENT MIRRORED ACTIVITY","Only driver-reviewed or previously imported source records are counted."))
         mirror.recent(30).forEach{r->root.addView(card().apply{
             addView(label(r.platform+" · "+r.type.uppercase(),11f,MINT,true))
             addView(label((r.occurredAt?:"Date not supplied")+" · "+(r.pickup?:"?")+" → "+(r.dropoff?:"?"),11f,WHITE,true).apply{setPadding(0,dp(4),0,dp(4))})
             addView(label("Gross "+money(r.gross)+" · Fees "+money(r.fees)+" · Bonus "+money(r.bonus),10f,MUTED,false))
         })}
-        root.addView(card().apply{addView(action("IMPORT PLATFORM STATEMENT",true){showTab("DRIVER HUB")})})
         return root
     }
 
     private fun buildDriverHubScreen():View{
         val root=columnScroll()
-        root.addView(section("DRIVER LIFE","Documents, insurance, payment plans, vehicle services and community knowledge."))
+        root.addView(section("DRIVER LIFE","Vehicle profile, documents, insurance, payments and selected driver-group intelligence."))
         root.addView(buildVehicleCard())
         val top=card();top.addView(label("YOUR DRIVER ADMIN",11f,MINT,true))
         top.addView(label("Keep insurance renewals, instalments, recurring payments, documents, vehicle costs and service reminders together.",11f,MUTED,false))
@@ -873,7 +896,6 @@ class MainActivity : AppCompatActivity() {
         buttons.addView(action("＋ REMINDER",true){itemDialog()},LinearLayout.LayoutParams(0,dp(42),1f))
         buttons.addView(action("＋ DOCUMENT",false){documentPicker.launch(arrayOf("*/*"))},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
         top.addView(buttons)
-        top.addView(action("＋ IMPORT PLATFORM CSV",false){csvPicker.launch(arrayOf("text/*","application/csv","application/vnd.ms-excel"))},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(7)})
         root.addView(top)
         root.addView(section("UPCOMING & SAVED ITEMS","Tap complete when paid, renewed or serviced. Documents can be opened from here."))
         val items=commands.items()
@@ -895,17 +917,30 @@ class MainActivity : AppCompatActivity() {
             addView(label(item.title,12f,WHITE,true))
             addView(label(item.details+" · "+(item.amount?.let{money(it)}?:"Amount not recorded"),10f,MUTED,false))
         })}
-        root.addView(section("WHATSAPP KNOWLEDGE BASE","Import a chat export yourself; BusyBee indexes it locally and privately."))
-        val community=card();community.addView(action("IMPORT WHATSAPP .TXT EXPORT",true){chatPicker.launch(arrayOf("text/plain"))})
-        val search=field("Search driver group knowledge","");community.addView(search)
-        val results=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL};community.addView(results)
-        search.addTextChangedListener(object:android.text.TextWatcher{
-            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}
-            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){results.removeAllViews();commands.communitySearch(s?.toString().orEmpty()).forEach{results.addView(label(it,10f,WHITE,false).apply{setPadding(0,dp(6),0,dp(6))})}}
-            override fun afterTextChanged(s:android.text.Editable?){}
-        })
-        commands.communityDocuments().forEach{community.addView(label("INDEXED · "+it.title,10f,MINT,true).apply{setPadding(0,dp(7),0,0)})}
-        root.addView(community)
+        root.addView(section("WHATSAPP GROUP WATCH","Choose exactly which driver groups BusyBee may monitor. No chat exports or backfilled history."))
+        val groupCard=card()
+        groupCard.addView(label("PRIVATE BY DEFAULT",10f,MINT,true))
+        groupCard.addView(label("BusyBee discovers group names from WhatsApp notification metadata. It stores message previews only for groups you enable. Only messages surfaced by Android notifications can be seen.",10f,MUTED,false).apply { setPadding(0,dp(4),0,dp(8)) })
+        groupCard.addView(action(if(notificationAccessEnabled())"NOTIFICATION ACCESS ENABLED" else "ENABLE ANDROID NOTIFICATION ACCESS",false){
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        },LinearLayout.LayoutParams(-1,dp(38)))
+        val watchedGroups=commands.whatsappGroups()
+        if(watchedGroups.isEmpty()) groupCard.addView(label("No groups discovered yet. New group notifications will appear here; open WhatsApp and receive a message in the driver groups you want to choose.",10f,MUTED,false).apply { setPadding(0,dp(9),0,0) })
+        watchedGroups.forEach { group ->
+            val row=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(0,dp(10),0,dp(10)) }
+            val info=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+            info.addView(label(group.title,12f,WHITE,true))
+            info.addView(label((if(group.trackingEnabled)"TRACKING ON" else "DISCOVERED · OFF")+" · "+group.capturedMessages+" saved messages",9f,if(group.trackingEnabled)MINT else MUTED,true).apply { setPadding(0,dp(3),0,0) })
+            row.addView(info,LinearLayout.LayoutParams(0,-2,1f))
+            row.addView(action(if(group.trackingEnabled)"ON" else "TRACK",group.trackingEnabled){
+                commands.setWhatsAppGroupTracking(group.id,!group.trackingEnabled)
+                showTab("DRIVER HUB")
+            },LinearLayout.LayoutParams(dp(72),dp(36)))
+            row.addView(action("VIEW",false){openWhatsAppGroup(group)},LinearLayout.LayoutParams(dp(64),dp(36)).apply { marginStart=dp(5) })
+            groupCard.addView(row)
+            groupCard.addView(divider())
+        }
+        root.addView(groupCard)
         root.addView(section("VEHICLE SERVICES & DRIVER NETWORK","Save trusted mechanics, tyre shops, insurers, car washes, fleet contacts and deals."))
         root.addView(card().apply{
             addView(action("＋ SAVE SERVICE / CONTACT",false){itemDialog("Service")})
@@ -1006,21 +1041,6 @@ class MainActivity : AppCompatActivity() {
             val name=contentResolver.query(uri,null,null,null,null)?.use{c->val i=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);if(c.moveToFirst()&&i>=0)c.getString(i)else"Driver document"}?:"Driver document"
             commands.addItem("Document",name,"Private document reference stored on device",null,null,uri.toString());showTab("DRIVER HUB")
         }catch(e:Exception){Toast.makeText(this,"Could not save document: "+e.message,Toast.LENGTH_LONG).show()}
-    }
-    private fun importCommunity(uri:Uri){
-        try{
-            val name=contentResolver.query(uri,null,null,null,null)?.use{c->val i=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);if(c.moveToFirst()&&i>=0)c.getString(i)else"WhatsApp chat export"}?:"WhatsApp chat export"
-            val text=contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use{it.readText()}?:error("File could not be read")
-            commands.addCommunityDocument(name,text);Toast.makeText(this,"Imported into private local search",Toast.LENGTH_LONG).show();showTab("DRIVER HUB")
-        }catch(e:Exception){Toast.makeText(this,"Chat import failed: "+e.message,Toast.LENGTH_LONG).show()}
-    }
-    private fun importCsv(uri:Uri){
-        try{
-            val name=contentResolver.query(uri,null,null,null,null)?.use{c->val i=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);if(c.moveToFirst()&&i>=0)c.getString(i)else"platform-export.csv"}?:"platform-export.csv"
-            val text=contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use{it.readText()}?:error("File could not be opened")
-            val rows=DriverCsv.parse(text);require(rows.isNotEmpty()){"No data rows found"};val result=mirror.importRows(name,rows)
-            Toast.makeText(this,"Imported "+result.second+" new records from "+result.first+" rows",Toast.LENGTH_LONG).show();showTab("EARNINGS")
-        }catch(e:Exception){Toast.makeText(this,"Import failed: "+e.message,Toast.LENGTH_LONG).show()}
     }
 
     private fun buildSourcesScreen():View{
