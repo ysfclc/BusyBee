@@ -851,7 +851,7 @@ class MainActivity : AppCompatActivity() {
                 Expression.get("name_en")
             )
         }
-        listOf("highway-name-minor","highway-name-major","highway-name-path").forEach { id ->
+        listOf("highway-name-minor","highway-name-major","highway-name-path","highway_name_other").forEach { id ->
             val layer=style.getLayer(id) as? SymbolLayer ?: return@forEach
             layer.setProperties(PropertyFactory.textField(roadName))
         }
