@@ -220,6 +220,11 @@ class MainActivity : AppCompatActivity() {
             uiCallbacks.post {
                 CrashDiagnostics.record(this,"map:ready")
                 map=instance
+                instance.addOnCameraMoveStartedListener { reason ->
+                    if(reason==MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
+                        followLocation=false
+                    }
+                }
                 instance.addOnCameraIdleListener {
                     instance.cameraPosition.target?.let { center ->
                         maybeRefreshMapPlaces(center)
@@ -801,7 +806,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
         maybeRefreshMapPlaces(point)
-        if(!centeredOnFirstFix || followLocation || navigating) updateNavigationCamera(location)
+        if(!centeredOnFirstFix || followLocation) updateNavigationCamera(location)
         centeredOnFirstFix=true
         if(navigating) updateNavigation(location)
     }
