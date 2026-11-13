@@ -103,3 +103,6 @@ GitHub Actions run #117 (`43424986985`) and its one retry both failed before any
 
 
 A follow-up workflow run #118 (`43432885303`) on the updated PR head also failed before steps were allocated (job `131910538716`, empty step list). This is an infrastructure blocker, not an Android compile/test failure.
+
+
+Follow-up workflow run #124 (`43433780437`) after the BB-007 source correction failed before job steps were allocated. Its retry (`131913684624`) also failed with `steps: null`; no Android compilation or APK task executed. This remains an infrastructure blocker, not a code/test failure.
