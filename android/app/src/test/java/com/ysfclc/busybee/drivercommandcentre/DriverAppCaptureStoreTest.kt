@@ -57,6 +57,6 @@ class DriverAppCaptureStoreTest {
         store.save(parsed)
         val observation = store.recent().single()
         assertEquals("MEDIA_PROJECTION_OCR", observation.sourceType)
-        assertEquals(0.0, observation.parseConfidence, 0.001)
+        assertEquals(0.56, observation.parseConfidence, 0.001)
     }
 }
