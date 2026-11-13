@@ -37,13 +37,17 @@ object RoutePlanner {
 
     fun searchDestinations(query: String, near: LatLng? = null): List<DestinationCandidate> {
         require(query.isNotBlank()) { "Enter a destination" }
+        return parseDestinationCandidates(request(destinationSearchUrl(query, near)))
+    }
+
+    internal fun destinationSearchUrl(query: String, near: LatLng? = null): String {
+        require(query.isNotBlank()) { "Enter a destination" }
         val bias = near?.let {
             val bounds = listOf(it.longitude - 0.35, it.latitude + 0.35, it.longitude + 0.35, it.latitude - 0.35)
-            "&viewbox=" + bounds.joinToString(",") { value -> String.format(Locale.US, "%.6f", value) }
+            "&viewbox=" + bounds.joinToString(",") { value -> String.format(Locale.US, "%.6f", value) } + "&bounded=1"
         }.orEmpty()
-        val url = "$NOMINATIM?format=jsonv2&limit=5&addressdetails=1&countrycodes=pl&accept-language=pl,en$bias&q=" +
+        return "$NOMINATIM?format=jsonv2&limit=5&addressdetails=1&countrycodes=pl&accept-language=pl$bias&q=" +
             URLEncoder.encode(query.trim(), "UTF-8")
-        return parseDestinationCandidates(request(url))
     }
 
     fun plan(origin: LatLng, query: String): RoutePlan = planAlternatives(origin, query).first()
@@ -132,7 +136,7 @@ object RoutePlanner {
                 if (!validCoordinate(point)) continue
                 val type = maneuver.optString("type", "continue")
                 val modifier = maneuver.optString("modifier", "")
-                val road = step.optString("name", "").trim()
+                val road = step.optString("name", "").trim().ifBlank { step.optString("ref", "").trim() }
                 val alongRoute = projectToRoute(point, points).progressMeters
                 out.add(
                     RouteStep(
