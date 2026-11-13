@@ -219,3 +219,6 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - Implemented one-time MapLibre activation gating in `MapStyleState` and `MainActivity`; deferred activation is retried in `onPostResume()`.
 - Added pure unit tests for paused deferral, map availability and one-time activation.
 - This is source-level only. No Android compile/test/APK verification is available: GitHub Actions runs fail before job steps and Vercel Sandbox is blocked by the Hobby usage cap.
+
+
+- After the BB-007 code change, GitHub Actions run #124 (`43433780437`) and its retry (`131913684624`) both failed before allocating job steps. No Gradle, tests, APK assembly or signing ran.
