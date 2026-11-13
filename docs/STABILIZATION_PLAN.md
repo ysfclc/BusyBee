@@ -138,3 +138,13 @@ The worker callback mitigation does not cover all asynchronous completions in Ma
 | LocationListener.onLocationChanged | Caches fix and calls map update | A queued callback may arrive after onPause() removed updates; update path does not require RESUMED state | Source-confirmed candidate; no runtime reproduction |
 
 This review does not identify the user's IllegalStateException root cause and does not change BB-002's status. The next permitted stabilization increment is narrowly limited to these callback lifetime boundaries, with tests for the lifecycle helper and source read-back. Do not expand into navigation behavior, MapLibre rendering changes or UI work. Physical-device interruption tests remain mandatory.
+
+
+## Follow-up lifecycle hardening — implementation status (2026-11-13)
+
+- MapLibre map acquisition and style-loaded callbacks now use LifecycleSafeUiDispatcher, checking Activity lifetime before and immediately before callback execution.
+- TextToSpeech initialization completion now uses the same dispatcher and resolves the current engine reference only inside the guarded callback.
+- Location callbacks retain the latest fix but do not touch the map unless the Activity is RESUMED. onResume reapplies the cached fix after MapView resumes and restarts active/follow updates.
+- LifecycleSafeUiDispatcherTest now covers queued callback rejection after destruction, rejection after finish, and delivery while alive (3 tests authored).
+- **Not verified:** No test or compile run has succeeded for this increment. The available GitHub Actions and Vercel runner blockers remain. Source read-back is the only verification until a runner becomes available.
+- **Assessment:** Narrow lifecycle hardening only. It does not establish that BB-002 is fixed, and it does not replace MapLibre physical-device lifecycle tests or the original DIAG/logcat evidence.
