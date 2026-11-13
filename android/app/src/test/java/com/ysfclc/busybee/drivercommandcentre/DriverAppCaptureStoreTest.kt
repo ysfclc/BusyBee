@@ -47,7 +47,7 @@ class DriverAppCaptureStoreTest {
     }
 
     @Test
-    fun legacyStyleObservationDefaultsToManualOcrAndZeroConfidence() {
+    fun manualOcrObservationKeepsItsSourceAndLowerHeuristicConfidence() {
         val parsed = DriverScreenTextParser.parse(
             platform = "Bolt",
             text = "Weekly earnings\nToday total\n42.50",
