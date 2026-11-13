@@ -2,7 +2,7 @@
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
-**Latest source commit:** `366d5f490c0962e99d1a5824fa3b2334e333bf06`  
+**Latest source commit:** `e8ae4a23ef412e318b534d18076d8d8f5b5b48bb`  
 **Status:** implementation authored; build/test/device verification blocked and pending. PR #9 is draft and stacked on PR #8; neither is merged.
 
 
@@ -22,7 +22,7 @@ The user explicitly rejected the prior map because it had no recognisable vehicl
 
 **Scope boundary:** this is a forward-facing, GPS-driven MapLibre experience with 3D building context, not a proprietary Waze-like live-traffic engine or a photorealistic 3D road mesh. Road names, building names and entrance/stairwell detail depend on the underlying OpenStreetMap coverage and quality. Individual `klatka` letters appear only when mapped as an explicit name/reference; BusyBee must not guess them.
 
-**Verification boundary:** source changes and regression tests have been committed to the draft branch, but Android compilation, test execution, APK assembly and target-device driving behaviour remain unverified. No PR-triggered Actions run has been reported for the current source commit (`366d5f49...`). The latest available run 258 (`43525958610`) was for the preceding source revision (`fa147513...`); its initial attempt failed before runner/job-step allocation and its rerun was cancelled before allocation (`steps: null`, no job logs). No Gradle or test command ran. Rerunning earlier run 252 also failed before runner allocation. The Vercel status on the current commit reports `build-rate-limit` failure, not a source build result. These are infrastructure failures, not evidence that the code builds or fails to compile. Do not call this increment built, tested or accepted until those checks actually run.
+**Verification boundary:** source changes and regression tests have been committed to the draft branch, but Android compilation, test execution, APK assembly and target-device driving behaviour remain unverified. No PR-triggered Actions run has been reported for the current source commit (`e8ae4a23...`). The latest available run 292 (`43527019429`) was for the preceding source revision (`366d5f49...`); both its initial attempt and retry failed before runner/job-step allocation (`steps: null`, no job logs). No Gradle or test command ran. Earlier run 258 and its retry also failed/cancelled before allocation. The Vercel status on the current commit reports `build-rate-limit` failure, not a source build result. These are infrastructure failures, not evidence that the code builds or fails to compile. Do not call this increment built, tested or accepted until those checks actually run.
 
 ---
 
