@@ -75,7 +75,9 @@ object DriverScreenTextParser {
         val relevant = listOf(
             "trip", "ride", "earnings", "earning", "fare", "pickup", "dropoff",
             "destination", "accept", "completed", "today", "payment", "payout",
-            "zł", "pln", "km"
+            "przejazd", "kurs", "zarobki", "przychod", "przychód", "opłata",
+            "odbiór", "miejsce odbioru", "cel podróży", "zaakceptuj", "zakończ",
+            "ukończ", "dzisiaj", "wypłata", "zł", "pln", "km", "min"
         ).any(lower::contains)
         if (!relevant) return null
 
@@ -87,9 +89,9 @@ object DriverScreenTextParser {
             ?.replace(',', '.')?.toDoubleOrNull()
         val duration = durationPattern.find(visibleText)?.groupValues?.getOrNull(1)?.toDoubleOrNull()
         val screenType = when {
-            listOf("earnings", "payout", "payment", "today's total", "weekly total").any(lower::contains) -> "EARNINGS"
-            listOf("accept", "pickup", "dropoff", "destination", "offer").any(lower::contains) -> "OFFER"
-            listOf("trip complete", "ride complete", "completed trip", "trip details").any(lower::contains) -> "TRIP"
+            listOf("earnings", "payout", "payment", "today's total", "weekly total", "zarobki", "przychód", "przychody", "wypłata", "rozliczenie").any(lower::contains) -> "EARNINGS"
+            listOf("accept", "pickup", "dropoff", "destination", "offer", "zaakceptuj", "odbiór", "cel podróży", "oferta").any(lower::contains) -> "OFFER"
+            listOf("trip complete", "ride complete", "completed trip", "trip details", "zakończono przejazd", "przejazd zakończony", "ukończono kurs").any(lower::contains) -> "TRIP"
             else -> "DRIVER SCREEN"
         }
         return ParsedDriverScreen(
@@ -211,9 +213,7 @@ class DriverAppCaptureService : Service() {
             return START_NOT_STICKY
         }
 
-        platform = intent.getStringExtra(EXTRA_PLATFORM)?.takeIf {
-            it == "Uber" || it == "Bolt"
-        } ?: "Uber"
+        platform = intent.getStringExtra(EXTRA_PLATFORM)?.trim()?.take(60)?.takeIf { it.isNotBlank() } ?: "Uber"
 
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
         val resultData = if (Build.VERSION.SDK_INT >= 33) {
