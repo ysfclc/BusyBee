@@ -886,89 +886,146 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun buildEarningsScreen():View{
-        val root=columnScroll();val s=mirror.summary()
-        root.addView(section("YOUR DRIVER MIRROR","Private trip and earnings history across imported platforms."))
-        val totals=card();totals.addView(label(s.trips.toString()+" TRIPS  ·  "+s.offers+" OFFERS  ·  "+s.records+" RECORDS",13f,WHITE,true))
-        totals.addView(label("Platforms: "+s.platforms.joinToString().ifBlank{"none yet"}+" · "+s.imports+" imports",10f,MUTED,false).apply{setPadding(0,dp(4),0,dp(10))})
-        val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        row.addView(metric("GROSS",money(s.gross)),LinearLayout.LayoutParams(0,dp(77),1f))
-        row.addView(metric("FEES",money(s.fees)),LinearLayout.LayoutParams(0,dp(77),1f).apply{marginStart=dp(6)})
-        row.addView(metric("BONUSES",money(s.bonuses)),LinearLayout.LayoutParams(0,dp(77),1f).apply{marginStart=dp(6)})
-        totals.addView(row);totals.addView(label("KNOWN NET",9f,MUTED,true).apply{setPadding(0,dp(11),0,dp(2))})
-        totals.addView(label(s.knownNet?.let{money(it)}?:"INCOMPLETE",24f,MINT,true))
-        totals.addView(label("PLN records only. Fees and bonuses must be explicit for every gross record. Vehicle costs, taxes and missing adjustments are excluded.",10f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
-        root.addView(totals)
-        val recordedExpenses=commands.totalAmount("Expense",true)
+        val root=columnScroll()
+        val summary=mirror.summary()
+        root.addView(section("DRIVER MIRROR","Your confirmed work, evidence and economics · stored privately on this device"))
+
+        // One clear financial focal point instead of a long stack of equal-weight cards.
+        val hero=card().apply {
+            addView(label("KNOWN NET · PLN TRIPS",9f,MINT,true))
+            addView(label(summary.knownNet?.let{money(it)}?:"INCOMPLETE",28f,WHITE,true).apply{setPadding(0,dp(5),0,dp(2))})
+            addView(label("\${summary.trips} trips  ·  \${summary.offers} offers  ·  \${summary.records} records",10f,MUTED,false))
+            addView(label("Gross, fees and bonuses must be known for every counted trip. Vehicle costs, taxes and missing adjustments are excluded.",9f,MUTED,false).apply{setPadding(0,dp(8),0,0)})
+        }
+        root.addView(hero)
+
+        val kpis=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        kpis.addView(metric("GROSS",money(summary.gross)),LinearLayout.LayoutParams(0,dp(72),1f))
+        kpis.addView(metric("FEES",money(summary.fees)),LinearLayout.LayoutParams(0,dp(72),1f).apply{marginStart=dp(6)})
+        kpis.addView(metric("BONUSES",money(summary.bonuses)),LinearLayout.LayoutParams(0,dp(72),1f).apply{marginStart=dp(6)})
+        root.addView(kpis)
+        root.addView(label("PLATFORMS  ·  \${summary.platforms.joinToString().ifBlank{"No reviewed platforms yet"}}  ·  \${summary.imports} legacy imports",9f,MUTED,false).apply{setPadding(dp(3),dp(10),dp(3),dp(4))})
+
+        val captureStore=DriverAppCaptureStore(this)
+        val observations=captureStore.recent(20)
+        root.addView(section("REVIEW INBOX","Native app observations are suggestions, not earnings, until you confirm them"))
+        if(observations.isEmpty()) {
+            root.addView(card().apply {
+                addView(label("Nothing waiting for review",13f,WHITE,true))
+                addView(label("Start a user-consented session from Offers, select the driver-app window in Android, and open trip or earnings details.",10f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+                addView(action("OPEN OFFER DESK",false){showTab("OFFERS")}.apply{setPadding(0,dp(7),0,dp(7))})
+            })
+        } else observations.forEach { observation ->
+            root.addView(card().apply {
+                val heading=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+                heading.addView(label(observation.platform.uppercase()+" · "+observation.screenType,10f,MINT,true))
+                heading.addView(View(this@MainActivity),LinearLayout.LayoutParams(0,1,1f))
+                heading.addView(label(dateTime(observation.capturedAt),9f,MUTED,false))
+                addView(heading)
+                addView(label(observation.visibleText.take(180),10f,WHITE,false).apply{setPadding(0,dp(6),0,dp(5));maxLines=3})
+                addView(label("Detected "+money(observation.detectedAmount)+"  ·  "+(observation.distanceKm?.let{"%.1f km".format(Locale.US,it)}?:"distance unknown")+"  ·  "+(observation.durationMinutes?.let{"%.0f min".format(Locale.US,it)}?:"time unknown"),9f,MUTED,false))
+                val actions=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
+                actions.addView(action("REVIEW & SAVE",true){reviewNativeObservation(observation)},LinearLayout.LayoutParams(0,dp(38),1f))
+                actions.addView(action("DISCARD",false){captureStore.delete(observation.id);showTab("EARNINGS")},LinearLayout.LayoutParams(dp(88),dp(38)).apply{marginStart=dp(7)})
+                addView(actions.apply{setPadding(0,dp(8),0,0)})
+            })
+        }
+
+        val expenses=commands.totalAmount("Expense",true)
+        root.addView(section("VEHICLE ECONOMICS","Keep trip earnings separate from real operating costs"))
+        val economics=card().apply {
+            val line=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+            val info=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.VERTICAL}
+            info.addView(label("RECORDED VEHICLE EXPENSES",9f,MUTED,true))
+            info.addView(label(money(expenses),19f,WHITE,true).apply{setPadding(0,dp(3),0,0)})
+            line.addView(info,LinearLayout.LayoutParams(0,-2,1f))
+            line.addView(action("＋ LOG COST",true){itemDialog("Expense")},LinearLayout.LayoutParams(dp(112),dp(38)))
+            addView(line)
+            addView(label("Completed expense items only. They are not subtracted from trip totals until matched to the same period.",9f,MUTED,false).apply{setPadding(0,dp(6),0,0)})
+        }
+        root.addView(economics)
+
+        val costInput=field("Vehicle cost per km (PLN)",commands.setting("cost_per_km","0.85"))
+        costInput.layoutParams=LinearLayout.LayoutParams(0,dp(42),1f)
         root.addView(card().apply {
-            addView(label("RECORDED VEHICLE EXPENSES · PAID",9f,MUTED,true))
-            addView(label(money(recordedExpenses),19f,WHITE,true).apply{setPadding(0,dp(5),0,dp(2))})
-            addView(label("Completed Expense items only. Kept separate until costs are matched to the same trip/date period.",10f,MUTED,false))
-            addView(action("＋ LOG VEHICLE EXPENSE",true){itemDialog("Expense")},LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(8)})
+            addView(label("COST MODEL",10f,MINT,true))
+            val line=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+            line.addView(costInput)
+            line.addView(action("SAVE",true){commands.setSetting("cost_per_km",costInput.text.toString().replace(',','.').ifBlank{"0.85"});showTab("EARNINGS")},LinearLayout.LayoutParams(dp(78),dp(42)).apply{marginStart=dp(7)})
+            addView(line)
+            addView(label("This same saved assumption is used by Offer Desk ranking. It is not a tax or full vehicle-cost calculation.",9f,MUTED,false).apply{setPadding(0,dp(5),0,0)})
         })
-        root.addView(section("VEHICLE ECONOMICS","The same cost model is used to rank incoming offers."))
-        val cost=field("All-in vehicle cost per km (PLN)",commands.setting("cost_per_km","0.85"))
-        root.addView(card().apply{addView(cost);addView(action("SAVE COST MODEL",true){commands.setSetting("cost_per_km",cost.text.toString().replace(',','.').ifBlank{"0.85"});showTab("EARNINGS")})})
+
         val analytics=DriverAnalyticsEngine.calculate(mirror.recent(5000),num("cost_per_km",0.85))
-        root.addView(section("WHAT YOUR DATA SAYS","Evidence-based economics. Estimated vehicle cost uses your saved per-km assumption; no missing values are filled in."))
+        root.addView(section("EARNINGS INTELLIGENCE","Only confirmed records · missing values stay unknown"))
         root.addView(card().apply {
-            addView(label("COVERAGE",11f,MINT,true))
-            addView(label("${analytics.plnTripCount} PLN trips · gross ${analytics.tripsWithGross} · fees ${analytics.tripsWithFees} · bonuses ${analytics.tripsWithBonus} · distance ${analytics.tripsWithDistance} · time ${analytics.tripsWithTime}",10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(5))})
-            addView(label("Estimated net after vehicle cost",9f,MUTED,true))
-            addView(label(analytics.estimatedNetPln?.let{money(it)}?:"NOT ENOUGH COMPLETE DATA",21f,MINT,true).apply{setPadding(0,dp(3),0,dp(3))})
-            addView(label("${analytics.estimatedNetTrips} trips include gross, fees, bonus and distance. This estimate excludes tax, unpaid waiting time and costs not represented by your per-km setting.",10f,MUTED,false))
+            addView(label("SOURCE COVERAGE",10f,MINT,true))
+            addView(label("\${analytics.plnTripCount} PLN trips  ·  gross \${analytics.tripsWithGross}  ·  fees \${analytics.tripsWithFees}  ·  bonus \${analytics.tripsWithBonus}",10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(2))})
+            addView(label("Distance \${analytics.tripsWithDistance}  ·  duration \${analytics.tripsWithTime}",9f,MUTED,false))
+            addView(label("ESTIMATED NET AFTER VEHICLE COST",9f,MUTED,true).apply{setPadding(0,dp(10),0,dp(2))})
+            addView(label(analytics.estimatedNetPln?.let{money(it)}?:"NOT ENOUGH COMPLETE DATA",21f,MINT,true))
+            addView(label("\${analytics.estimatedNetTrips} trips include gross, fees, bonus and distance. Excludes tax, unpaid waiting time and costs outside your per-km assumption.",9f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
         })
+
         if(analytics.platforms.isNotEmpty()) {
-            root.addView(section("PLATFORM COMPARISON","Only comparable PLN trips. Incomplete net rows are excluded from net calculations."))
-            analytics.platforms.forEach { p ->
-                root.addView(card().apply {
-                    addView(label(p.platform.uppercase()+" · "+p.tripCount+" TRIPS",11f,MINT,true))
-                    addView(label("Gross "+money(p.grossPln)+" · fees "+money(p.feesPln)+" · bonuses "+money(p.bonusesPln),10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(3))})
-                    addView(label("Known net before vehicle "+money(p.knownNetBeforeVehiclePln),10f,MUTED,false))
-                    addView(label("Estimated vehicle cost "+money(p.estimatedVehicleCostPln)+" · net after vehicle "+money(p.estimatedNetAfterVehiclePln),10f,MUTED,false).apply{setPadding(0,dp(3),0,dp(3))})
-                    addView(label("${p.completeNetTrips}/${p.tripCount} complete net rows · ${p.tripsWithDistance}/${p.tripCount} with distance",9f,AMBER,true))
+            root.addView(section("PLATFORM COMPARISON","Swipe horizontally · incomplete net rows are excluded"))
+            val strip=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+            analytics.platforms.forEach { platform ->
+                strip.addView(card().apply {
+                    layoutParams=LinearLayout.LayoutParams(dp(238),-2).apply{marginEnd=dp(8)}
+                    addView(label(platform.platform.uppercase()+"  ·  "+platform.tripCount+" TRIPS",10f,MINT,true))
+                    addView(label("Gross  "+money(platform.grossPln),10f,WHITE,false).apply{setPadding(0,dp(7),0,dp(2))})
+                    addView(label("Fees  "+money(platform.feesPln)+"  ·  bonuses  "+money(platform.bonusesPln),9f,MUTED,false))
+                    addView(label("Known net  "+money(platform.knownNetBeforeVehiclePln),10f,WHITE,true).apply{setPadding(0,dp(7),0,dp(2))})
+                    addView(label("After vehicle  "+money(platform.estimatedNetAfterVehiclePln),10f,MINT,true))
+                    addView(label("\${platform.completeNetTrips}/\${platform.tripCount} complete net  ·  \${platform.tripsWithDistance}/\${platform.tripCount} with distance",9f,AMBER,false).apply{setPadding(0,dp(6),0,0)})
                 })
             }
+            root.addView(HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;addView(strip)})
         }
+
         if(analytics.hours.isNotEmpty()) {
-            root.addView(section("START-TIME SIGNAL","Gross and complete pre-vehicle net grouped by recorded trip start hour. Not an hourly wage."))
-            analytics.hours.take(8).forEach { h ->
-                root.addView(card().apply {
-                    addView(label(String.format(Locale.US,"%02d:00–%02d:00",h.hour,h.hour+1)+" · "+h.trips+" trips",12f,WHITE,true))
-                    addView(label("Gross "+money(h.grossPln)+" · complete net before vehicle "+money(h.completeNetPln),10f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+            root.addView(section("START-TIME SIGNAL","Recorded trip start hour, not hourly wage · swipe for more"))
+            val strip=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+            analytics.hours.take(12).forEach { hour ->
+                strip.addView(card().apply {
+                    layoutParams=LinearLayout.LayoutParams(dp(132),dp(94)).apply{marginEnd=dp(7)}
+                    addView(label(String.format(Locale.US,"%02d:00",hour.hour),14f,WHITE,true))
+                    addView(label("\${hour.trips} trips",9f,MUTED,false).apply{setPadding(0,dp(4),0,dp(5))})
+                    addView(label(money(hour.grossPln),10f,MINT,true))
+                    addView(label("net "+money(hour.completeNetPln),9f,MUTED,false).apply{setPadding(0,dp(3),0,0)})
                 })
             }
+            root.addView(HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;addView(strip)})
         }
+
         if(analytics.dataWarnings.isNotEmpty()) {
             root.addView(card().apply {
-                addView(label("DATA GAPS · DO NOT OVER-INTERPRET",10f,AMBER,true))
-                analytics.dataWarnings.forEach { warning -> addView(label("• "+warning,10f,MUTED,false).apply{setPadding(0,dp(5),0,0)}) }
+                addView(label("DATA GAPS · READ BEFORE COMPARING",10f,AMBER,true))
+                analytics.dataWarnings.forEach { warning -> addView(label("• "+warning,9f,MUTED,false).apply{setPadding(0,dp(5),0,0)}) }
             })
         }
-        val captures=DriverAppCaptureStore(this).recent(20)
-        root.addView(section("NATIVE APP CAPTURE · REVIEW QUEUE",captures.size.toString()+" screen observations waiting for your confirmation"))
-        if(captures.isEmpty()) root.addView(card().apply {
-            addView(label("No pending screen observations",13f,WHITE,true))
-            addView(label("Start a session from Offer Desk, select the Uber/Bolt Driver window in Android, and open trip or earnings details. BusyBee reads visible text locally.",10f,MUTED,false))
-        })
-        captures.forEach { observation ->
-            root.addView(card().apply {
-                addView(label(observation.platform.uppercase()+" · "+observation.screenType+" · "+dateTime(observation.capturedAt),10f,MINT,true))
-                addView(label(observation.visibleText.take(240),10f,WHITE,false).apply { setPadding(0,dp(6),0,dp(6)); maxLines=4 })
-                addView(label("Detected amount "+money(observation.detectedAmount)+" · "+(observation.distanceKm?.let{"%.1f km".format(Locale.US,it)}?:"distance unknown")+" · "+(observation.durationMinutes?.let{"%.0f min".format(Locale.US,it)}?:"duration unknown"),9f,MUTED,false))
-                val actions=LinearLayout(this@MainActivity).apply { orientation=LinearLayout.HORIZONTAL }
-                actions.addView(action("REVIEW & SAVE",true){reviewNativeObservation(observation)},LinearLayout.LayoutParams(0,dp(38),1f))
-                actions.addView(action("DISCARD",false){DriverAppCaptureStore(this@MainActivity).delete(observation.id);showTab("EARNINGS")},LinearLayout.LayoutParams(dp(94),dp(38)).apply { marginStart=dp(7) })
-                addView(actions.apply { setPadding(0,dp(9),0,0) })
-            })
+
+        root.addView(section("RECENT CONFIRMED ACTIVITY","Source evidence remains attached to each saved record"))
+        val recent=mirror.recent(30)
+        if(recent.isEmpty()) root.addView(label("No confirmed trips or offers yet.",11f,MUTED,false).apply{setPadding(dp(4),dp(4),0,dp(12))})
+        recent.forEach { record ->
+            val row=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(10),dp(4),dp(10))}
+            val title=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+            title.addView(label(record.platform.uppercase()+"  ·  "+record.type.uppercase(),10f,MINT,true))
+            title.addView(View(this@MainActivity),LinearLayout.LayoutParams(0,1,1f))
+            title.addView(label(record.occurredAt?: "Date unknown",9f,MUTED,false))
+            row.addView(title)
+            row.addView(label((record.pickup?: "Pickup unknown")+"  →  "+(record.dropoff?: "Destination unknown"),11f,WHITE,true).apply{setPadding(0,dp(4),0,dp(3))})
+            row.addView(label("Gross "+money(record.gross)+"  ·  fees "+money(record.fees)+"  ·  bonus "+money(record.bonus),9f,MUTED,false))
+            root.addView(row)
+            root.addView(divider())
         }
-        root.addView(section("LEGACY IMPORT EVIDENCE","Older CSV imports remain available in your history; new records are collected from native app screens and reviewed here."))
-        mirror.importHistory().forEach { entry -> root.addView(label("• "+entry,10f,MUTED,false).apply{setPadding(dp(5),dp(3),0,dp(3))}) }
-        root.addView(section("RECENT MIRRORED ACTIVITY","Only driver-reviewed or previously imported source records are counted."))
-        mirror.recent(30).forEach{r->root.addView(card().apply{
-            addView(label(r.platform+" · "+r.type.uppercase(),11f,MINT,true))
-            addView(label((r.occurredAt?:"Date not supplied")+" · "+(r.pickup?:"?")+" → "+(r.dropoff?:"?"),11f,WHITE,true).apply{setPadding(0,dp(4),0,dp(4))})
-            addView(label("Gross "+money(r.gross)+" · Fees "+money(r.fees)+" · Bonus "+money(r.bonus),10f,MUTED,false))
-        })}
+
+        val history=mirror.importHistory()
+        root.addView(section("LEGACY IMPORT HISTORY","Optional historical evidence · never required for normal use"))
+        if(history.isEmpty()) root.addView(label("No legacy imports.",9f,MUTED,false).apply{setPadding(dp(4),0,0,dp(8))})
+        else history.take(8).forEach { entry -> root.addView(label("• "+entry,9f,MUTED,false).apply{setPadding(dp(4),dp(3),0,dp(3))}) }
         return root
     }
 
