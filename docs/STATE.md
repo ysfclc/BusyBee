@@ -183,3 +183,15 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - **State changed:** Documentation only. No code, UI, database, APK or PR merge changed in this review step. STOP-WORK remains active.
 - **Next:** Apply only narrow lifecycle-boundary guards to those callback paths, add focused regression coverage where possible, and verify the complete source read-back. Do not claim BB-002 fixed without the original DIAG/logcat and device reproduction.
 - **Risks/landmines:** The MapLibre native renderer is not exercised by the existing boolean readiness test. A Robolectric dispatcher test cannot substitute for physical-device MapLibre lifecycle validation.
+
+
+## Session handoff — 2026-11-13 (MapLibre/TTS/location lifecycle hardening)
+
+- **Done:** Routed MapView map acquisition and style-loaded callbacks through LifecycleSafeUiDispatcher, so late completions are discarded when the Activity is finishing/destroyed.
+- **Done:** Routed TextToSpeech initialization completion through the same guard and resolved the active engine only inside the guarded callback.
+- **Done:** LocationListener now retains the newest fix but avoids map mutations unless Activity lifecycle is RESUMED. onResume reapplies the cached fix after MapView resumes and restarts active/follow location updates.
+- **Done:** Added a third Robolectric regression test for callback rejection after Activity.finish(). Existing destruction/live-Activity tests remain.
+- **State changed:** Kotlin source and test changes committed to PR #8 branch. Documentation updated. No merge, APK build, release, UI redesign or feature work.
+- **Verified:** Source files and docs have been read from GitHub after the changes; static checks confirm map/style/TTS callbacks are guarded and location updates are gated on RESUMED. **Tests and compilation have not run.**
+- **Not done:** No physical-device test; no root cause assigned to BB-001/BB-002; MapLibre native renderer behavior remains unverified.
+- **Risks/landmines:** Lifecycle dispatcher tests validate Activity liveness policy, not MapLibre internals. The original user-reported IllegalStateException still requires DIAG LAST ACTION FAILURE or logcat and a target-device reproduction.
