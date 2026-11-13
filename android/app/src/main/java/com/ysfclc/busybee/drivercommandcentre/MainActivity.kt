@@ -816,7 +816,7 @@ class MainActivity : AppCompatActivity() {
         val bearing=if(location.hasBearing() && location.speed>1.0f) location.bearing.toDouble() else previousBearing
         val cameraTarget=if(navigating && tilted) NavigationCameraMath.aheadOf(point,bearing,if(location.speed>2.0f)48.0 else 26.0) else point
         val zoom=if(navigating)18.2 else 15.5
-        val tilt=if(navigating && tilted)62.0 else if(tilted)42.0 else 0.0
+        val tilt=if(navigating && tilted)58.0 else if(tilted)42.0 else 0.0
         map?.animateCamera(CameraUpdateFactory.newCameraPosition(
             CameraPosition.Builder().target(cameraTarget).zoom(zoom).bearing(bearing).tilt(tilt).build()
         ),650)
