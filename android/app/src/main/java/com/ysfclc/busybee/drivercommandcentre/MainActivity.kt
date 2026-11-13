@@ -434,7 +434,7 @@ class MainActivity : AppCompatActivity() {
             orientation=LinearLayout.HORIZONTAL
             gravity=Gravity.CENTER_VERTICAL
             setPadding(dp(9),dp(7),dp(8),dp(7))
-            background=rounded(0xE610232E.toInt(),18)
+            background=rounded(palette.overlay,18)
         }
         top.addView(action("☰",false){showMainMenu()},LinearLayout.LayoutParams(dp(40),dp(38)))
         val brand=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(9),0,0,0) }
@@ -457,6 +457,7 @@ class MainActivity : AppCompatActivity() {
             }
         },LinearLayout.LayoutParams(dp(44),dp(36)).apply { marginStart=dp(5) })
         threeDButton=top.getChildAt(3) as TextView
+        mapTopChrome=top
         frame.addView(top,FrameLayout.LayoutParams(-1,-2,Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
             setMargins(dp(10),dp(10),dp(10),0)
         })
@@ -471,14 +472,15 @@ class MainActivity : AppCompatActivity() {
         val bottom=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
             setPadding(dp(9),dp(8),dp(9),dp(8))
-            background=rounded(0xF010232E.toInt(),18)
+            background=rounded(palette.overlay,18)
         }
         routeDestinationInput=EditText(this).apply {
             hint="Where to?"
             setSingleLine(true);textSize=13f;setTextColor(WHITE);setHintTextColor(MUTED)
-            setPadding(dp(12),dp(7),dp(9),dp(7));background=rounded(0xFF1B303A.toInt(),11)
+            setPadding(dp(12),dp(7),dp(9),dp(7));background=rounded(palette.field,11)
             layoutParams=LinearLayout.LayoutParams(0,dp(42),1f)
         }
+        mapDestinationField=routeDestinationInput
         val searchRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
         searchRow.addView(routeDestinationInput)
         searchRow.addView(action("GO",true){planRoute(routeDestinationInput?.text?.toString().orEmpty())},
@@ -514,6 +516,7 @@ class MainActivity : AppCompatActivity() {
         routeActions?.addView(action("MAPS",false){openExternalNavigation()},
             LinearLayout.LayoutParams(0,dp(36),1f).apply { marginStart=dp(6) })
         bottom.addView(routeActions,LinearLayout.LayoutParams(-1,dp(36)).apply { topMargin=dp(7) })
+        mapBottomChrome=bottom
         frame.addView(bottom,FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
             setMargins(dp(10),0,dp(10),dp(10))
         })
@@ -1552,28 +1555,27 @@ class MainActivity : AppCompatActivity() {
         background=GradientDrawable().apply{
             setColor(CARD)
             cornerRadius=dp(17).toFloat()
-            setStroke(dp(1),0xFF203743.toInt())
+            setStroke(dp(1),palette.stroke)
         }
         elevation=dp(2).toFloat()
         layoutParams=LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(11)}
     }
-    private fun metric(title:String,value:String)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(9),dp(10),dp(7),dp(9));background=rounded(0xFF1A2D37.toInt(),12);addView(label(title,9f,MUTED,true));addView(label(value,12f,WHITE,true).apply{setPadding(0,dp(6),0,0)})}
+    private fun metric(title:String,value:String)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(9),dp(10),dp(7),dp(9));background=rounded(palette.secondary,12);addView(label(title,9f,MUTED,true));addView(label(value,12f,WHITE,true).apply{setPadding(0,dp(6),0,0)})}
     private fun label(value:String,size:Float,color:Int,bold:Boolean)=TextView(this).apply{text=value;textSize=size;setTextColor(color);if(bold)typeface=Typeface.DEFAULT_BOLD}
-    private fun field(hintText:String,value:String)=EditText(this).apply{hint=hintText;setText(value);textSize=13f;setTextColor(WHITE);setHintTextColor(MUTED);setSingleLine(true);setPadding(dp(10),dp(9),dp(10),dp(9));background=rounded(0xFF1B303A.toInt(),10);layoutParams=LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(7)}}
-    private fun action(title:String,primary:Boolean,onClick:()->Unit)=TextView(this).apply{
-        text=title
-        gravity=Gravity.CENTER
-        textSize=10f
-        typeface=Typeface.DEFAULT_BOLD
-        letterSpacing=.025f
-        setTextColor(if(primary)BG else WHITE)
-        background=GradientDrawable().apply{
-            setColor(if(primary)MINT else 0xFF213845.toInt())
-            cornerRadius=dp(11).toFloat()
-            if(!primary) setStroke(dp(1),0xFF2B4652.toInt())
+    private fun field(hintText:String,value:String)=EditText(this).apply{hint=hintText;setText(value);textSize=13f;setTextColor(WHITE);setHintTextColor(MUTED);setSingleLine(true);setPadding(dp(10),dp(9),dp(10),dp(9));background=rounded(palette.field,10);layoutParams=LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(7)}}
+    private fun action(title:String,primary:Boolean,onClick:()->Unit):TextView {
+        val button=TextView(this).apply {
+            text=title
+            gravity=Gravity.CENTER
+            textSize=10f
+            typeface=Typeface.DEFAULT_BOLD
+            letterSpacing=.025f
+            minHeight=dp(42)
+            setOnClickListener{safeUiAction(title){onClick()}}
         }
-        minHeight=dp(42)
-        setOnClickListener{safeUiAction(title){onClick()}}
+        themedActions[button]=primary
+        applyActionPalette(button,primary)
+        return button
     }
     private fun safeUiAction(actionName:String, action:()->Unit) {
         if(isFinishing || isDestroyed) return
@@ -1590,7 +1592,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun addViewAction(parent:LinearLayout,title:String,onClick:()->Unit){parent.addView(action(title,true,onClick),LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(9)})}
-    private fun divider()=View(this).apply{setBackgroundColor(0xFF263943.toInt());layoutParams=LinearLayout.LayoutParams(-1,dp(1))}
+    private fun divider()=View(this).apply{setBackgroundColor(palette.divider);layoutParams=LinearLayout.LayoutParams(-1,dp(1))}
     private fun rounded(color:Int,radius:Int)=GradientDrawable().apply{setColor(color);cornerRadius=dp(radius).toFloat()}
     private fun dp(v:Int)=(v*resources.displayMetrics.density).toInt()
     private fun num(key:String,default:Double)=commands.setting(key,default.toString()).replace(',','.').toDoubleOrNull()?:default
