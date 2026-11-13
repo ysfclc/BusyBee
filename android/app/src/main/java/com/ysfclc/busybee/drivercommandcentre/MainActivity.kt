@@ -1029,8 +1029,8 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         mapView.onResume()
         if(::locationManager.isInitialized) {
-            // Apply the newest fix if a callback arrived after onPause() removed updates.
-            lastLocation?.let(::updateDriverLocation)
+            // Apply only a fresh fix if a callback arrived after onPause() removed updates.
+            lastLocation?.takeIf { System.currentTimeMillis()-it.time in 0..120000L }?.let(::updateDriverLocation)
             if(navigating || followLocation) startLocationUpdates()
         }
     }
