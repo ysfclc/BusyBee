@@ -235,3 +235,13 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - **Not verified:** Android compilation, unit-test execution, live notification listener behaviour and physical-device validation. The Vercel named Android sandbox is stopped and its resume request again returned HTTP 402 due to the Hobby usage limit (reset 2026-12-01 UTC). No APK was built from this commit.
 - **Next:** Run the four tests and full Android suite when a permitted runner is available; validate real notification postTime semantics and notification reconnect/update behavior on device.
 - **Risks/landmines:** This fixes a confirmed source-level data-loss path but does not yet parse notification text into structured offers, authenticate ride-platform accounts, or control acceptance/decline actions.
+
+
+## Session handoff — 2026-11-13 (driver-app notification allowlist)
+
+- **Finding:** Notification listener used substring matching across six platform names. A passenger or unrelated app whose package contained a platform keyword could be ingested as a driver notification.
+- **Changed:** Added exact package allowlist for `com.ubercab.driver` and `ee.mtakso.driver`, the driver package IDs already used in BusyBee's app-launch handoff. Unknown and passenger packages are ignored. Updated Sources UI to state only these two verified package mappings are active.
+- **Tests authored:** Five `RidePlatformPackagesTest` cases cover the two known driver IDs, case-insensitive matching, passenger/lookalike rejection and unverified-provider rejection.
+- **Documentation:** BB-009 added to the risk register and stabilization plan.
+- **Verification:** GitHub source read-back/static inspection only. The package IDs still need confirmation on the target phone; no Android compile/test or APK build has run.
+- **Product limitation:** This is notification capture, not authenticated account integration or ride-action control. Structured parsing and official APIs remain separate work.
