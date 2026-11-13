@@ -34,6 +34,21 @@ class LifecycleSafeUiDispatcherTest {
     }
 
     @Test
+    fun callbackIsDroppedWhenActivityIsFinishingBeforePost() {
+        val controller = Robolectric.buildActivity(Activity::class.java).create()
+        val activity = controller.get()
+        val invoked = AtomicBoolean(false)
+        val dispatcher = LifecycleSafeUiDispatcher(activity)
+
+        activity.finish()
+        dispatcher.post { invoked.set(true) }
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertFalse("A finishing Activity must not receive a callback", invoked.get())
+        controller.destroy()
+    }
+
+    @Test
     fun workerResultRunsWhenActivityIsStillAlive() {
         val controller = Robolectric.buildActivity(Activity::class.java).create()
         val activity = controller.get()
