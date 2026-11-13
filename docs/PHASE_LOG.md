@@ -243,3 +243,17 @@ Remaining gates:
 - The standard `busybee-apk` static deployment did not complete. The first preview exposed and fixed a shell URL interpolation bug; later deployment creation hit the Vercel team's daily deployment API limit (>100 creations/day). The stable project URL must not be represented as live until a deployment reaches READY and its APK/metadata are checked.
 - Debug package identity cannot update an existing release package. Release signing requires the same persistent keystore; no replacement key was generated.
 - Real-device installation, launch, upgrade continuity, battery/performance and accessibility checks remain outstanding.
+
+
+## 2026-11-13 — Native-first product correction
+
+**Branch:** feat/live-navigation-vehicle-2026-11-13
+
+- Added user-consented Android MediaProjection capture with on-device OCR and a manual review queue for Uber, Bolt and user-named additional driver apps.
+- Added trip duration to the local Driver Mirror schema and native reviewed-record persistence; missing amounts remain unknown.
+- Replaced the foreground WhatsApp chat-export workflow with selected-group discovery and per-group controls. Android notification visibility remains a platform limitation.
+- Removed the prominent CSV import action from the normal Earnings path; legacy import history remains accessible as optional backfill evidence.
+- Map workspace uses the full available content area with floating controls; a full premium redesign of all workspaces remains unfinished.
+- Added tests for native OCR parsing, WhatsApp notification parsing, per-group consent and reviewed-record evidence. These new tests still require a successful run in a build of the latest test commit.
+
+Build evidence: deployment dpl_D6JRWWpjiHuzmE4kaETzneeKP5xq reached READY for code commit 3cc846a85f892e028ae7b1109d3a8c9bda94632f; Android APK assembly and ZIP integrity verification succeeded. Test-only commit 5e8f9dd720bbdbc2c9a27b8bd9828f384d9ce562 is newer than that APK. No physical-device validation or product acceptance is claimed.
