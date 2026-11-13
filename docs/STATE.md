@@ -2,7 +2,7 @@
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
-**Latest source commit:** `0cbfeba3dae182a717df9513a7ea9978ecf43a6d`  
+**Latest source commit:** `8d51dd3206e0e26af8f799b994bc64b05614bb13`  
 **Status:** implementation authored; build/test/device verification blocked and pending. PR #9 is draft and stacked on PR #8; neither is merged.
 
 
@@ -13,7 +13,7 @@ The user explicitly rejected the prior map because it had no recognisable vehicl
 - Replaced MapLibre's generic default pin with a custom top-down vehicle marker. Foreground GPS updates move the marker; during navigation, the camera follows the GPS course, looks ahead of the vehicle, uses zoom 18.2 and a 58-degree forward pitch when 3D mode is enabled. The recenter control re-enables follow mode.
 - Uses OpenFreeMap Liberty for daytime mapping. Fiord and Dark remain the dusk/night styles. A 3D building extrusion layer is added to styles that do not already provide one; Liberty's existing extrusion is not duplicated.
 - The daylight palette now uses tinted green/stone surfaces rather than pure-white panels and cards.
-- Added on-demand OpenStreetMap/Overpass detail lookup for named/addressed building ways and multipolygon relations, plus mapped entrance/door nodes. Building labels appear from zoom 15.5; entrance markers appear from zoom 17. Mapped `entrance=staircase` is labelled as a stairwell; entrance references are shown as references. No missing stairwell letter or entrance is fabricated.
+- Added on-demand OpenStreetMap/Overpass detail lookup for named/addressed building ways and multipolygon relations, plus mapped entrance/door nodes. Building labels appear from zoom 15.5; entrance markers appear from zoom 17. Mapped `entrance=staircase` is labelled as a stairwell; entrance references are shown as references. No missing stairwell letter or entrance is fabricated. Entrance labels are rendered as visible amber text pills (for example `Klatka A` when the OSM node explicitly has `entrance=staircase` and `ref=A`), not anonymous dots.
 - The map's top context line reports the counts of road observations, buildings and entrances. Markers are refreshed after camera movement, with redraw throttling so every GPS tick does not recreate all place labels.
 - Nominatim search now prefers Polish local names and uses the driver's location as a relevance bias without restricting valid intercity destinations. OSRM turn steps fall back to a road reference when a road name is absent.
 - Corrected the actual basemap label precedence: OpenFreeMap's road-label expressions can prefer `name_en` over the local `name`. BusyBee now overrides the road-name text fields across Liberty, Fiord and Dark to prefer `name:pl` (on Polish locales), then the local OSM `name`, then Latin/English fallbacks. Road labels now have explicit OSM attribution in the map context line.
