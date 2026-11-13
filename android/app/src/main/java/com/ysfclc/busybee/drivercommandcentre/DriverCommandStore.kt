@@ -62,6 +62,20 @@ data class CapturedNotice(val id: Long, val platform: String, val title: String,
 data class CommunityDocument(val id: Long, val title: String, val content: String, val importedAt: Long)
 data class RoadReport(val id: Long, val category: String, val description: String, val latitude: Double, val longitude: Double, val createdAt: Long)
 
+/**
+ * Notification identity includes Android's post timestamp. Identical text can represent
+ * two separate ride offers; hashing only the text silently discarded every later offer.
+ * A repost/update of the same Android notification retains its postTime and stays deduped.
+ */
+internal object NotificationFingerprint {
+    fun create(platform: String, title: String, body: String, postedAt: Long): String {
+        val identity = listOf(platform, title, body, postedAt.toString()).joinToString("\u0000")
+        return java.security.MessageDigest.getInstance("SHA-256")
+            .digest(identity.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+    }
+}
+
 class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 2) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE offers(
@@ -110,7 +124,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
     fun updateOfferStatus(id:Long,status:String) { writableDatabase.execSQL("UPDATE offers SET status=? WHERE id=?", arrayOf(status,id)) }
 
     @Synchronized fun captureNotice(platform:String,title:String,body:String,at:Long=System.currentTimeMillis()) {
-        val fingerprint=java.security.MessageDigest.getInstance("SHA-256").digest("$platform|$title|$body".toByteArray()).joinToString(""){"%02x".format(it)}
+        val fingerprint=NotificationFingerprint.create(platform,title,body,at)
         val v=ContentValues().apply { put("fingerprint",fingerprint);put("platform",platform);put("title",title);put("body",body);put("captured_at",at) }
         writableDatabase.insertWithOnConflict("notices",null,v,SQLiteDatabase.CONFLICT_IGNORE)
     }
