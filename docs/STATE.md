@@ -9,7 +9,7 @@ Current code candidate on feat/live-navigation-vehicle-2026-11-13:
 - Map screen uses the full content canvas with floating controls; full premium UX redesign remains incomplete and not accepted.
 - CSV/chat export screens are no longer presented as the normal workflow; legacy CSV evidence remains for backwards compatibility.
 
-**Verification boundary:** Vercel deployment dpl_D6JRWWpjiHuzmE4kaETzneeKP5xq built commit 3cc846a85f892e028ae7b1109d3a8c9bda94632f and reached READY; log confirms APK assembly and verified ZIP archive. The subsequent test-only commit 5e8f9dd720bbdbc2c9a27b8bd9828f384d9ce562 is not included in that deployment. No target-device test of the new native capture/group workflow has been completed. Do not mark it accepted until the tests run and the APK is exercised on the user's Android device.
+**Verification boundary:** Vercel deployment dpl_D6JRWWpjiHuzmE4kaETzneeKP5xq built code commit 3cc846a85f892e028ae7b1109d3a8c9bda94632f and reached READY; its log confirms APK assembly and ZIP integrity. A later Vercel build for commit 4c565b20fb03db84ac2158a4325ad6f2df289e5b reached the Android unit-test stage but stopped producing logs and was cancelled. A new deployment attempt for the latest source was blocked by the Vercel Hobby daily deployment API limit (HTTP 402). GitHub Actions PR run 43507100722 failed before runner assignment (runner_id 0). Latest source at time of this note: a1471cd3d1905064b47a5eb21dfa61005579ff5b. No APK for that latest source is verified, and no target-device test of native capture/group workflows has been completed. Do not mark them accepted until tests run and the APK is exercised on the user's Android device.
 
 ---
 
