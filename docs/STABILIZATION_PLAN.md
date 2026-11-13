@@ -204,3 +204,11 @@ The next narrow stabilization change should separate “style is ready” from �
 - **Source correction:** Added `RidePlatformPackages.platformFor()` with exact IDs `com.ubercab.driver` and `ee.mtakso.driver`, based on package IDs already used by the app's explicit launch handoff. Listener now ignores every other package. Sources UI lists only Uber Driver and Bolt Driver as notification sources.
 - **Regression tests authored:** `RidePlatformPackagesTest` has five tests for supported driver IDs, case-insensitivity, passenger/lookalike packages and unverified providers.
 - **Verification:** Source and tests are committed to PR #8; compilation, test execution and installed-app package verification remain pending.
+
+## BB-010 — Android package visibility for driver-app handoff
+
+- **Severity:** Medium — third-party app launch reliability.
+- **Expected:** BusyBee can resolve the explicit launch intent for an installed, supported driver app.
+- **Actual before fix:** No manifest `<queries>` entries existed for the exact Uber/Bolt package names. Android 11+ package visibility could make `getLaunchIntentForPackage()` report null.
+- **Source correction:** Added package visibility declarations for `com.ubercab.driver` and `ee.mtakso.driver`.
+- **Verification:** Manifest source read-back only. Confirm merged manifest and installed-app handoff on device after the next successful build.
