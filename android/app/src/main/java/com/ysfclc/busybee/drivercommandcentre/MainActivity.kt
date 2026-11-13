@@ -244,13 +244,15 @@ class MainActivity : AppCompatActivity() {
         palette=BusyBeePalettes.forPhase(phase)
         applySystemBars()
         rootContainer?.setBackgroundColor(BG)
-        if(::appHeader.isInitialized && ::rootContainer.isInitialized) {
-            val oldIndex=rootContainer.indexOfChild(appHeader)
-            val oldParams=appHeader.layoutParams
-            if(oldIndex>=0) {
-                rootContainer.removeView(appHeader)
-                appHeader=buildHeader()
-                rootContainer.addView(appHeader,oldIndex,oldParams)
+        if(::appHeader.isInitialized) {
+            rootContainer?.let { root ->
+                val oldIndex=root.indexOfChild(appHeader)
+                val oldParams=appHeader.layoutParams
+                if(oldIndex>=0) {
+                    root.removeView(appHeader)
+                    appHeader=buildHeader()
+                    root.addView(appHeader,oldIndex,oldParams)
+                }
             }
         }
         if(::nav.isInitialized) nav.setBackgroundColor(PANEL)
@@ -310,6 +312,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun reloadMapStyle() {
+        if(!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
         val active=map ?: return
         val nextStyle=palette.mapStyleUri
         if(nextStyle==activeMapStyleUri) return
@@ -1687,6 +1690,7 @@ class MainActivity : AppCompatActivity() {
         appearanceHandler.removeCallbacks(appearanceTick)
         appearanceHandler.postDelayed(appearanceTick,15*60*1000L)
         mapView.onResume()
+        if(map!=null && activeMapStyleUri!=palette.mapStyleUri) reloadMapStyle()
         if(::locationManager.isInitialized) {
             // Apply only a fresh fix if a callback arrived after onPause() removed updates.
             lastLocation?.takeIf { System.currentTimeMillis()-it.time in 0..120000L }?.let(::updateDriverLocation)
