@@ -424,6 +424,7 @@ class MainActivity : AppCompatActivity() {
     private fun planRoute(query:String) {
         if(!mapStyleState.isReady) {
             routeSummary?.text="Map is still loading. Try again in a moment."
+            routeSummary?.visibility=View.VISIBLE
             return
         }
         if(query.isBlank()) {
@@ -434,10 +435,12 @@ class MainActivity : AppCompatActivity() {
         val origin=fix?.let { LatLng(it.latitude,it.longitude) }
         if(origin==null) {
             routeSummary?.text="Waiting for a fresh GPS fix. Tap LOCATE and try again."
+            routeSummary?.visibility=View.VISIBLE
             requestLocation()
             return
         }
         routeSummary?.text="Searching destinations near your current location…"
+        routeSummary?.visibility=View.VISIBLE
         worker.execute {
             try {
                 val candidates=RoutePlanner.searchDestinations(query,origin)
@@ -446,6 +449,7 @@ class MainActivity : AppCompatActivity() {
                     val chooseDestination: (Int)->Unit = { selected ->
                         val candidate=candidates[selected]
                         routeSummary?.text="Calculating road routes to ${candidate.displayName}…"
+                                        routeSummary?.visibility=View.VISIBLE
                         worker.execute {
                             try {
                                 val plans=RoutePlanner.planAlternatives(origin,candidate)
