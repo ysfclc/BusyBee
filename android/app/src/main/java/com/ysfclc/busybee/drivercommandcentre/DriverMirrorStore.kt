@@ -302,8 +302,8 @@ class DriverMirrorStore(context: Context) :
         val safeCurrency = currency.trim().uppercase(Locale.ROOT).ifBlank { "PLN" }
         require(safeCurrency.matches(Regex("[A-Z]{3}"))) { "Use a three-letter currency code" }
         val raw = visibleText.take(5000)
-        val safePickup = pickup?.trim()?.take(180)?.ifBlank { null }
-        val safeDropoff = dropoff?.trim()?.take(180)?.ifBlank { null }
+        val safePickup = pickup?.trim()?.take(180)?.takeIf { it.isNotBlank() }
+        val safeDropoff = dropoff?.trim()?.take(180)?.takeIf { it.isNotBlank() }
         val safeSourceName = sourceName.trim().takeIf {
             it in setOf("Android live UI listener", "Android screen capture", "Android MediaProjection OCR")
         } ?: "Android screen capture"
