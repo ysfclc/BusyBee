@@ -465,6 +465,7 @@ class MainActivity : AppCompatActivity() {
         }
         navigating=true
         followLocation=true
+        navigationInstruction?.visibility=View.VISIBLE
         offRouteReadings=0
         val progress=RoutePlanner.progressMeters(LatLng(fix.latitude,fix.longitude),route.points)
         navigationStepIndex=route.steps.indexOfFirst {
@@ -492,6 +493,7 @@ class MainActivity : AppCompatActivity() {
         rerouteInProgress=false
         offRouteReadings=0
         navigationStatus?.text=message.uppercase(Locale.getDefault())
+        navigationInstruction?.visibility=View.GONE
         if(announce && wasNavigating) speak(message)
     }
 
@@ -1158,9 +1160,11 @@ class MainActivity : AppCompatActivity() {
         sourceRow(live,"OpenFreeMap / OpenStreetMap","Vector streets, labels and 3D building extrusions","LIVE · OSM attribution")
         sourceRow(live,"Overpass API","Mapped construction and hazard observations","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Open-Meteo","Current weather context","LIVE WHEN ENDPOINT RESPONDS")
-        sourceRow(live,"Android location","Driver position after permission","DEVICE PERMISSION")
-        sourceRow(live,"Uber Driver / Bolt Driver","Exact verified driver-app package allowlist; Android notification access must be explicitly enabled","USER AUTHORIZATION REQUIRED")
-        sourceRow(live,"User exports","Statement and history CSV import","LOCAL IMPORT");root.addView(live)
+        sourceRow(live,"Android location","Driver position, speed and bearing after permission","DEVICE PERMISSION")
+        sourceRow(live,"Uber Driver / Bolt Driver","User-started Android MediaProjection with local OCR; each session requires Android consent","NATIVE SCREEN BRIDGE")
+        sourceRow(live,"Uber Driver API","Trips and payments through approved partner access","LIMITED · APPROVAL REQUIRED")
+        sourceRow(live,"WhatsApp group watch","Discover notification-visible groups; retain message previews only for selected groups","USER SELECTED")
+        sourceRow(live,"Ride app notifications","Secondary fallback signal for visible offer and status notifications","OPTIONAL PERMISSION");root.addView(live)
         val gated=card();gated.addView(label("CONNECTOR CATALOGUE · NOT CONNECTED",11f,AMBER,true))
         listOf(
             Pair("TomTom Traffic / Incidents / Routing","Commercial API credentials and storage/display rights"),
@@ -1172,6 +1176,8 @@ class MainActivity : AppCompatActivity() {
             Pair("ZTP Kraków / GTFS-RT","Transit feed discovery and schema validation"),
             Pair("Polish NAP / DATEX II / GDDKiA","Registration, credentials and coverage"),
             Pair("Air quality / severe weather","Official feed selection and quality validation"),
+            Pair("Bolt Fleet API","Fleet-company integration; credentials and company access required"),
+            Pair("Additional driver app APIs","Partner approval or authorised data scope required"),
             Pair("Driver community reports","Consent-based sharing and moderation service")
         ).forEach{sourceRow(gated,it.first,it.second,"NOT CONNECTED")}
         root.addView(gated)
