@@ -262,3 +262,23 @@ Build evidence: deployment dpl_D6JRWWpjiHuzmE4kaETzneeKP5xq reached READY for co
 ### Verification blocker update — 2026-11-13
 
 Latest source checkpoint: a1471cd3d1905064b47a5eb21dfa61005579ff5b. The Vercel build that included the new tests stopped after Gradle started Android unit tests and produced no further logs; it was cancelled rather than reported as passed. The next deployment request was rejected by the Vercel Hobby daily deployment API limit (HTTP 402). GitHub Actions PR run 43507100722 failed before runner assignment (runner_id 0), with no downloadable job logs. Therefore no passing test count or latest-source APK is claimed. The previous READY APK is an earlier code snapshot only.
+
+
+
+## 2026-11-13 — Map-first dock and Driver workspace UX increment
+
+**Branch:** `feat/map-first-route-dock-2026-11-13` (stacked on PR #8 head; draft candidate only)
+
+Delivered:
+- Reduced persistent map chrome to a compact destination dock over the full-bleed map. Route status and START/STOP/external-navigation controls now appear contextually after route planning or while navigating.
+- Preserved the MapLibre view lifetime and the map-first hide-header/hide-tab-bar behaviour from the parent branch.
+- Rebuilt Earnings hierarchy around a single known-net focal point, compact KPI row, native capture review inbox, coverage/economics, horizontal platform and start-hour comparisons, and compact recent activity. Kept original calculation semantics and evidence/review flows.
+- Rebuilt Offer Desk around native driver-app capture as the primary path, quick vehicle/rule controls, manual correction, ranked offers and clearly secondary notification evidence.
+- Kept all user-facing provider/API limitations explicit; no API connection or unsupported data access is claimed.
+
+Verification:
+- GitHub source diff inspected; branch is two commits ahead of PR #8 base at the first source checkpoint, with follow-up commits for Earnings and Offers UI.
+- Automated Rust/Android tests and APK assembly were **not run**. Vercel Sandbox API returned HTTP 402 (Hobby usage limit exceeded through 2026-12-01); this is an infrastructure blocker, not a passing or failing source test.
+- No local Android SDK/Gradle or `/testbed` checkout is available in this runtime. Physical-device verification remains outstanding.
+- Driver Hub and Sources still need their own purpose-built premium layout pass. This increment does not satisfy the complete UI redesign acceptance gate.
+
