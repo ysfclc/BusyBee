@@ -15,14 +15,14 @@ class WhatsAppNotificationParserTest {
         conversationTitle: String?,
         body: String?,
         sender: String = "Yusuf",
-        isGroup: Boolean = true
+        isGroup: Boolean? = true
     ): Notification {
         val context = RuntimeEnvironment.getApplication()
         return Notification.Builder(context)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
             .apply {
-                extras.putBoolean("android.isGroupConversation", isGroup)
+                if (isGroup != null) extras.putBoolean("android.isGroupConversation", isGroup)
                 if (conversationTitle != null) extras.putCharSequence("android.conversationTitle", conversationTitle)
                 if (body != null) extras.putCharSequence("android.text", body)
                 extras.putCharSequence("android.title", sender)
@@ -64,6 +64,17 @@ class WhatsAppNotificationParserTest {
         assertNotNull(parsed)
         assertEquals("Night Shift Drivers", parsed?.groupTitle)
         assertEquals(0, parsed?.messages?.size)
+    }
+
+
+    @Test
+    fun rejectsNotificationsWithoutExplicitGroupMarker() {
+        assertNull(
+            WhatsAppNotificationParser.parse(
+                notification("Possible group", "A message", isGroup = null),
+                1234L
+            )
+        )
     }
 
     @Test
