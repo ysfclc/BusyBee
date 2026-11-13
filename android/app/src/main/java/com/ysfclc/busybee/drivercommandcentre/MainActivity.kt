@@ -591,6 +591,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startLocationUpdates() {
+        // Permission/style callbacks may request location before Activity reaches RESUMED.
+        // Defer registration until onResume() rather than registering against a paused MapView.
+        if(!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
         try {
             val providers=locationManager.getProviders(true).filter { it==LocationManager.GPS_PROVIDER || it==LocationManager.NETWORK_PROVIDER }
             if(providers.isEmpty()) {
@@ -1038,7 +1041,15 @@ class MainActivity : AppCompatActivity() {
     override fun onStop(){CrashDiagnostics.record(this,"lifecycle:onStop");mapView.onStop();super.onStop()}
     override fun onLowMemory(){super.onLowMemory();mapView.onLowMemory()}
     override fun onSaveInstanceState(outState:Bundle){super.onSaveInstanceState(outState);mapView.onSaveInstanceState(outState)}
-    override fun onDestroy(){CrashDiagnostics.record(this,"lifecycle:onDestroy");textToSpeech?.stop();textToSpeech?.shutdown();worker.shutdownNow();mapView.onDestroy();super.onDestroy()}
+    override fun onDestroy(){
+        CrashDiagnostics.record(this,"lifecycle:onDestroy")
+        if(::locationManager.isInitialized) runCatching { locationManager.removeUpdates(locationListener) }
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        worker.shutdownNow()
+        mapView.onDestroy()
+        super.onDestroy()
+    }
 
     companion object{
         private const val LOCATION_REQUEST=731
