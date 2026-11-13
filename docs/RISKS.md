@@ -93,8 +93,9 @@ A further workflow run for the latest location-lifecycle source commit, run 112 
 - **Expected:** style readiness may be recorded at any lifecycle state, but MapView activation/mutations should be deferred until RESUMED.
 - **Actual source behavior:** callback only checks finishing/destroyed; paused Activity remains eligible.
 - **Reproduction:** not reproduced on device; callback timing race is inferred directly from the source path.
-- **Status:** open; do not call BB-002 root cause.
-- **Proposed narrow correction:** retain a pending style activation and execute it once on resume; add pure state tests. Defer implementation until build/test execution is available to validate it.
+- **Status:** narrow source correction implemented on PR #8; compilation, tests and device behavior remain unverified. Do not call BB-002 root cause.
+- **Correction:** style readiness is recorded independently; `MapStyleState.claimActivation()` grants a one-time activation only when the Activity is resumed and a MapLibre instance exists. `MainActivity.onPostResume()` retries deferred activation, while a style callback arriving after resume can activate immediately.
+- **Regression tests authored:** activation defers while paused, waits for a map instance, and can only be claimed once. Tests have not run because the build runner is unavailable.
 
 ## Build verification blocker — 2026-11-13
 
