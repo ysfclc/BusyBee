@@ -2,7 +2,7 @@
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
-**Latest source commit:** `afb6e796af428e96c1025b2ff60a03cad7daf885`  
+**Latest source commit:** `928b8154f996fc79b07b6076a2fe8221c50fa83e`  
 **Status:** implementation authored; build/test/device verification blocked and pending. PR #8 remains untouched and unmerged.
 
 Delivered in this increment:
@@ -10,13 +10,14 @@ Delivered in this increment:
 - Route search/loading feedback is shown in the dock instead of being hidden while the compact layout is active.
 - Driver Mirror is reorganised around one financial focal point, compact KPI row, native-capture review inbox, source coverage, horizontal platform/hour comparisons, and compact confirmed-activity rows. Existing calculations, unknown-value handling, source review actions, vehicle-cost assumption, and legacy import history are retained.
 - Offer Desk is reorganised around quick vehicle/rule controls and the user-started native driver-app capture path. Decision filters are edited in a dialog rather than occupying the default screen. Notifications are explicitly secondary; manual correction and ranked offer actions remain available.
+- Driver Hub now uses compact admin rows, one-tap completion/reopen actions, a distinct WhatsApp group selection area, and compact service contacts instead of a tall stack of separate item cards.
 - No new data source, provider API claim, private database access, automatic ride acceptance, or CSV-first workflow was introduced.
 
 Verification boundary:
 - GitHub diff inspection confirms the intended map, Earnings and Offers code changes are present on the isolated branch.
 - No Rust/Android tests or APK build have been run for this branch. The existing Vercel Sandbox request returned HTTP 402 because the Hobby usage limit is exceeded until 2026-12-01; this was not a source build result.
 - This runtime has no `/testbed` checkout, Android SDK or Gradle executable. No physical-device validation is possible here.
-- Keep the branch as a draft candidate. Do not merge, distribute an APK, or call the redesign accepted until automated tests/build and target-phone checks pass. Driver Hub/Sources premium layout and full visual acceptance remain unfinished.
+- Keep the branch as a draft candidate. Do not merge, distribute an APK, or call the redesign accepted until automated tests/build and target-phone checks pass. Sources still needs its own purpose-built layout pass; full visual acceptance remains unfinished.
 
 ---
 
