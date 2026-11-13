@@ -10,8 +10,8 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 | Area | State | Notes |
 |---|---|---|
 | Product charter / architecture | ✅ baseline | Product direction, source register and ADR-001–008 are committed |
-| Android application shell | 🟡 MapLibre hosting, GPS-first map startup and caught-action stack diagnostics built; target-device validation pending | Map remains attached beneath secondary tabs; DIAG includes bounded caught/uncaught stack frames with exception messages omitted; target-device click failure still needs reproduction |
-| Spatial map / routing | 🟡 improved vertical slice; accuracy validation pending | GPS-biased destination candidates, OSRM driving alternatives with parsed maneuvers, foreground GPS following, TTS turn prompts and off-route recalculation; estimates have no live traffic and use a standard car profile |
+| Android application shell | 🔴 BLOCKED — user reports repeated action failures and IllegalStateException on target device | Previous Robolectric tests do not reproduce the reported device failure. Exact failing action/stack trace not yet supplied; no stability claim. Freeze feature work until runtime blocker is resolved |
+| Spatial map / routing | 🔴 UNVERIFIED — user reports incorrect map and routing | Candidate search, OSRM alternatives and foreground GPS guidance exist in source, but physical-device correctness, location accuracy, route selection and guidance have not been validated; OSRM is not live traffic |
 | Driver Data Mirror import | 🟡 partial | CSV rejects duplicate/empty headers, missing required values and extra cells; omitted trailing optional fields stay unknown; provider-specific exports and statement reconciliation are unvalidated |
 | Mirror evidence / deduplication | 🟡 partial; tests verified | Store-level Robolectric tests pass for duplicate suppression, raw evidence retention, import counts and rollback; provider correction and migration behaviour remain open |
 | Driver economics | 🟡 partial | Platform and start-hour groupings; no validated hourly wage, weekday/zone or dead-mileage analysis |
@@ -23,7 +23,37 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 | CI / APK | 🟡 Vercel Sandbox build verified; ZIP-first download route retained | Build from source commit `cc1ce1d6ebc735818fe13ab27939388ac0a26ea1`: Rust 4/4 and Android 46/46 (0 failures/errors/skips); debug APK `0.1.1794540100-debug` assembled and v2 signature verified. APK SHA-256 `e40357d1b9634cbf5feb046cf755bda5ea55beed5b144db986608dcfb4ac59c5`; ZIP SHA-256 `73feb8b2979598e393348fef483b118e20c11633c48c3b8f832988c10b0c8522`. Public ZIP full download + range resume + embedded APK byte identity verified. Sandbox URL is temporary; stable Vercel deployment remains pending |
 | Release signing | ⚪ pending | Persistent release keystore secrets were not configured in the last documented successful build |
 
-## 3. Currently in flight
+## 3. Stabilization status (2026-11-13)
+
+**STOP-WORK directive active.** No feature development, scope expansion, speculative fixes, PR merges or release claims until the current app reaches a verified working baseline. PR #3–#8 remain open/unmerged; PR #8 is the current diagnostic source branch, not a stable release.
+
+Known user-reported defects (reproduction detail is incomplete; do not mark reproduced):
+
+| ID | Severity | Area | Reproduction evidence | Expected | Actual | Status |
+|---|---|---|---|---|---|---|
+| BB-001 | Critical | General actions | Tap controls; user reports repeated failures (exact control sequence not supplied) | Action completes or reports a recoverable, actionable validation/network error | Generic action failure: “Couldn't complete that action, please try again later” | Open — capture DIAG action + stack |
+| BB-002 | Critical | Runtime stability | User reports IllegalStateException; exact screen/action sequence not supplied | No runtime state exception during normal use | IllegalStateException shown | Open — root cause unknown |
+| BB-003 | High | Map | Open map and use normal map controls; exact location/gesture not supplied | Correct location, stable rendering and responsive controls | User reports map is wrong | Open — device repro required |
+| BB-004 | High | Routing | Select destination and request route; exact endpoints not supplied | Correct destination and viable route | User reports routing is wrong | Open — record endpoints and compare route geometry |
+| BB-005 | High | Navigation | Start route and move with BusyBee foregrounded | Location follows driver and prompts/reroutes correctly | User reports no live navigation | Open — GPS/permission/device test required |
+| BB-006 | High | Vehicle profile | Open vehicle selection/editor and choose a vehicle | Selection is visible, persists and is reflected in cost calculations | User reports vehicle selection is absent/not working as expected | Open — exact UI path and persisted value to verify |
+
+## 4. Stabilization gates (ordered; no gate is skipped)
+
+1. **Evidence capture:** identify installed APK version and device/Android version; collect DIAG LAST ACTION FAILURE plus action breadcrumbs. If DIAG is unavailable, obtain Android logcat around one reproduction. Do not infer a root cause from exception type alone.
+2. **Launch and shell baseline:** cold launch, permission flow, each primary tab, repeated tab switching, back navigation, app pause/resume and process recreation. Resolve crashes/blocking failures first.
+3. **Action reliability:** exercise every visible button/control on each surface; record action, preconditions, expected result, actual result and stack trace. Separate app defects from denied permissions, offline services and invalid input.
+4. **Map and route correctness:** test known Kraków start/destination pairs; inspect selected destination coordinates, route geometry, route alternatives, camera bounds and failure states. Distinguish map rendering from geocoding/routing service errors.
+5. **Navigation and vehicle settings:** verify foreground GPS updates, permission denial/regrant, turn progression, off-route handling, arrival, vehicle selection persistence and cost/km calculation. Retain known product limits (no live traffic; no background tracking; no vehicle-dimension routing) rather than representing them as bugs fixed.
+6. **Regression and release gate:** add a focused regression test for each confirmed root cause; run full Rust and Android tests and assemble/signature-check APK; then repeat the original device reproduction and the smoke-test matrix on the target phone. A unit-test pass or APK build alone does not satisfy this gate.
+
+**Exit criteria for working baseline:** cold launch and all primary surfaces work on the target phone; no repeatable crash or generic action failure across the recorded smoke matrix; map displays current location; at least two documented Kraków routes select the intended destination and plausible road geometry; foreground GPS progress and turn prompts work on-device; vehicle selection persists and updates cost calculation; relevant automated tests pass. Any unverified item remains explicitly open.
+
+**Current blocker:** the target-device IllegalStateException report has not been supplied. PR #8 added DIAG stack capture, but the report must be inspected before a source-level root cause can be asserted. Repository access is available; physical-device execution and user-captured runtime evidence are not available to the engineering agent in this session.
+
+**ETA:** no responsible calendar estimate until BB-001/BB-002 are identified. First milestone is root-cause diagnosis, not another APK.
+
+## 5. Currently in flight
 
 - R-DM-005 — trip-only headline earnings. Implementation and 5 focused tests are on branch `fix/trip-only-earnings-2026-11-12`; PR #3 is open and unmerged: https://github.com/ysfclc/BusyBee/pull/3. The Vercel Sandbox build passed the Rust and Android test suites and assembled a debug APK; PR remains open for review.
 - R-DM-001 / CSV integrity — parser hardening and locale-independent normalisation plus Robolectric-backed SQLite tests are on branch `feature/mirror-store-integrity-tests-2026-11-12`, in draft PR #4 (https://github.com/ysfclc/BusyBee/pull/4), based on PR #3. Tests cover malformed CSV rejection, duplicate suppression, evidence retention, import counts and rollback. The complete suite passed on the Vercel Sandbox build (31 Android tests; 4 Rust tests); PR remains open for review.
@@ -31,7 +61,7 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 
 - MapLibre device-crash investigation — branch `fix/capture-device-crash-2026-11-13`, draft PR #7 (https://github.com/ysfclc/BusyBee/pull/7), stacked on PR #6. MapLibre remains visible under secondary tabs rather than switching to `GONE`; a DIAG control exports the last 48 action/lifecycle breadcrumbs and any uncaught JVM stack trace without recording trip content. Vercel Sandbox verification: Rust 4/4, Android 35/35, APK assembly and v2 debug signature passed. Physical-device confirmation remains open.
 
-## 4. Known gaps & stubs
+## 6. Known gaps & stubs
 
 - Provider-specific Uber/Bolt exports have not been validated against real user-owned sample files; current CSV is a documented interchange contract, not a provider adapter. Parser rejects duplicate/empty headers, extra cells and missing required values; optional trailing blanks remain unknown.
 - Financial statement reconciliation, adjustment handling and correction workflows remain incomplete.
@@ -45,7 +75,7 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 - docs/SPEC.md is absent; docs/PRODUCT_CHARTER.md is the canonical product specification. docs/RISKS.md now records data integrity, privacy, source quality, safety, CI and release-signing risks. docs/STATE.md, docs/COVERAGE.md and root CHANGELOG.md now exist.
 - The README checkpoint inconsistency found at session start was corrected to describe the five implemented pilot surfaces and the current limits of the map and offer capture.
 
-## 5. Environment & how to run
+## 7. Environment & how to run
 
 - Rust tests: `cargo test --workspace --manifest-path rust/Cargo.toml` (run from repository root).
 - Android unit tests: `cd android && ./gradlew --no-daemon testDebugUnitTest`.
@@ -56,7 +86,7 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 - The local container has no `/testbed` checkout, Gradle executable, Android SDK or Cargo toolchain. No local project build/test was executed. A Vercel Sandbox (4 vCPU / 8 GB) ran the repository build successfully; see the phase log for exact test and artifact verification.
 - GitHub Actions runs 47 (43146041937), 48 (both attempts), 43283672002 and 43283810594 for updated PR #4 heads failed before runner assignment. Latest job 131411762866 has an empty step list; no test or build command ran. This is a pre-execution CI blocker, not a result from the source tests.
 
-## 6. Next increments
+## 8. Next increments
 
 1. Install the debug APK on the target Android device and verify launch, map, navigation, and data persistence. It has a `.debug` package ID and cannot update a release installation.
 2. When the team's Vercel deployment API quota resets, trigger the standard protected static deployment and confirm `/BusyBee.apk` and `/build-info.json` are available there.
@@ -84,7 +114,7 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 - **Not done:** The crash has not been reproduced on the user's physical Android device. The diagnostics can capture JVM crashes and breadcrumbs but cannot directly catch every native SIGSEGV/OS kill. A stable Vercel download deployment and release signing remain pending.
 - **Next:** Install this APK over the previous debug build, reproduce the close once, relaunch, tap `DIAG` in the header, and paste the copied report. If it is a native renderer failure, the last recorded action/lifecycle markers will narrow it down even when Android produced no JVM stack trace.
 
-## 7. Open questions for the human
+## 9. Open questions for the human
 
 - [ ] Which real export should be used first for adapter validation (Uber or Bolt)? Default: do not claim provider-specific support until a sample export is available and tested.
 - [ ] Are the persistent Android release-signing secrets configured? Default: treat existing builds as debug-only until a signed workflow run verifies the certificate.
@@ -102,3 +132,13 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 - **Next:** Install the debug APK over the previous BusyBee debug build (same `.debug` package identity and debug signer). Verify current location, candidate destination selection, route alternatives, voice prompts and rerouting. Configure the real vehicle values, then check Offer Desk cost/km. If a tap still fails, copy DIAG and share the report; it now contains the caught failure stack frames without exception messages.
 
 - **Download:** `https://sb-3k9hxvpwg8wx.vercel.run/BusyBee-download.zip` (temporary sandbox route; use ZIP and extract `BusyBee.apk`).
+
+
+## 10. Session handoff — 2026-11-13 (stabilization plan)
+
+- **Done:** Audited current PR state and existing state/risk documentation. Added docs/STABILIZATION_PLAN.md and recorded six user-reported defects with severity, available reproduction evidence, expected/actual behavior, blockers and explicit exit gates. Marked runtime shell and map/routing status blocked or unverified.
+- **State changed:** STOP-WORK is active. No feature work, speculative fix, PR merge or release claim is authorised before stability gates pass. PR #3–#8 remain open/unmerged.
+- **Verified:** Repository documentation and PR metadata were read from GitHub. Existing Vercel test/build results are historical evidence only; they do not verify physical-device stability.
+- **Not done/next:** Inspect DIAG LAST ACTION FAILURE; if unavailable, obtain one logcat reproduction. Then reproduce and fix the first confirmed blocker, add a regression test, and proceed through the device smoke matrix.
+- **Open questions:** Which exact action triggers IllegalStateException? Which APK version is currently installed?
+- **Risks/landmines:** PR #8 is stacked on PR #7 and neither is merged. A debug APK does not establish release signing continuity. OSRM is not live traffic; navigation is foreground-only; vehicle category does not enforce road access restrictions.
