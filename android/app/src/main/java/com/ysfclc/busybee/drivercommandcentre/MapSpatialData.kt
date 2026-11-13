@@ -152,6 +152,13 @@ internal object MapPlaceLookup {
 
 /** Camera target offset keeps the vehicle in the lower part of a forward-facing 3D view. */
 internal object NavigationCameraMath {
+    fun smoothBearing(currentDegrees: Double, targetDegrees: Double, weight: Double = 0.28): Double {
+        require(currentDegrees.isFinite() && targetDegrees.isFinite())
+        require(weight.isFinite() && weight in 0.0..1.0)
+        val delta = ((targetDegrees - currentDegrees + 540.0) % 360.0) - 180.0
+        return (currentDegrees + delta * weight + 360.0) % 360.0
+    }
+
     fun aheadOf(location: LatLng, bearingDegrees: Double, distanceMeters: Double): LatLng {
         require(location.latitude.isFinite() && location.latitude in -90.0..90.0)
         require(location.longitude.isFinite() && location.longitude in -180.0..180.0)
