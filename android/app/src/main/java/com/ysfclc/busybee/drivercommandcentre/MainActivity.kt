@@ -379,12 +379,19 @@ class MainActivity : AppCompatActivity() {
         val normalized=platform.trim().take(60)
         if(normalized.length<2) return
         pendingCapturePlatform=normalized
-        try {
-            val manager=getSystemService(MediaProjectionManager::class.java)
-            nativeCaptureLauncher.launch(manager.createScreenCaptureIntent())
-        } catch(error:Exception) {
-            Toast.makeText(this,"Android screen capture is unavailable: ${error.javaClass.simpleName}",Toast.LENGTH_LONG).show()
-        }
+        AlertDialog.Builder(this)
+            .setTitle("Capture only $normalized")
+            .setMessage("When Android opens its screen-sharing picker, select only the $normalized Driver app window. If Android offers only full-screen capture, cancel. BusyBee reads visible text on this device, saves no screenshots, and keeps capture active only until you stop it.")
+            .setNegativeButton("Cancel",null)
+            .setPositiveButton("Continue") { _,_ ->
+                try {
+                    val manager=getSystemService(MediaProjectionManager::class.java)
+                    nativeCaptureLauncher.launch(manager.createScreenCaptureIntent())
+                } catch(error:Exception) {
+                    Toast.makeText(this,"Android screen capture is unavailable: ${error.javaClass.simpleName}",Toast.LENGTH_LONG).show()
+                }
+            }
+            .show()
     }
 
     private fun stopDriverScreenCapture() {
@@ -772,7 +779,7 @@ class MainActivity : AppCompatActivity() {
         });root.addView(rules)
         val capture=card()
         capture.addView(label("NATIVE DRIVER APP BRIDGE",11f,MINT,true))
-        capture.addView(label("Read the live Uber Driver or Bolt Driver screen through Android's own screen-sharing consent. Text is extracted locally; screenshots are not saved or uploaded. Review every result before it enters your Driver Mirror.",11f,MUTED,false))
+        capture.addView(label("Read the actual driver-app screen using Android's system app-sharing consent. Choose only the Uber/Bolt app window. OCR runs on-device; no screenshots are saved or uploaded. Every record waits for your review.",11f,MUTED,false))
         val captureButtons=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
         captureButtons.addView(action("CAPTURE UBER",true){launchDriverScreenCapture("Uber")},LinearLayout.LayoutParams(0,dp(42),1f))
         captureButtons.addView(action("CAPTURE BOLT",false){launchDriverScreenCapture("Bolt")},LinearLayout.LayoutParams(0,dp(42),1f).apply { marginStart=dp(7) })
