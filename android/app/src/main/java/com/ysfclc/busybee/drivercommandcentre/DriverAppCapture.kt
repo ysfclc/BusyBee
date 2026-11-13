@@ -57,17 +57,17 @@ data class ParsedDriverScreen(
 
 object DriverScreenTextParser {
     private val moneyPattern = Regex(
-        """(?:PLN|zł)\\s*([0-9]+(?:[,.][0-9]{1,2})?)|([0-9]+(?:[,.][0-9]{1,2})?)\\s*(?:PLN|zł)""",
+        """(?:PLN|zł)\s*([0-9]+(?:[,.][0-9]{1,2})?)|([0-9]+(?:[,.][0-9]{1,2})?)\s*(?:PLN|zł)""",
         RegexOption.IGNORE_CASE
     )
-    private val distancePattern = Regex("""([0-9]+(?:[,.][0-9]+)?)\\s*(?:km|kilomet(?:er|re)s?)""", RegexOption.IGNORE_CASE)
-    private val durationPattern = Regex("""([0-9]+)\\s*(?:min|minutes?)""", RegexOption.IGNORE_CASE)
+    private val distancePattern = Regex("""([0-9]+(?:[,.][0-9]+)?)\s*(?:km|kilomet(?:er|re)s?)""", RegexOption.IGNORE_CASE)
+    private val durationPattern = Regex("""([0-9]+)\s*(?:min|minutes?)""", RegexOption.IGNORE_CASE)
 
     fun parse(platform: String, text: String, capturedAt: Long): ParsedDriverScreen? {
         val visibleText = text.lineSequence()
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .joinToString("\\n")
+            .joinToString("\n")
             .take(5000)
         if (visibleText.length < 12) return null
 
@@ -134,7 +134,7 @@ class DriverAppCaptureStore(context: Context) :
                 observation.screenType,
                 observation.visibleText,
                 (observation.capturedAt / 5000L).toString()
-            ).joinToString("\\u0000")
+            ).joinToString("\u0000")
         )
         val values = android.content.ContentValues().apply {
             put("fingerprint", fingerprint)
@@ -356,9 +356,12 @@ class DriverAppCaptureService : Service() {
         imageReader?.setOnImageAvailableListener(null, null)
         imageReader?.close()
         imageReader = null
-        projection?.stop()
+        val activeProjection = projection
         projection = null
         processingFrame = false
+        // Clear our reference before stop(): MediaProjection invokes onStop()
+        // synchronously/asynchronously and must not recurse into stopCapture().
+        activeProjection?.stop()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -366,7 +369,9 @@ class DriverAppCaptureService : Service() {
     override fun onDestroy() {
         display?.release()
         imageReader?.close()
-        projection?.stop()
+        val activeProjection = projection
+        projection = null
+        activeProjection?.stop()
         recognizer.close()
         super.onDestroy()
     }
