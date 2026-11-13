@@ -115,6 +115,7 @@ class MainActivity : AppCompatActivity() {
     private var lastPlaceFetchCenter:LatLng? = null
     private var lastPlaceFetchAt=0L
     private var placeFetchInProgress=false
+    private var lastRenderedPlaceZoom=-1.0
     private var vehicleIcon:Icon?=null
     private val reportMarkers=mutableListOf<Marker>()
     private val routeMarkers=mutableListOf<Marker>()
@@ -322,6 +323,7 @@ class MainActivity : AppCompatActivity() {
         }
         mapStatus?.setTextColor(MINT)
         weatherText?.setTextColor(MUTED)
+        mapSummary?.setTextColor(MUTED)
         routeSummary?.setTextColor(MUTED)
         navigationStatus?.setTextColor(AMBER)
         navigationInstruction?.setTextColor(WHITE)
@@ -331,6 +333,7 @@ class MainActivity : AppCompatActivity() {
         val active=map ?: return
         eventMarkers.forEach { active.removeAnnotation(it) };eventMarkers.clear()
         placeMarkers.forEach { active.removeAnnotation(it) };placeMarkers.clear()
+        lastRenderedPlaceZoom=-1.0
         reportMarkers.forEach { active.removeAnnotation(it) };reportMarkers.clear()
         routeMarkers.forEach { active.removeAnnotation(it) };routeMarkers.clear()
         routePolyline?.let { active.removeAnnotation(it) };routePolyline=null
@@ -487,6 +490,8 @@ class MainActivity : AppCompatActivity() {
         brand.addView(mapStatus)
         weatherText=label(weatherSummary,8f,MUTED,false).apply { setPadding(0,dp(2),0,0); maxLines=1 }
         brand.addView(weatherText)
+        mapSummary=label("OSM places · buildings · entrances",8f,MUTED,false).apply { setPadding(0,dp(2),0,0); maxLines=1 }
+        brand.addView(mapSummary)
         top.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
         top.addView(action("LAYERS",false){showMapLayersDialog()},LinearLayout.LayoutParams(dp(62),dp(36)))
         top.addView(action(if(tilted)"3D" else "2D",false){
@@ -568,7 +573,6 @@ class MainActivity : AppCompatActivity() {
         frame.addView(bottom,FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
             setMargins(dp(10),0,dp(10),dp(10))
         })
-        mapSummary=label("Road intelligence loading",1f,MUTED,false)
         return frame
     }
 
@@ -819,7 +823,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun install3DBuildings(style:Style) {
-        if(style.getSource("openmaptiles")==null || style.getLayer("busybee-3d-buildings")!=null) return
+        if(style.getSource("openmaptiles")==null || style.getLayer("busybee-3d-buildings")!=null || style.getLayer("building-3d")!=null) return
         runCatching {
             val layer=FillExtrusionLayer("busybee-3d-buildings","openmaptiles").apply {
                 sourceLayer="building"
@@ -842,6 +846,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateMapSummary() {
+        val buildings=mapPlaces.count { it.kind==MapPlaceKind.BUILDING }
+        val entrances=mapPlaces.count { it.kind==MapPlaceKind.ENTRANCE }
+        mapSummary?.text="${roadEvents.size} road observations · $buildings buildings · $entrances entrances"
+    }
+
     private fun maybeRefreshMapPlaces(center:LatLng,force:Boolean=false) {
         if(placeFetchInProgress || !mapStyleState.isReady || isFinishing || isDestroyed) return
         val now=System.currentTimeMillis()
@@ -857,10 +867,8 @@ class MainActivity : AppCompatActivity() {
                 placeFetchInProgress=false
                 if(result.isSuccess) {
                     mapPlaces=result.getOrDefault(emptyList())
-                    renderMapPlaces()
-                    val named=mapPlaces.count { it.kind==MapPlaceKind.BUILDING }
-                    val entrances=mapPlaces.count { it.kind==MapPlaceKind.ENTRANCE }
-                    mapSummary?.text="$named mapped buildings · $entrances mapped entrances · OpenStreetMap"
+                    renderMapPlaces(force=true)
+                    updateMapSummary()
                 } else {
                     Log.w("BusyBee","Building/entrance lookup unavailable",result.exceptionOrNull())
                 }
@@ -868,12 +876,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun renderMapPlaces() {
+    private fun renderMapPlaces(force:Boolean=false) {
         val active=map ?: return
         if(!mapStyleState.isReady) return
+        val zoom=active.cameraPosition.zoom
+        if(!force && lastRenderedPlaceZoom>=0.0 && kotlin.math.abs(zoom-lastRenderedPlaceZoom)<0.25) return
+        lastRenderedPlaceZoom=zoom
         placeMarkers.forEach { active.removeAnnotation(it) }
         placeMarkers.clear()
-        val zoom=active.cameraPosition.zoom
         if(zoom<15.5) return
         val night=daylightPhase==DaylightPhase.NIGHT
         val factory=IconFactory.getInstance(this)
@@ -976,7 +986,7 @@ class MainActivity : AppCompatActivity() {
             uiCallbacks.post {
                 roadEvents=events;weatherSummary=weather;weatherText?.text=weather;renderRoadEvents()
                 mapStatus?.text=if(roadError==null)"● ROAD FEED UPDATED" else "● PARTIAL SOURCE COVERAGE"
-                mapSummary?.text=events.size.toString()+" mapped road observations · OpenStreetMap / Overpass"
+                updateMapSummary()
                 Toast.makeText(this,if(roadError==null)"Road intelligence refreshed" else "Some road sources are unavailable",Toast.LENGTH_SHORT).show()
             }
         }
