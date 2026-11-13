@@ -189,7 +189,7 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 
 - **Done:** Routed MapView map acquisition and style-loaded callbacks through LifecycleSafeUiDispatcher, so late completions are discarded when the Activity is finishing/destroyed.
 - **Done:** Routed TextToSpeech initialization completion through the same guard and resolved the active engine only inside the guarded callback.
-- **Done:** LocationListener now retains the newest fix but avoids map mutations unless Activity lifecycle is RESUMED. onResume reapplies the cached fix after MapView resumes and restarts active/follow location updates.
+- **Done:** LocationListener now retains the newest fix but avoids map mutations unless Activity lifecycle is RESUMED. onResume reapplies only a fix no older than 120 seconds after MapView resumes and restarts active/follow location updates.
 - **Done:** Added a third Robolectric regression test for callback rejection after Activity.finish(). Existing destruction/live-Activity tests remain.
 - **State changed:** Kotlin source and test changes committed to PR #8 branch. Documentation updated. No merge, APK build, release, UI redesign or feature work.
 - **Verified:** Source files and docs have been read from GitHub after the changes; static checks confirm map/style/TTS callbacks are guarded and location updates are gated on RESUMED. **Tests and compilation have not run.**
