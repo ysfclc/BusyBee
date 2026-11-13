@@ -345,9 +345,27 @@ class MainActivity : AppCompatActivity() {
         return frame
     }
 
+    private fun promptOtherPlatformCapture() {
+        val name=field("Driver app / platform name","FREENOW")
+        AlertDialog.Builder(this)
+            .setTitle("Connect another driver app")
+            .setView(name)
+            .setNegativeButton("Cancel",null)
+            .setPositiveButton("Continue") { _,_ ->
+                val platform=name.text.toString().trim()
+                if(platform.length<2) {
+                    Toast.makeText(this,"Enter the platform name.",Toast.LENGTH_SHORT).show()
+                } else {
+                    launchDriverScreenCapture(platform)
+                }
+            }
+            .show()
+    }
+
     private fun launchDriverScreenCapture(platform:String) {
-        if(platform !in setOf("Uber","Bolt")) return
-        pendingCapturePlatform=platform
+        val normalized=platform.trim().take(60)
+        if(normalized.length<2) return
+        pendingCapturePlatform=normalized
         try {
             val manager=getSystemService(MediaProjectionManager::class.java)
             nativeCaptureLauncher.launch(manager.createScreenCaptureIntent())
@@ -746,7 +764,8 @@ class MainActivity : AppCompatActivity() {
         captureButtons.addView(action("CAPTURE UBER",true){launchDriverScreenCapture("Uber")},LinearLayout.LayoutParams(0,dp(42),1f))
         captureButtons.addView(action("CAPTURE BOLT",false){launchDriverScreenCapture("Bolt")},LinearLayout.LayoutParams(0,dp(42),1f).apply { marginStart=dp(7) })
         capture.addView(captureButtons.apply { setPadding(0,dp(10),0,dp(7)) })
-        capture.addView(action("STOP SCREEN CAPTURE",false){stopDriverScreenCapture()},LinearLayout.LayoutParams(-1,dp(38)))
+        capture.addView(action("CAPTURE ANOTHER DRIVER APP",false){promptOtherPlatformCapture()},LinearLayout.LayoutParams(-1,dp(38)))
+        capture.addView(action("STOP SCREEN CAPTURE",false){stopDriverScreenCapture()},LinearLayout.LayoutParams(-1,dp(38)).apply { topMargin=dp(6) })
         capture.addView(label("API CONNECTIONS",10f,WHITE,true).apply { setPadding(0,dp(12),0,dp(3)) })
         capture.addView(label("Uber's Driver API requires approved access. Bolt's published Fleet API is for fleet partners. The native bridge is the direct, user-controlled Android path while API access is unavailable.",10f,MUTED,false))
         capture.addView(action(if(notificationAccessEnabled())"NOTIFICATION FALLBACK · ENABLED" else "ENABLE NOTIFICATION FALLBACK",false){startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))}.apply { setPadding(0,dp(8),0,dp(8)) })
