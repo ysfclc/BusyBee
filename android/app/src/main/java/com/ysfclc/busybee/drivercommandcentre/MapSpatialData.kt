@@ -47,6 +47,8 @@ internal object MapPlaceLookup {
         val lon = String.format(Locale.US, "%.6f", longitude)
         return "[out:json][timeout:18];(" +
             "way(around:$radius,$lat,$lon)[\"building\"][\"name\"];" +
+            "way(around:$radius,$lat,$lon)[\"building\"][\"name:pl\"];" +
+            "way(around:$radius,$lat,$lon)[\"building\"][\"official_name\"];" +
             "way(around:$radius,$lat,$lon)[\"building\"][\"addr:housenumber\"];" +
             "node(around:$radius,$lat,$lon)[\"entrance\"];" +
             "node(around:$radius,$lat,$lon)[\"door\"];" +
