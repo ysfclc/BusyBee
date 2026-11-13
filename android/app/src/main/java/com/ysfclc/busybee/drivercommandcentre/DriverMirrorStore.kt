@@ -265,6 +265,82 @@ class DriverMirrorStore(context: Context) :
         }
     }
 
+    /**
+     * Persists a screen observation only after the driver reviews and confirms it.
+     * The raw OCR text is retained as evidence; unknown financial fields remain NULL.
+     */
+    @Synchronized
+    fun saveReviewedNativeObservation(
+        platform: String,
+        recordType: String,
+        capturedAt: Long,
+        visibleText: String,
+        gross: Double?,
+        fees: Double?,
+        bonus: Double?,
+        distanceKm: Double?,
+        durationMinutes: Double?,
+        currency: String = "PLN"
+    ): Long {
+        require(platform in setOf("Uber", "Bolt")) { "Unsupported driver platform" }
+        val type = recordType.trim().lowercase(Locale.ROOT)
+        require(type in setOf("offer", "trip", "ride", "completed_trip", "payout", "adjustment")) {
+            "Choose a supported record type"
+        }
+        require(visibleText.isNotBlank()) { "Original screen evidence is missing" }
+        listOf(gross, fees, bonus, distanceKm, durationMinutes).filterNotNull().forEach {
+            require(it.isFinite() && it >= 0.0) { "Reviewed values must be valid non-negative numbers" }
+        }
+        val safeCurrency = currency.trim().uppercase(Locale.ROOT).ifBlank { "PLN" }
+        require(safeCurrency.matches(Regex("[A-Z]{3}"))) { "Use a three-letter currency code" }
+        val raw = visibleText.take(5000)
+        val occurredAt = java.time.Instant.ofEpochMilli(capturedAt).toString()
+        val fingerprint = sha256(
+            listOf(platform, type, occurredAt, raw, gross, fees, bonus, distanceKm, safeCurrency).joinToString("|")
+        )
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val importedAt = System.currentTimeMillis()
+            val importId = db.insertOrThrow("imports", null, ContentValues().apply {
+                put("source_name", "Android screen capture")
+                put("imported_at", importedAt)
+                put("row_count", 1)
+                put("inserted_count", 0)
+            })
+            db.insertOrThrow("raw_evidence", null, ContentValues().apply {
+                put("import_id", importId)
+                put("row_number", 1)
+                put("fingerprint", fingerprint)
+                put("raw", raw)
+                put("source_name", "Android screen capture")
+            })
+            val recordId = db.insertOrThrow("records", null, ContentValues().apply {
+                put("fingerprint", fingerprint)
+                put("import_id", importId)
+                put("platform", platform)
+                put("record_type", type)
+                putNull("external_id")
+                put("occurred_at", occurredAt)
+                putNull("pickup")
+                putNull("dropoff")
+                if (distanceKm == null) putNull("distance_km") else put("distance_km", distanceKm)
+                if (gross == null) putNull("gross") else put("gross", gross)
+                if (fees == null) putNull("fees") else put("fees", fees)
+                if (bonus == null) putNull("bonus") else put("bonus", bonus)
+                put("currency", safeCurrency)
+                put("status", "driver-reviewed")
+                put("raw", raw)
+                put("source_name", "Android screen capture")
+            })
+            db.execSQL("UPDATE imports SET inserted_count=1 WHERE id=?", arrayOf(importId))
+            db.setTransactionSuccessful()
+            return recordId
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     fun summary(): MirrorSummary {
         val db = readableDatabase
         fun scalar(sql: String): Double {
