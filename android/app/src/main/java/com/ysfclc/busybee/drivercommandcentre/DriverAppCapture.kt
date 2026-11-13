@@ -131,15 +131,26 @@ object DriverScreenTextParser {
         )
     }
 
+    private fun isMetricOrControlLine(value: String): Boolean {
+        val lower = value.lowercase(Locale.ROOT)
+        if (moneyPattern.containsMatchIn(value) || distancePattern.containsMatchIn(value) || durationPattern.containsMatchIn(value)) return true
+        return Regex(
+            """^(?:fare|price|earnings?|total|fees?|bonus|distance|duration|time|trip|ride|offer|accept|navigate|cancel|complete|completed|details|payment|payout|zarobki|opłata|przychód|wypłata|odległość|czas|premia|prowizja)\\b""",
+            RegexOption.IGNORE_CASE
+        ).containsMatchIn(lower)
+    }
+
     private fun extractLabelledLocation(lines: List<String>, pattern: Regex): String? {
         for (index in lines.indices) {
             val match = pattern.find(lines[index]) ?: continue
             var value = match.groupValues.getOrNull(1).orEmpty().trim()
             if (value.isBlank()) {
                 value = lines.drop(index + 1).firstOrNull { candidate ->
-                    candidate.isNotBlank() &&
-                        !pickupLabelPattern.containsMatchIn(candidate) &&
-                        !dropoffLabelPattern.containsMatchIn(candidate)
+                    val normalized = candidate.trim()
+                    normalized.isNotBlank() &&
+                        !pickupLabelPattern.containsMatchIn(normalized) &&
+                        !dropoffLabelPattern.containsMatchIn(normalized) &&
+                        !isMetricOrControlLine(normalized)
                 }.orEmpty()
             }
             val cleaned = value
