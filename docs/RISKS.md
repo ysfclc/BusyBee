@@ -47,6 +47,13 @@ This register tracks material product, data-integrity, safety and delivery risks
 
 **Status: Open — data integrity risk.** CSV imports are committed immediately without preview, row selection or post-commit import rollback. Raw evidence is retained and SQLite import is transactional, but there is no separate correction/exclusion ledger for normalized trip data. Preserve original evidence and implement auditable corrections only after validating the import contract against real exports.
 
-## R-14 — Asynchronous Activity lifecycle callbacks (added 2026-11-13)
+## R-14 — Asynchronous Activity lifecycle callbacks (source-confirmed risk; runtime impact unverified, 2026-11-13)
 
-**Status: Candidate — not reproduced.** Route, reroute and road/weather workers post UI updates to the Activity; not every posted callback checks whether the Activity is finishing/destroyed before touching views or showing dialogs. Reproduce with lifecycle interruption and device logs before attributing any crash to this path. No speculative patch.
+**Status: Candidate — not reproduced; not attributed to BB-002.** A source review of `MainActivity.kt` at `ea654235a127e189757dd2b912d6ed040815fe9c` found multiple worker-to-main-thread callbacks without a common Activity-liveness guard:
+
+- `planRoute()`: destination search posts a callback at approximately lines 287–291; route-alternative lookup posts success/error callbacks at lines 295–313; destination-search failure posts at lines 328 onward. The callbacks update view references and may construct/show `AlertDialog` instances.
+- `updateNavigation()`: off-route recalculation posts success/error callbacks at lines 464–479. The success callback may call `displayRoute()`, update navigation views and speak; the error callback also mutates Activity-owned state/views.
+- `refreshRoadIntelligence()`: road/weather refresh posts a callback at lines 504–508 that updates view references, renders map annotations and shows a Toast.
+- `onDestroy()` shuts down the executor at the end of the Activity lifecycle, but that does not cancel callbacks already queued on the main thread. The existing `displayRoute()` guard does not protect the other callback bodies.
+
+This establishes an asynchronous lifecycle-safety gap in source, not proof that it caused the user's IllegalStateException. Required next evidence: interrupt each operation by navigating away, backgrounding, rotating/recreating where supported, or closing the Activity while the worker is in flight; inspect DIAG/logcat. Any fix must guard the entire posted callback (including dialogs and Toasts), handle rejected/cancelled work, and have a lifecycle regression test. No patch has been made because the exact device failure remains unobserved and STOP-WORK forbids speculative fixes.
