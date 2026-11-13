@@ -2,7 +2,7 @@
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
-**Latest source commit:** `48dce0278c266a196423b5de119c5771dbf73bb6`  
+**Latest source commit:** `447d15f8acd69c11dd075b729daceae23b6bbfc7`  
 **Status:** implementation authored; build/test/device verification blocked and pending. PR #9 is draft and stacked on PR #8; neither is merged.
 
 
@@ -14,14 +14,14 @@ The user explicitly rejected the prior map because it had no recognisable vehicl
 - Uses OpenFreeMap Liberty for daytime mapping. Fiord and Dark remain the dusk/night styles. A 3D building extrusion layer is added to styles that do not already provide one; Liberty's existing extrusion is not duplicated.
 - The daylight palette now uses tinted green/stone surfaces rather than pure-white panels and cards.
 - Added on-demand OpenStreetMap/Overpass detail lookup for named/addressed building ways and multipolygon relations, plus mapped entrance/door nodes. Building labels appear from zoom 15.5; entrance markers appear from zoom 17. Mapped `entrance=staircase` is labelled as a stairwell; entrance references are shown as references. No missing stairwell letter or entrance is fabricated. Entrance labels are rendered as visible amber text pills (for example `Klatka A` when the OSM node explicitly has `entrance=staircase` and `ref=A`), not anonymous dots.
-- The map's top context line reports the counts of road observations, buildings and entrances. Markers are refreshed after camera movement, with redraw throttling so every GPS tick does not recreate all place labels.
+- The map's top context line reports the counts of road observations, buildings and entrances. Markers are refreshed after camera movement, with redraw throttling so every GPS tick does not recreate all place labels. When the driver manually pans, place lookup follows the visible camera centre rather than continuing to fetch around the off-screen GPS position.
 - Nominatim search now prefers Polish local names and uses the driver's location as a relevance bias without restricting valid intercity destinations. OSRM turn steps fall back to a road reference when a road name is absent.
 - Corrected the actual basemap label precedence: OpenFreeMap's road-label expressions can prefer `name_en` over the local `name`. BusyBee now overrides the road-name text fields across Liberty, Fiord and Dark to prefer `name:pl` (on Polish locales), then the local OSM `name`, then Latin/English fallbacks. Road labels now have explicit OSM attribution in the map context line.
 - Added regression tests for OSM building/address parsing, entrance semantics, navigation camera geometry, local search bias and road-reference fallback.
 
 **Scope boundary:** this is a forward-facing, GPS-driven MapLibre experience with 3D building context, not a proprietary Waze-like live-traffic engine or a photorealistic 3D road mesh. Road names, building names and entrance/stairwell detail depend on the underlying OpenStreetMap coverage and quality. Individual `klatka` letters appear only when mapped as an explicit name/reference; BusyBee must not guess them.
 
-**Verification boundary:** source changes and regression tests have been committed to the draft branch, but Android compilation, test execution, APK assembly and target-device driving behaviour remain unverified. No PR-triggered Actions run has been reported for the current source commit (`48dce027...`). The latest available run 258 (`43525958610`) was for the preceding source revision (`fa147513...`); its initial attempt failed before runner/job-step allocation and its rerun was cancelled before allocation (`steps: null`, no job logs). No Gradle or test command ran. Rerunning earlier run 252 also failed before runner allocation. The Vercel status on the current commit reports `build-rate-limit` failure, not a source build result. These are infrastructure failures, not evidence that the code builds or fails to compile. Do not call this increment built, tested or accepted until those checks actually run.
+**Verification boundary:** source changes and regression tests have been committed to the draft branch, but Android compilation, test execution, APK assembly and target-device driving behaviour remain unverified. No PR-triggered Actions run has been reported for the current source commit (`447d15f8...`). The latest available run 258 (`43525958610`) was for the preceding source revision (`fa147513...`); its initial attempt failed before runner/job-step allocation and its rerun was cancelled before allocation (`steps: null`, no job logs). No Gradle or test command ran. Rerunning earlier run 252 also failed before runner allocation. The Vercel status on the current commit reports `build-rate-limit` failure, not a source build result. These are infrastructure failures, not evidence that the code builds or fails to compile. Do not call this increment built, tested or accepted until those checks actually run.
 
 ---
 
