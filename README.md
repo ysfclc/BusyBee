@@ -1,12 +1,13 @@
 # BusyBee — Driver Command Centre
 
-BusyBee is the control repository and project delivery ledger for **Driver Command Centre**: an Android-native driver intelligence platform combining a private cross-platform Driver Data Mirror with a provider-neutral Road Intelligence Aggregator. The map is the spatial interface, not the product itself.
+BusyBee is the product brand for **Driver Command Centre**: an Android-native driver intelligence platform combining a private cross-platform Driver Data Mirror with a provider-neutral Road Intelligence Aggregator. The map is the spatial interface, not the product itself.
 
 The product vision is one map that aggregates all accessible and legally usable data sources: commercial traffic and route providers, public and municipal feeds, environmental data, Android/device observations and opt-in driver reports. It normalises evidence into one canonical intelligence layer while preserving source provenance, freshness, conflicts and licence constraints.
 
 ## Phase 1 — Product and architecture lock
 
 - [Product charter](docs/PRODUCT_CHARTER.md)
+- [BusyBee brand system](docs/BRAND.md)
 - [System architecture](docs/ARCHITECTURE.md)
 - [Source register](docs/SOURCE_REGISTER.md)
 - [Delivery roadmap](docs/ROADMAP.md)
