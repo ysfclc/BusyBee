@@ -142,3 +142,14 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - **Not done/next:** Inspect DIAG LAST ACTION FAILURE; if unavailable, obtain one logcat reproduction. Then reproduce and fix the first confirmed blocker, add a regression test, and proceed through the device smoke matrix.
 - **Open questions:** Which exact action triggers IllegalStateException? Which APK version is currently installed?
 - **Risks/landmines:** PR #8 is stacked on PR #7 and neither is merged. A debug APK does not establish release signing continuity. OSRM is not live traffic; navigation is foreground-only; vehicle category does not enforce road access restrictions.
+
+
+## 11. Session handoff — 2026-11-13 (product control audit)
+
+- **Done:** Added `docs/PRODUCT_CONTROL_AUDIT.md` after source inspection of the Android UI, command store, mirror store, vehicle profile, map style state, diagnostics, route planner, manifest and focused tests.
+- **Finding:** Most saved entities are create-only. Driver items, documents, offers, community imports, road reports and imported trip rows lack complete edit/delete/undo controls. Trip imports retain raw evidence and use a transaction, but have no preview or post-commit import rollback/correction ledger.
+- **Finding:** Source-level asynchronous lifecycle risks remain candidates only; no root cause for the target-device IllegalStateException has been established. Map-style readiness guards exist, but the tests exercise only the helper state, not MapLibre on-device behavior.
+- **State changed:** Documentation only. No product code, database schema, UI, APK or PR merge changed. STOP-WORK remains active.
+- **Verified:** Audit document was committed to this branch and must be read back before treating it as persisted.
+- **Not done/next:** Resolve BB-001/BB-002 from the device DIAG/logcat evidence; continue target-device stability gates. After acceptance, prioritize safe record correction/deletion, import review/rollback and user data export.
+- **Risks/landmines:** Do not add CRUD writes while the app is unstable; any future corrections to imported earnings must preserve immutable raw evidence and be separately auditable.
