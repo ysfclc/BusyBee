@@ -221,9 +221,12 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
         if (title.isBlank()) return null
         val db = writableDatabase
         db.execSQL(
-            """INSERT INTO whatsapp_groups(package_name,group_title,tracking_enabled,first_seen_at,last_seen_at)
-               VALUES(?,?,0,?,?)
-               ON CONFLICT(package_name,group_title) DO UPDATE SET last_seen_at=excluded.last_seen_at""".trimIndent(),
+            "UPDATE whatsapp_groups SET last_seen_at=? WHERE package_name=? AND group_title=?",
+            arrayOf(at, pkg, title)
+        )
+        db.execSQL(
+            """INSERT OR IGNORE INTO whatsapp_groups(package_name,group_title,tracking_enabled,first_seen_at,last_seen_at)
+               VALUES(?,?,0,?,?)""".trimIndent(),
             arrayOf(pkg, title, at, at)
         )
         db.rawQuery(
