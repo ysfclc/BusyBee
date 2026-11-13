@@ -320,3 +320,11 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - Found the existing persistent Vercel sandbox busybee-android-build in the linked busybee-apk project. Resume was attempted; Vercel returned HTTP 402 payment_required because the team's Hobby usage limit is exceeded until 2026-12-01 00:00 UTC. No plan or billing changes were made.
 - Local execution environment has no /testbed checkout, Gradle executable or Android SDK. There is no available build runner in this session.
 - Evidence is recorded in docs/CI_RETRY_CHECKPOINT_2026-11-14.md. PR #9 remains draft/unmerged. Android compile, tests, APK/signature/hash and target-device validation remain outstanding. Resume by restoring an authorised build runner, then test the exact PR head; do not infer success from source inspection.
+
+
+## 2026-11-14 — Free private APK build route documented
+
+- Added `docs/FREE_APK_BUILD.md` to the current PR branch. It documents using a private GitHub Codespace on `feat/map-first-route-dock-2026-11-13` to run the already-existing `scripts/vercel-build-apk.sh`.
+- The script prepares Java 17, Android SDK/API 35, Build Tools 35.0.0, NDK 27.2.12479018, Rust stable/cargo-ndk and Gradle 8.9; runs Rust tests, Android unit tests and the native Android library build; then assembles the debug or release APK and creates a ZIP plus build metadata with SHA-256.
+- This avoids the Vercel build sandbox and the currently failing GitHub-hosted runner allocation, while keeping the repository private. Personal GitHub Free Codespaces quota is finite; use the documented budget precautions and stop the Codespace after use.
+- **Verification boundary:** documentation was written and read back from GitHub. No Codespace was created, no build command was run, no APK exists from this route yet, and no build/test/device acceptance is claimed. PR #9 remains draft and unmerged.
