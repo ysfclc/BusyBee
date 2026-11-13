@@ -1146,6 +1146,7 @@ class MainActivity : AppCompatActivity() {
                 addView(label(observation.visibleText.take(180),10f,WHITE,false).apply{setPadding(0,dp(3),0,dp(5));maxLines=3})
                 val routeText=listOfNotNull(observation.pickup,observation.dropoff).joinToString(" → ")
                 if(routeText.isNotBlank()) addView(label(routeText,9f,WHITE,true).apply{setPadding(0,dp(2),0,dp(4))})
+                addView(label("Parser confidence · "+String.format(Locale.US,"%.0f%%",observation.parseConfidence*100)+" · heuristic, not a financial guarantee",8f,AMBER,false).apply{setPadding(0,dp(2),0,dp(3))})
                 addView(label("Detected "+money(observation.detectedAmount)+"  ·  "+(observation.distanceKm?.let{"%.1f km".format(Locale.US,it)}?:"distance unknown")+"  ·  "+(observation.durationMinutes?.let{"%.0f min".format(Locale.US,it)}?:"time unknown"),9f,MUTED,false))
                 val actions=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
                 actions.addView(action("REVIEW & SAVE",true){reviewNativeObservation(observation)},LinearLayout.LayoutParams(0,dp(38),1f))
@@ -1277,7 +1278,8 @@ class MainActivity : AppCompatActivity() {
         val duration=field("Trip duration minutes",observation.durationMinutes?.toString().orEmpty())
         val currency=field("Currency code","PLN")
         val sourceLabel=if(observation.sourceType=="ACCESSIBILITY_UI")"LIVE ANDROID UI OBSERVATION" else "MANUAL ANDROID SCREEN OCR"
-        form.addView(label("SOURCE · "+sourceLabel,9f,MINT,true).apply{setPadding(0,0,0,dp(5))})
+        form.addView(label("SOURCE · "+sourceLabel,9f,MINT,true).apply{setPadding(0,0,0,dp(3))})
+        form.addView(label("PARSER CONFIDENCE · "+String.format(Locale.US,"%.0f%%",observation.parseConfidence*100)+" · rule-based signal; verify every value",8f,AMBER,false).apply{setPadding(0,0,0,dp(5))})
         form.addView(label("RECORD TYPE",10f,MUTED,true))
         form.addView(type)
         listOf(amount,fees,bonus,pickup,dropoff,distance,duration,currency).forEach { form.addView(it) }
@@ -1314,7 +1316,8 @@ class MainActivity : AppCompatActivity() {
                         currency=currency.text.toString(),
                         pickup=pickup.text.toString(),
                         dropoff=dropoff.text.toString(),
-                        sourceName=if(observation.sourceType=="ACCESSIBILITY_UI")"Android live UI listener" else "Android screen capture"
+                        sourceName=if(observation.sourceType=="ACCESSIBILITY_UI")"Android live UI listener" else "Android screen capture",
+                        parseConfidence=observation.parseConfidence
                     )
                     DriverAppCaptureStore(this).delete(observation.id)
                     Toast.makeText(this,"Driver-reviewed record saved with original screen evidence.",Toast.LENGTH_LONG).show()
