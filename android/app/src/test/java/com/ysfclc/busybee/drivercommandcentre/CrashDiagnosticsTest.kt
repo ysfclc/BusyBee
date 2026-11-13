@@ -30,6 +30,25 @@ class CrashDiagnosticsTest {
     }
 
     @Test
+    fun legacyCrashReportWithExceptionMessageIsNotCopiedIntoDiagnostics() {
+        java.io.File(context.filesDir, "busybee-last-crash.txt").writeText("Legacy exception: private destination text")
+        val report = CrashDiagnostics.snapshot(context)
+        assertFalse(report.contains("private destination text"))
+        assertTrue(report.contains("No uncaught JVM exception was captured"))
+    }
+
+    @Test
+    fun caughtActionFailureStoresStackFramesWithoutExceptionMessage() {
+        val error = IllegalStateException("sensitive destination text")
+        CrashDiagnostics.recordActionFailure(context, "open map", error)
+        val report = CrashDiagnostics.snapshot(context)
+        assertTrue(report.contains("Action: open map"))
+        assertTrue(report.contains("IllegalStateException"))
+        assertTrue(report.contains("CrashDiagnosticsTest"))
+        assertFalse(report.contains("sensitive destination text"))
+    }
+
+    @Test
     fun reportExplainsWhenNoJvmStackTraceWasCaptured() {
         val report = CrashDiagnostics.snapshot(context)
 

@@ -1,3 +1,13 @@
+## 2026-11-13 — GPS navigation, vehicle costing and reliable Android download
+
+- Replace single-result geocoding with up to five Polish destination candidates biased to the driver's current GPS fix; let the driver choose a destination and route alternative.
+- Parse OSRM maneuver steps and add foreground in-app GPS following, spoken turn prompts, route progress/arrival and automatic reroute attempts when three successive readings are more than 75 m from the route.
+- Add persistent vehicle category/fuel/consumption/energy-price/maintenance profile in SQLite; calculate running cost per kilometre and feed the existing Offer Desk scoring. Incomplete values do not retain the previous vehicle's cost.
+- Capture caught-action stack frames in DIAG and show the action and exception type; omit exception messages from diagnostic reports, including suppressing legacy reports that may contain them.
+- Make the ZIP containing the exact APK the primary Android download. Build script verifies archive integrity and embedded APK byte identity and adds archive checksum/size to build metadata.
+- Verification: Android unit tests 45/45; Rust tests 4/4; build-script shell syntax passed. Debug APK assembly passed before the final small diagnostic/privacy changes; rebuild/signature and final download checks are required after commit.
+- Limitations are explicit: OSRM estimates do not use live traffic; routing uses standard passenger-car profile; no height/weight restriction enforcement; navigation is foreground-only and pauses when BusyBee leaves the foreground. Physical-device GPS and click-path validation remains required.
+
 ## 2026-11-13 — MapLibre renderer stability diagnostics
 
 - Keep the MapLibre screen visible beneath other tabs instead of toggling it to `GONE`, avoiding renderer surface visibility transitions during navigation.

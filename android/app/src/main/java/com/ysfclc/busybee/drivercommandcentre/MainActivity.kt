@@ -15,14 +15,17 @@ import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.speech.tts.TextToSpeech
 import android.view.Gravity
 import android.view.View
 import android.util.Log
+import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -72,6 +75,19 @@ class MainActivity : AppCompatActivity() {
     private var routeSummary:TextView?=null
     private var routeDestinationInput:EditText?=null
     private var activeRoute:RoutePlan?=null
+    private var driverMarker:Marker?=null
+    private var followLocation=false
+    private var centeredOnFirstFix=false
+    private var navigating=false
+    private var navigationStepIndex=0
+    private var rerouteInProgress=false
+    private var offRouteReadings=0
+    private var lastRerouteAt=0L
+    private var textToSpeech:TextToSpeech?=null
+    private var speechReady=false
+    private var navigationInstruction:TextView?=null
+    private var navigationStatus:TextView?=null
+    private var vehicleProfileSummary:TextView?=null
     private var mapStatus:TextView?=null
     private var mapSummary:TextView?=null
     private var weatherSummary="Weather feed not checked"
@@ -81,8 +97,7 @@ class MainActivity : AppCompatActivity() {
     private val locationListener=object:LocationListener {
         override fun onLocationChanged(location:Location) {
             lastLocation=location
-            mapStatus?.text="● LOCATION LIVE"
-            map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(location.latitude,location.longitude),15.5),500)
+            updateDriverLocation(location)
         }
     }
     private val documentPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importDocument(uri)}
@@ -95,6 +110,15 @@ class MainActivity : AppCompatActivity() {
         CrashDiagnostics.record(this, "activity:onCreate")
         commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
         locationManager=getSystemService(LOCATION_SERVICE) as LocationManager
+        textToSpeech=TextToSpeech(this) { status ->
+            speechReady=status==TextToSpeech.SUCCESS
+            if(speechReady) {
+                val language=textToSpeech?.setLanguage(Locale.UK) ?: TextToSpeech.LANG_NOT_SUPPORTED
+                if(language==TextToSpeech.LANG_MISSING_DATA || language==TextToSpeech.LANG_NOT_SUPPORTED) {
+                    textToSpeech?.setLanguage(Locale.getDefault())
+                }
+            }
+        }
         MapLibre.getInstance(this)
         window.statusBarColor=BG;window.navigationBarColor=BG
         mapView=MapView(this);mapView.onCreate(savedInstanceState)
@@ -113,8 +137,11 @@ class MainActivity : AppCompatActivity() {
             map=instance
             instance.setStyle(Style.Builder().fromUri(OPENFREE_MAP_STYLE)) {
                 CrashDiagnostics.record(this,"map:style-loaded")
-                instance.cameraPosition=CameraPosition.Builder().target(KRAKOW).zoom(15.0).tilt(48.0).build()
-                mapStatus?.text="● MAP ONLINE";refreshRoadIntelligence()
+                val initialTarget=lastLocation?.let { LatLng(it.latitude,it.longitude) } ?: KRAKOW
+                instance.cameraPosition=CameraPosition.Builder().target(initialTarget).zoom(15.0).tilt(48.0).build()
+                mapStatus?.text="● MAP ONLINE"
+                refreshRoadIntelligence()
+                requestLocation()
             }
         }
     }
@@ -195,8 +222,12 @@ class MainActivity : AppCompatActivity() {
         bottom.addView(label("LIVE ROAD PICTURE",11f,MINT,true))
         weatherText=label(weatherSummary,11f,WHITE,false).apply{setPadding(0,dp(5),0,dp(5))}
         bottom.addView(weatherText)
-        routeSummary=label("Plan a route to compare distance and estimated time.",9f,MUTED,false).apply{setPadding(0,dp(2),0,dp(7))}
+        routeSummary=label("Choose your destination. Route estimates do not include live traffic.",9f,MUTED,false).apply{setPadding(0,dp(2),0,dp(7))}
         bottom.addView(routeSummary)
+        navigationStatus=label("NAVIGATION OFF · GPS NEEDED",9f,AMBER,true).apply{setPadding(0,dp(5),0,dp(2))}
+        bottom.addView(navigationStatus)
+        navigationInstruction=label("Your next turn will appear here after route planning.",14f,WHITE,true).apply{setPadding(0,dp(3),0,dp(6))}
+        bottom.addView(navigationInstruction)
         val routeRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
         routeDestinationInput=EditText(this).apply{
             hint="Where are you going?"
@@ -219,50 +250,225 @@ class MainActivity : AppCompatActivity() {
         threeDButton=threeD
         actions.addView(threeD,LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
         bottom.addView(actions)
-        bottom.addView(action("START TURN-BY-TURN IN MAPS",false){openExternalNavigation()},LinearLayout.LayoutParams(-1,dp(36)).apply{topMargin=dp(7)})
+        val navActions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        navActions.addView(action("▶ START IN-APP NAV",true){startNavigation()},LinearLayout.LayoutParams(0,dp(42),1f))
+        navActions.addView(action("STOP",false){stopNavigation("Navigation stopped",announce=false)},LinearLayout.LayoutParams(0,dp(42),0.42f).apply{marginStart=dp(7)})
+        bottom.addView(navActions,LinearLayout.LayoutParams(-1,dp(42)).apply{topMargin=dp(7)})
+        bottom.addView(action("OPEN IN GOOGLE MAPS",false){openExternalNavigation()},LinearLayout.LayoutParams(-1,dp(34)).apply{topMargin=dp(6)})
         bottom.addView(action("＋ REPORT A ROAD HAZARD",false){reportRoadHazard()},LinearLayout.LayoutParams(-1,dp(36)).apply{topMargin=dp(6)})
         overlay.addView(bottom);frame.addView(overlay,FrameLayout.LayoutParams(-1,-1));return frame
     }
 
     private fun planRoute(query:String) {
-        if(query.isBlank()) { Toast.makeText(this,"Enter a destination first.",Toast.LENGTH_SHORT).show(); return }
-        val fix=lastLocation
-        val camera=map?.cameraPosition?.target?:KRAKOW
-        val origin=if(fix!=null)LatLng(fix.latitude,fix.longitude) else camera
-        routeSummary?.text="Finding destination and comparing route options…"
+        if(query.isBlank()) {
+            Toast.makeText(this,"Enter a destination first.",Toast.LENGTH_SHORT).show()
+            return
+        }
+        val fix=lastLocation?.takeIf { System.currentTimeMillis()-it.time in 0..120000L }
+        val origin=fix?.let { LatLng(it.latitude,it.longitude) }
+        if(origin==null) {
+            routeSummary?.text="Waiting for a fresh GPS fix. Tap LOCATE and try again."
+            requestLocation()
+            return
+        }
+        routeSummary?.text="Searching destinations near your current location…"
         worker.execute {
             try {
-                val plans=RoutePlanner.planAlternatives(origin,query)
+                val candidates=RoutePlanner.searchDestinations(query,origin)
+                require(candidates.isNotEmpty()) { "No matching destination was found in Poland" }
                 runOnUiThread {
-                    displayRoute(plans.first(),origin,"FASTEST")
-                    if(plans.size>1) {
-                        val labels=plans.mapIndexed { index, plan ->
-                            val kind=if(index==0)"FASTEST" else "ALTERNATIVE $index"
-                            String.format(Locale.US,"%s  ·  %.1f km  ·  %.0f min",kind,plan.distanceKm,plan.durationMinutes)
-                        }.toTypedArray()
-                        AlertDialog.Builder(this)
-                            .setTitle("Compare routes · OSRM estimates")
-                            .setItems(labels) { _, selected -> displayRoute(plans[selected],origin,if(selected==0)"FASTEST" else "ALTERNATIVE $selected") }
-                            .setNegativeButton("Keep fastest",null)
-                            .show()
+                    val chooseDestination: (Int)->Unit = { selected ->
+                        val candidate=candidates[selected]
+                        routeSummary?.text="Calculating road routes to ${candidate.displayName}…"
+                        worker.execute {
+                            try {
+                                val plans=RoutePlanner.planAlternatives(origin,candidate)
+                                runOnUiThread {
+                                    val labels=plans.mapIndexed { index, plan ->
+                                        val kind=if(index==0)"FASTEST" else "ALTERNATIVE $index"
+                                        String.format(Locale.US,"%s · %.1f km · %.0f min",kind,plan.distanceKm,plan.durationMinutes)
+                                    }.toTypedArray()
+                                    if(plans.size==1) displayRoute(plans.first(),origin,"FASTEST")
+                                    else AlertDialog.Builder(this)
+                                        .setTitle("Choose route · ETA excludes live traffic")
+                                        .setItems(labels) { _, routeIndex ->
+                                            displayRoute(plans[routeIndex],origin,if(routeIndex==0)"FASTEST" else "ALTERNATIVE $routeIndex")
+                                        }
+                                        .setNegativeButton("Cancel",null)
+                                        .show()
+                                }
+                            } catch(error:Exception) {
+                                runOnUiThread {
+                                    routeSummary?.text="Route unavailable: ${error.javaClass.simpleName}. Check connection and try again."
+                                    mapStatus?.text="● ROUTING UNAVAILABLE"
+                                }
+                            }
+                        }
                     }
+                    if(candidates.size==1) chooseDestination(0)
+                    else AlertDialog.Builder(this)
+                        .setTitle("Choose destination")
+                        .setItems(candidates.map { it.displayName }.toTypedArray()) { _, selected -> chooseDestination(selected) }
+                        .setNegativeButton("Cancel",null)
+                        .show()
                 }
-            } catch(e:Exception) {
-                runOnUiThread { routeSummary?.text="Route unavailable: "+(e.message?:"source error");mapStatus?.text="● ROUTING UNAVAILABLE" }
+            } catch(error:Exception) {
+                runOnUiThread {
+                    routeSummary?.text="Destination search failed: ${error.javaClass.simpleName}"
+                    mapStatus?.text="● SEARCH UNAVAILABLE"
+                }
             }
         }
     }
 
     private fun displayRoute(plan:RoutePlan,origin:LatLng,kind:String) {
+        stopNavigation("Route ready",announce=false)
         routePolyline?.let { map?.removeAnnotation(it) }
         routeMarkers.forEach { map?.removeAnnotation(it) };routeMarkers.clear()
         routePolyline=map?.addPolyline(PolylineOptions().addAll(plan.points).color(MINT).width(5f))
         map?.addMarker(MarkerOptions().position(origin).title("Route starts here"))?.let{routeMarkers.add(it)}
         map?.addMarker(MarkerOptions().position(plan.destination).title("Destination").snippet(plan.destinationName))?.let{routeMarkers.add(it)}
         activeRoute=plan
-        routeSummary?.text=String.format(Locale.US,"%s · %.1f km · %.0f min estimated · OSRM (not live traffic)",kind,plan.distanceKm,plan.durationMinutes)
+        navigationStepIndex=0
+        routeSummary?.text=String.format(Locale.US,"%s · %.1f km · %.0f min estimated · standard car routing; no live traffic",kind,plan.distanceKm,plan.durationMinutes)
+        navigationInstruction?.text=plan.steps.firstOrNull { it.type!="depart" }?.instruction ?: "Follow the highlighted route."
+        navigationStatus?.text=if(plan.steps.isEmpty())"ROUTE READY · TURN LIST UNAVAILABLE" else "ROUTE READY · ${plan.steps.size} MANOEUVRES"
         mapStatus?.text="● ROUTE READY"
-        map?.animateCamera(CameraUpdateFactory.newLatLngZoom(plan.destination,13.0),500)
+        val bounds=org.maplibre.android.geometry.LatLngBounds.Builder().includes(plan.points).build()
+        map?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds,dp(48)),650)
+    }
+
+    private fun startNavigation() {
+        val route=activeRoute
+        if(route==null) {
+            Toast.makeText(this,"Plan a route first.",Toast.LENGTH_SHORT).show()
+            return
+        }
+        val fix=lastLocation?.takeIf { System.currentTimeMillis()-it.time in 0..120000L }
+        if(fix==null) {
+            Toast.makeText(this,"Waiting for a fresh GPS fix. Keep BusyBee open until your position appears.",Toast.LENGTH_LONG).show()
+            requestLocation()
+            return
+        }
+        if(route.steps.isEmpty()) {
+            Toast.makeText(this,"This route has no turn instructions. Plan it again later.",Toast.LENGTH_LONG).show()
+            return
+        }
+        navigating=true
+        followLocation=true
+        offRouteReadings=0
+        val progress=RoutePlanner.progressMeters(LatLng(fix.latitude,fix.longitude),route.points)
+        navigationStepIndex=route.steps.indexOfFirst {
+            it.type!="depart" && it.type!="arrive" && it.distanceAlongRouteMeters > progress+25.0
+        }.let { if(it<0) route.steps.lastIndex else it }
+        startLocationUpdates()
+        val next=route.steps.getOrNull(navigationStepIndex)
+        if(next!=null) {
+            val distance=(next.distanceAlongRouteMeters-progress).coerceAtLeast(0.0)
+            val announcement=if(distance>70.0) "In ${distance.toInt()} metres, ${next.instruction}" else next.instruction
+            navigationInstruction?.text=announcement
+            navigationStatus?.text=String.format(Locale.US,"NAVIGATION ACTIVE · %.1f KM REMAINING",((route.distanceKm*1000-progress).coerceAtLeast(0.0))/1000.0)
+            speak(announcement)
+        } else {
+            navigationInstruction?.text="Follow the highlighted route."
+            navigationStatus?.text="NAVIGATION ACTIVE"
+            speak("Follow the highlighted route.")
+        }
+    }
+
+    private fun stopNavigation(message:String,announce:Boolean=true) {
+        val wasNavigating=navigating
+        navigating=false
+        followLocation=false
+        rerouteInProgress=false
+        offRouteReadings=0
+        navigationStatus?.text=message.uppercase(Locale.getDefault())
+        if(announce && wasNavigating) speak(message)
+    }
+
+    private fun speak(message:String) {
+        if(!speechReady) return
+        runCatching { textToSpeech?.speak(message,TextToSpeech.QUEUE_FLUSH,null,"busybee-nav-${System.currentTimeMillis()}") }
+    }
+
+    private fun updateDriverLocation(location:Location) {
+        val point=LatLng(location.latitude,location.longitude)
+        mapStatus?.text=if(navigating)"● NAVIGATION GPS ACTIVE" else "● LOCATION LIVE"
+        val marker=driverMarker
+        if(marker!=null) marker.position=point
+        else driverMarker=map?.addMarker(MarkerOptions().position(point).title("Your position"))
+        if(!centeredOnFirstFix || followLocation || navigating) {
+            val bearing=if(location.hasBearing() && location.speed>2.0f) location.bearing.toDouble() else map?.cameraPosition?.bearing?:0.0
+            val zoom=if(navigating)17.5 else 15.5
+            val tilt=if(navigating && tilted)55.0 else if(tilted)42.0 else 0.0
+            map?.animateCamera(CameraUpdateFactory.newCameraPosition(
+                CameraPosition.Builder().target(point).zoom(zoom).bearing(bearing).tilt(tilt).build()
+            ),500)
+        }
+        centeredOnFirstFix=true
+        if(navigating) updateNavigation(location)
+    }
+
+    private fun updateNavigation(location:Location) {
+        val route=activeRoute ?: return
+        val current=LatLng(location.latitude,location.longitude)
+        val progress=RoutePlanner.progressMeters(current,route.points)
+        val remaining=(route.distanceKm*1000.0-progress).coerceAtLeast(0.0)
+        if(remaining<35.0 || RoutePlanner.distanceMeters(current,route.destination)<35.0) {
+            stopNavigation("You have arrived",announce=false)
+            speak("You have arrived at your destination.")
+            return
+        }
+
+        val next=route.steps.getOrNull(navigationStepIndex)
+        if(next!=null) {
+            val metersToTurn=next.distanceAlongRouteMeters-progress
+            if(metersToTurn < -40.0) {
+                navigationStepIndex++
+            } else if(metersToTurn<=450.0) {
+                val prefix=if(metersToTurn>70.0) "In ${metersToTurn.toInt()} metres, " else ""
+                val message=prefix+next.instruction
+                navigationInstruction?.text=message
+                navigationStatus?.text=String.format(Locale.US,"NEXT MANOEUVRE · %.0f M · %.1f KM REMAINING",metersToTurn.coerceAtLeast(0.0),remaining/1000.0)
+                speak(message)
+                navigationStepIndex++
+            }
+        } else {
+            navigationInstruction?.text="Continue along the highlighted route."
+            navigationStatus?.text=String.format(Locale.US,"%.1f KM REMAINING · ESTIMATES EXCLUDE LIVE TRAFFIC",remaining/1000.0)
+        }
+
+        val distanceFromRoute=RoutePlanner.distanceToRouteMeters(current,route.points)
+        if(distanceFromRoute>75.0) offRouteReadings++ else offRouteReadings=0
+        val now=System.currentTimeMillis()
+        if(offRouteReadings>=3 && !rerouteInProgress && now-lastRerouteAt>20000L) {
+            rerouteInProgress=true
+            lastRerouteAt=now
+            navigationStatus?.text="OFF ROUTE · RECALCULATING"
+            speak("You are off the route. Recalculating.")
+            worker.execute {
+                try {
+                    val updated=RoutePlanner.planToCoordinates(current,route.destination,route.destinationName).first()
+                    runOnUiThread {
+                        if(navigating) {
+                            displayRoute(updated,current,"REROUTED")
+                            navigating=true
+                            followLocation=true
+                            navigationStepIndex=updated.steps.indexOfFirst { it.type!="depart" && it.type!="arrive" }.let { if(it<0) updated.steps.lastIndex else it }
+                            navigationStatus?.text="ROUTE UPDATED · CONTINUE"
+                            speak("Route updated. ${updated.steps.getOrNull(navigationStepIndex)?.instruction ?: "Continue to destination."}")
+                        }
+                        rerouteInProgress=false
+                    }
+                } catch(error:Exception) {
+                    runOnUiThread {
+                        rerouteInProgress=false
+                        offRouteReadings=0
+                        navigationStatus?.text="REROUTE FAILED · FOLLOW THE MAP OR STOP"
+                    }
+                }
+            }
+        }
     }
 
     private fun openExternalNavigation() {
@@ -340,17 +546,43 @@ class MainActivity : AppCompatActivity() {
         if(selectedLayers.contains("Driver reports"))commands.roadReports().forEach{r->active.addMarker(MarkerOptions().position(LatLng(r.latitude,r.longitude)).title(r.category).snippet(r.description+" · Private driver report"))?.let{reportMarkers.add(it)}}
     }
 
-    private fun requestLocation(){
+    private fun requestLocation(follow:Boolean=true){
         val fine=ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED
         val coarse=ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED
-        if(!fine&&!coarse){ActivityCompat.requestPermissions(this,arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION),LOCATION_REQUEST);return}
-        try{
-            val providers=locationManager.getProviders(true).filter{it==LocationManager.GPS_PROVIDER||it==LocationManager.NETWORK_PROVIDER}
-            providers.forEach{p->locationManager.getLastKnownLocation(p)?.let{if(lastLocation==null||it.time>lastLocation!!.time)lastLocation=it};locationManager.requestLocationUpdates(p,5000L,20f,locationListener)}
-            lastLocation?.let{map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(it.latitude,it.longitude),15.5),500)}
-            mapStatus?.text="● LOCATION REQUESTED"
-        }catch(_:SecurityException){mapStatus?.text="● LOCATION PERMISSION REQUIRED"}
+        if(!fine&&!coarse){
+            ActivityCompat.requestPermissions(this,arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION),LOCATION_REQUEST)
+            mapStatus?.text="● LOCATION PERMISSION REQUIRED"
+            return
+        }
+        followLocation=follow
+        startLocationUpdates()
     }
+
+    private fun startLocationUpdates() {
+        try {
+            val providers=locationManager.getProviders(true).filter { it==LocationManager.GPS_PROVIDER || it==LocationManager.NETWORK_PROVIDER }
+            if(providers.isEmpty()) {
+                mapStatus?.text="● LOCATION SERVICES OFF"
+                navigationStatus?.text="LOCATION SERVICES ARE OFF"
+                return
+            }
+            providers.forEach { provider ->
+                val cached=locationManager.getLastKnownLocation(provider)
+                if(cached!=null && System.currentTimeMillis()-cached.time in 0..300000L && (lastLocation==null || cached.time>lastLocation!!.time)) {
+                    lastLocation=cached
+                    updateDriverLocation(cached)
+                }
+                locationManager.requestLocationUpdates(provider,if(navigating)2000L else 5000L,if(navigating)5f else 20f,locationListener)
+            }
+            mapStatus?.text="● WAITING FOR GPS FIX"
+        } catch(_:SecurityException) {
+            mapStatus?.text="● LOCATION PERMISSION REQUIRED"
+        } catch(error:Exception) {
+            mapStatus?.text="● LOCATION UNAVAILABLE"
+            Log.w("BusyBee","Location update could not start",error)
+        }
+    }
+
 
     private fun reportRoadHazard(){
         val categories=arrayOf("Accident","Road closure","Pothole / surface","Flooding","Dangerous obstruction","Other")
@@ -367,6 +599,12 @@ class MainActivity : AppCompatActivity() {
     private fun buildOffersScreen():View{
         val root=columnScroll()
         root.addView(section("OFFER COMMAND","Capture platform offers, calculate trip economics, then decide."))
+        val vehicle=commands.vehicleProfile()
+        root.addView(card().apply {
+            addView(label("ACTIVE VEHICLE",10f,MINT,true))
+            addView(label(vehicle.summary(),11f,WHITE,false).apply { setPadding(0,dp(5),0,dp(5)) })
+            addView(action("EDIT VEHICLE PROFILE",false){showTab("DRIVER HUB")})
+        })
         val rules=card();rules.addView(label("YOUR DECISION RULES",11f,MINT,true))
         val cost=field("Vehicle cost per km (PLN)",commands.setting("cost_per_km","0.85"))
         val minHour=field("Minimum net per hour (PLN)",commands.setting("min_per_hour","35"))
@@ -509,6 +747,7 @@ class MainActivity : AppCompatActivity() {
     private fun buildDriverHubScreen():View{
         val root=columnScroll()
         root.addView(section("DRIVER LIFE","Documents, insurance, payment plans, vehicle services and community knowledge."))
+        root.addView(buildVehicleCard())
         val top=card();top.addView(label("YOUR DRIVER ADMIN",11f,MINT,true))
         top.addView(label("Keep insurance renewals, instalments, recurring payments, documents, vehicle costs and service reminders together.",11f,MUTED,false))
         val buttons=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
@@ -554,6 +793,76 @@ class MainActivity : AppCompatActivity() {
             commands.items("Service").forEach{addView(label(it.title+" · "+it.details,11f,WHITE,false).apply{setPadding(0,dp(7),0,dp(2))})}
         })
         return root
+    }
+
+    private fun buildVehicleCard():View {
+        val profile=commands.vehicleProfile()
+        val box=card()
+        box.addView(label("MY VEHICLE",11f,MINT,true))
+        vehicleProfileSummary=label(
+            if(profile.totalCostPerKm==null) "Choose your vehicle and add real consumption and energy costs. Offer Desk currently uses its generic 0.85 PLN/km fallback until your vehicle cost is configured."
+            else profile.summary(),
+            11f,WHITE,false
+        ).apply { setPadding(0,dp(6),0,dp(8)) }
+        box.addView(vehicleProfileSummary)
+        box.addView(action(if(profile.totalCostPerKm==null)"＋ SELECT VEHICLE & COSTS" else "EDIT VEHICLE PROFILE",true){vehicleDialog()})
+        return box
+    }
+
+    private fun vehicleDialog() {
+        val existing=commands.vehicleProfile()
+        val form=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(18),0,dp(18),0)
+        }
+        val name=field("Vehicle name / model (optional)",existing.name)
+        val category=Spinner(this)
+        category.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,VehicleProfile.CATEGORIES)
+        category.setSelection(VehicleProfile.CATEGORIES.indexOf(existing.category).coerceAtLeast(0))
+        val fuel=Spinner(this)
+        fuel.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,VehicleProfile.FUEL_TYPES)
+        fuel.setSelection(VehicleProfile.FUEL_TYPES.indexOf(existing.fuelType).coerceAtLeast(0))
+        val consumption=field(if(existing.fuelType=="Electric")"Consumption (kWh / 100 km)" else "Consumption (L / 100 km)",existing.consumptionPer100Km?.toString().orEmpty())
+        val energyPrice=field(if(existing.fuelType=="Electric")"Energy price (PLN / kWh)" else "Fuel price (PLN / litre)",existing.energyPricePln?.toString().orEmpty())
+        val maintenance=field("Maintenance / tyres / other (PLN per km)",existing.maintenanceCostPerKm.toString())
+        listOf(name,category,fuel,consumption,energyPrice,maintenance).forEach { view -> form.addView(view) }
+        fuel.onItemSelectedListener=object:android.widget.AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent:android.widget.AdapterView<*>?) {}
+            override fun onItemSelected(parent:android.widget.AdapterView<*>?,view:View?,position:Int,id:Long) {
+                val electric=VehicleProfile.FUEL_TYPES[position]=="Electric"
+                consumption.hint=if(electric)"Consumption (kWh / 100 km)" else "Consumption (L / 100 km)"
+                energyPrice.hint=if(electric)"Energy price (PLN / kWh)" else "Fuel price (PLN / litre)"
+            }
+        }
+        form.addView(label("Routing currently uses a standard passenger-car road profile. Vehicle height, weight and access restrictions are not yet enforced.",10f,MUTED,false))
+        AlertDialog.Builder(this)
+            .setTitle("Vehicle profile")
+            .setView(form)
+            .setNegativeButton("Cancel",null)
+            .setPositiveButton("Save vehicle") { _,_ ->
+                val consumptionValue=consumption.text.toString().replace(',','.').trim().takeIf { it.isNotBlank() }?.toDoubleOrNull()
+                val energyValue=energyPrice.text.toString().replace(',','.').trim().takeIf { it.isNotBlank() }?.toDoubleOrNull()
+                val maintenanceValue=maintenance.text.toString().replace(',','.').trim().toDoubleOrNull()
+                if((consumption.text.isNotBlank() && (consumptionValue==null || consumptionValue<=0.0)) ||
+                    (energyPrice.text.isNotBlank() && (energyValue==null || energyValue<=0.0)) ||
+                    ((consumptionValue==null)!=(energyValue==null)) ||
+                    maintenanceValue==null || maintenanceValue<0.0) {
+                    Toast.makeText(this,"Enter valid consumption and energy price together; maintenance must be zero or more.",Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val profile=VehicleProfile(
+                    name=name.text.toString(),
+                    category=category.selectedItem.toString(),
+                    fuelType=fuel.selectedItem.toString(),
+                    consumptionPer100Km=consumptionValue,
+                    energyPricePln=energyValue,
+                    maintenanceCostPerKm=maintenanceValue
+                )
+                commands.saveVehicleProfile(profile)
+                Toast.makeText(this,if(profile.totalCostPerKm==null)"Vehicle saved. Add consumption and price to calculate cost/km." else "Vehicle saved · ${String.format(Locale.US,"%.3f",profile.totalCostPerKm)} PLN/km used for offer ranking.",Toast.LENGTH_LONG).show()
+                showTab("DRIVER HUB")
+            }
+            .show()
     }
 
     private fun itemDialog(defaultKind:String="Insurance / payment / document / expense"){
@@ -665,8 +974,9 @@ class MainActivity : AppCompatActivity() {
             CrashDiagnostics.record(this,"tap:complete:$actionName")
         } catch(error:Exception) {
             CrashDiagnostics.record(this,"tap:exception:$actionName:${error::class.java.simpleName}")
-            Log.e("BusyBee", "UI action failed: $actionName", error)
-            Toast.makeText(this,"Couldn't complete that action. Please try again.",Toast.LENGTH_LONG).show()
+            CrashDiagnostics.recordActionFailure(this,actionName,error)
+            Log.e("BusyBee","UI action failed: $actionName",error)
+            Toast.makeText(this,"$actionName failed (${error.javaClass.simpleName}). Open DIAG for details.",Toast.LENGTH_LONG).show()
         }
     }
 
@@ -682,12 +992,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(requestCode==LOCATION_REQUEST&&grantResults.any{it==PackageManager.PERMISSION_GRANTED})requestLocation()}
     override fun onStart(){CrashDiagnostics.record(this,"lifecycle:onStart");super.onStart();mapView.onStart()}
-    override fun onResume(){CrashDiagnostics.record(this,"lifecycle:onResume");super.onResume();mapView.onResume()}
+    override fun onResume(){CrashDiagnostics.record(this,"lifecycle:onResume");super.onResume();mapView.onResume();if(::locationManager.isInitialized && (navigating || followLocation)) startLocationUpdates()}
     override fun onPause(){CrashDiagnostics.record(this,"lifecycle:onPause");try{locationManager.removeUpdates(locationListener)}catch(_:Exception){};mapView.onPause();super.onPause()}
     override fun onStop(){CrashDiagnostics.record(this,"lifecycle:onStop");mapView.onStop();super.onStop()}
     override fun onLowMemory(){super.onLowMemory();mapView.onLowMemory()}
     override fun onSaveInstanceState(outState:Bundle){super.onSaveInstanceState(outState);mapView.onSaveInstanceState(outState)}
-    override fun onDestroy(){CrashDiagnostics.record(this,"lifecycle:onDestroy");worker.shutdownNow();mapView.onDestroy();super.onDestroy()}
+    override fun onDestroy(){CrashDiagnostics.record(this,"lifecycle:onDestroy");textToSpeech?.stop();textToSpeech?.shutdown();worker.shutdownNow();mapView.onDestroy();super.onDestroy()}
 
     companion object{
         private const val LOCATION_REQUEST=731

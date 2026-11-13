@@ -1,5 +1,5 @@
 # State Ledger
-_Last updated: 2026-11-13 by ChatGPT — map crash and brand pass_
+_Last updated: 2026-11-13 — GPS routing, vehicle profile and click diagnostics slice_
 
 ## 1. Product snapshot
 
@@ -10,17 +10,17 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 | Area | State | Notes |
 |---|---|---|
 | Product charter / architecture | ✅ baseline | Product direction, source register and ADR-001–008 are committed |
-| Android application shell | 🟡 revised MapLibre hosting + on-device crash diagnostics built; physical-device validation pending | The map remains visible beneath secondary tabs to avoid renderer visibility transitions; diagnostics preserve recent action/lifecycle breadcrumbs and uncaught JVM exceptions; physical-device crash still unconfirmed |
-| Spatial map / routing | 🟡 partial | Tilted Liberty vector map, mapped road observations, weather context and OSRM alternatives; not a complete multi-source live traffic aggregator |
+| Android application shell | 🟡 MapLibre hosting, GPS-first map startup and caught-action stack diagnostics built; target-device validation pending | Map remains attached beneath secondary tabs; DIAG includes bounded caught/uncaught stack frames with exception messages omitted; target-device click failure still needs reproduction |
+| Spatial map / routing | 🟡 improved vertical slice; accuracy validation pending | GPS-biased destination candidates, OSRM driving alternatives with parsed maneuvers, foreground GPS following, TTS turn prompts and off-route recalculation; estimates have no live traffic and use a standard car profile |
 | Driver Data Mirror import | 🟡 partial | CSV rejects duplicate/empty headers, missing required values and extra cells; omitted trailing optional fields stay unknown; provider-specific exports and statement reconciliation are unvalidated |
 | Mirror evidence / deduplication | 🟡 partial; tests verified | Store-level Robolectric tests pass for duplicate suppression, raw evidence retention, import counts and rollback; provider correction and migration behaviour remain open |
 | Driver economics | 🟡 partial | Platform and start-hour groupings; no validated hourly wage, weekday/zone or dead-mileage analysis |
 | Headline earnings R-DM-005 | 🟡 implemented; unit tests verified | Trip-only PLN gross/fees/bonus totals and completeness logic; 5 financial-summary tests pass in the Vercel Sandbox build |
-| Offer Desk | 🟡 partial | Manual entry and opt-in notification capture/ranking; no direct Uber/Bolt partner API or auto-acceptance |
-| Driver Hub | 🟡 partial | Documents, reminders, recurrence, expense/contact and WhatsApp TXT import/search surfaces |
+| Offer Desk | 🟡 partial | Manual entry and opt-in notification capture/ranking; saved vehicle running cost now feeds cost/km scoring; no direct Uber/Bolt partner API or auto-acceptance |
+| Driver Hub | 🟡 partial | Documents, reminders, recurrence, expense/contact and WhatsApp TXT import/search plus persistent vehicle category/fuel/consumption/cost profile |
 | Source catalogue | 🟡 partial | Honest access/status catalogue; broad connector framework and live feed-health are not complete |
 | Rust domain core | 🟡 partial | Road-event model, TTL logic and JNI version bridge; canonical fusion engine is not implemented |
-| CI / APK | 🟡 Vercel Sandbox build verified; static deployment pending | Diagnostic build at `22cf953665f747461be22e8ea66540885aa7ae30`: Rust 4/4, Android 35/35 (0 failures/errors/skips), debug APK assembly and v2 signature verification passed. APK SHA-256 `d93f077a2e1bef082918eb9d41b604493eb4c1751f95ac6ee29b6b778d5f2c3e`; external build metadata endpoint returned successfully. Physical tap validation and stable Vercel deployment remain pending |
+| CI / APK | 🟡 Vercel Sandbox build verified; ZIP-first download route retained | Current navigation/vehicle slice: Rust 4/4 and Android 45/45 (0 failures/errors/skips) passed; final APK rebuild/checksum and public ZIP transfer must be confirmed after commit. Static Vercel deployment remains pending |
 | Release signing | ⚪ pending | Persistent release keystore secrets were not configured in the last documented successful build |
 
 ## 3. Currently in flight
@@ -38,9 +38,9 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 - Weekday, zone/corridor, duration-based hourly wage, waiting-time and dead-mileage metrics lack the required source fields/session model.
 - CSV parser regression and SQLite store-level tests pass in the Vercel Sandbox build. Provider correction/reconciliation semantics and schema migration tests remain open.
 - Road intelligence is not yet a provider-neutral connector/fusion system. Current mapped OSM observations and weather are not live traffic-speed coverage.
-- Route planning uses low-volume public Nominatim/OSRM services and hands turn-by-turn guidance to external navigation; it is not a production SLA or live-traffic route engine.
+- Route planning uses public Nominatim/OSRM, with candidate selection, route alternatives and in-app foreground turn prompts. OSRM estimates do not include live traffic; navigation requires BusyBee to remain foreground, is not a persistent background service, and uses standard passenger-car routing rather than vehicle-specific height/weight restrictions.
 - Community road-report moderation, expiry, reputation and shared backend are not complete.
-- Real-device install, upgrade/signature continuity, battery/performance and accessibility checks are unverified.
+- Real-device install, GPS accuracy, turn prompts, off-route recalculation, upgrade/signature continuity, battery/performance and accessibility checks are unverified.
 - The Vercel Sandbox successfully completed the Android/Rust build. The first standard Vercel preview deployment failed on a script URL interpolation bug; the fix is committed. Subsequent deployment creation is blocked by the team's daily limit of more than 100 deployment API creations, so the protected static download page is not yet deployed.
 - docs/SPEC.md is absent; docs/PRODUCT_CHARTER.md is the canonical product specification. docs/RISKS.md now records data integrity, privacy, source quality, safety, CI and release-signing risks. docs/STATE.md, docs/COVERAGE.md and root CHANGELOG.md now exist.
 - The README checkpoint inconsistency found at session start was corrected to describe the five implemented pilot surfaces and the current limits of the map and offer capture.
@@ -89,3 +89,14 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 - [ ] Which real export should be used first for adapter validation (Uber or Bolt)? Default: do not claim provider-specific support until a sample export is available and tested.
 - [ ] Are the persistent Android release-signing secrets configured? Default: treat existing builds as debug-only until a signed workflow run verifies the certificate.
 - [ ] Can GitHub Actions hosted runners be started for this private repository? Default: do not switch to a paid runner or merge unverified work.
+
+
+## 7. Session handoff — 2026-11-13 (GPS routing, vehicle profile and click diagnostics)
+
+- **Done:** Added GPS-biased Polish destination candidate search (up to five matches), OSRM alternative route selection with maneuver-step parsing, route-bound camera framing, foreground GPS following, spoken turn prompts and automatic reroute attempts after repeated off-route readings. Added a saved vehicle profile (vehicle category, fuel type, consumption, energy price and maintenance per kilometre) in the existing local SQLite settings store. Its calculated cost/km now feeds the Offer Desk; incomplete profiles reset to the existing generic 0.85 PLN/km fallback rather than retaining stale costs from a prior vehicle.
+- **Done:** Replaced generic caught-action feedback with action name and exception type. DIAG now captures bounded stack frames for caught actions and uncaught JVM failures while omitting exception messages. Legacy crash files containing messages are not included in reports.
+- **Done:** Made the ZIP archive the primary Android download route and added ZIP generation/integrity metadata to the Vercel APK build script. Keep using the Brave-tested ZIP path.
+- **Verified:** Vercel Sandbox final source test pass: Android unit tests 45/45 (0 failures, 0 errors, 0 skipped); Rust workspace tests 4/4; build-script shell syntax passed. Android debug APK compilation/assembly passed in the immediately prior build iteration; rebuild and final artifact checks must run after this final source/doc commit.
+- **Not done:** Physical-device GPS/map/navigation validation; reproduce the universal click error using the new DIAG stack report; live traffic source; background navigation service; truck/van dimension and access restrictions; persistent production signing; standard Vercel static deployment.
+- **Known limitations:** Public Nominatim/OSRM can be rate-limited or unavailable. OSRM's driving estimates are not live traffic and do not account for vehicle height, weight or access restrictions. Navigation currently runs only while BusyBee remains in the foreground; leaving the app pauses location updates. Vehicle categories are stored for driver costing but do not yet change road routing.
+- **Next:** Install the debug APK over the previous BusyBee debug build (same `.debug` package identity and debug signer). Verify current location, candidate destination selection, route alternatives, voice prompts and rerouting. Configure the real vehicle values, then check Offer Desk cost/km. If a tap still fails, copy DIAG and share the report; it now contains the caught failure stack frames without exception messages.

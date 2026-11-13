@@ -12,8 +12,10 @@ This register tracks material product, data-integrity, safety and delivery risks
 | R-06 | Public geocoding/routing/weather services may rate-limit, change or become unavailable | Medium | Medium | Treat external services as replaceable adapters; avoid high-frequency polling; handle timeout/unavailable states; do not present route estimates as live-traffic predictions | Open |
 | R-07 | GitHub-hosted CI runner allocation is blocked; Vercel standard deployment creation is also rate-limited, which can delay repeatable APK publishing | High | High | Vercel Sandbox now executes the pinned Android/Rust toolchain and test suite (4 Rust + 31 Android tests passed); retain exact build metadata and artifact checksum; keep standard deployment pending until the daily API cap resets and a READY deployment is verified | Mitigated for build verification; static delivery still open |
 | R-08 | A debug APK or a newly generated signing key could fail to update the installed production app and may appear to lose user data | Medium | High | Keep debug application ID separate; require the persistent release keystore and signature verification for install-over-existing updates; never generate a replacement key casually | Open — debug APK verified; persistent release signing and device upgrade continuity not confirmed |
+| R-10 | Public geocoding/routing results or simplified GPS map matching may choose an inaccurate destination, manoeuvre or reroute | Medium | High | Present multiple destination candidates and route alternatives; require a fresh GPS fix; expose source/traffic limitations; validate route traces and turn prompts on a physical device before relying on navigation | Open — logic tests pass; physical route validation pending |
+| R-11 | Vehicle category selection may imply route access restrictions that the current OSRM driving profile does not enforce | Medium | High | Make clear that vehicle profiles currently affect running-cost calculations only; keep routing on standard passenger-car profile until dimension/weight/access-aware routing is implemented and tested | Open — limitation shown in Driver Hub vehicle editor |
 
-| R-09 | MapLibre may crash on target-device interactions due to renderer/GL surface lifecycle or device-specific native failures | Medium | High | Keep the renderer visible under secondary tabs, persist bounded action/lifecycle breadcrumbs and uncaught JVM traces, then reproduce and inspect the target-device report | Open — mitigation and diagnostics built; physical-device crash cause not yet confirmed |
+| R-09 | MapLibre or another UI action may fail on target-device interactions | Medium | High | Keep the renderer visible beneath secondary tabs; capture bounded action/lifecycle breadcrumbs plus caught/uncaught stack frames; omit exception messages; reproduce on target device | Open — improved stack diagnostics built; target-device failure source not yet reported |
 
 ## Release gates
 
@@ -22,3 +24,11 @@ This register tracks material product, data-integrity, safety and delivery risks
 - No road-intelligence source is considered trustworthy without provenance, freshness, failure handling and explicit unavailable states.
 - No production update is distributed without verifying package identity and signing-certificate continuity.
 - Personal Driver Mirror data remains private by default; any future sync or sharing requires an explicit product decision and consent flow.
+
+
+## Additional navigation controls
+
+- Public OSRM/Nominatim endpoints are best-effort public services; enforce timeouts, avoid high-frequency polling, surface errors and do not describe OSRM durations as live-traffic ETAs.
+- Current in-app guidance is foreground-only. Location updates are removed on Activity pause; this is not a background navigation service and must not be relied upon with the app closed.
+- Vehicle profiles feed cost-per-kilometre economics only. They do not currently constrain route selection for van/truck height, gross weight, width, low-emission zones or vehicle access classes.
+- Stack diagnostics omit exception messages and bound frame count/length. Continue to avoid logging entered destinations, trip content or private earnings.

@@ -185,6 +185,32 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
     }
     fun setting(key:String,default:String):String = readableDatabase.rawQuery("SELECT value FROM settings WHERE key=?",arrayOf(key)).use { c -> if(c.moveToFirst()) c.getString(0) else default }
     fun setSetting(key:String,value:String) { val v=ContentValues().apply { put("key",key);put("value",value) };writableDatabase.insertWithOnConflict("settings",null,v,SQLiteDatabase.CONFLICT_REPLACE) }
+
+    fun vehicleProfile(): VehicleProfile = VehicleProfile(
+        name = setting("vehicle_name", ""),
+        category = setting("vehicle_category", "Passenger car"),
+        fuelType = setting("vehicle_fuel_type", "Petrol"),
+        consumptionPer100Km = setting("vehicle_consumption_per_100km", "").toDoubleOrNull(),
+        energyPricePln = setting("vehicle_energy_price_pln", "").toDoubleOrNull(),
+        maintenanceCostPerKm = setting("vehicle_maintenance_per_km", "0").toDoubleOrNull() ?: 0.0
+    )
+
+    @Synchronized fun saveVehicleProfile(profile: VehicleProfile) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            setSetting("vehicle_name", profile.name.trim())
+            setSetting("vehicle_category", profile.category)
+            setSetting("vehicle_fuel_type", profile.fuelType)
+            setSetting("vehicle_consumption_per_100km", profile.consumptionPer100Km?.toString().orEmpty())
+            setSetting("vehicle_energy_price_pln", profile.energyPricePln?.toString().orEmpty())
+            setSetting("vehicle_maintenance_per_km", profile.maintenanceCostPerKm.toString())
+            setSetting("cost_per_km", profile.totalCostPerKm?.let { String.format(java.util.Locale.US, "%.4f", it) } ?: "0.85")
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
 }
 
 
