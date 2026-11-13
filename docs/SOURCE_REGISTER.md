@@ -21,13 +21,17 @@ The register is deliberately status-based. A source is promoted to **connected**
 
 | Source | Potential capabilities | Access path | Initial status | Constraints to verify |
 |---|---|---|---|---|
-| OpenStreetMap | Road/building/POI geometry and tags | Extracts, Overpass or approved tile services | Candidate — assess | ODbL attribution and derivative database obligations; tile usage policy |
+| OpenStreetMap / OpenFreeMap | Road labels, building geometry, names, house numbers and mapped entrances | OpenFreeMap vector basemap; on-demand Overpass lookup for named/addressed buildings and entrance/door nodes | Basemap active; building/entrance overlay implemented in draft source; build/device verification pending | ODbL attribution and derivative database obligations; tile/Overpass usage policy; local tag coverage is incomplete and no missing stairwell label may be inferred |
 | Kraków MSIP | Municipal GIS, roads, infrastructure and potential 3D assets | Open datasets, WFS/ArcGIS services | Candidate — assess | Dataset-specific licence, update cadence, service terms |
 | ZDMK Kraków | Roadworks and traffic restrictions | Published notices/data channels | Candidate — assess | Machine-readable feed/API availability not yet verified |
 | ZTP Kraków | GTFS and real-time public transport information | GTFS / GTFS-Realtime feeds | Candidate — assess | Feed schema, update cadence, attribution and availability |
 | GDDKiA / Geoportal disruption layer | Current national-road maintenance works, accidents and other disruptions; road number, start/end, chainage/extent and update time | Official Geoportal viewer layer published 2026-10-28 from KPD data | Official viewer confirmed; not connected to BusyBee | The exact reusable WMS/service endpoint and app reuse/attribution terms are not yet verified. Viewer presence is not permission to scrape/embed the website. |
 | Polish National Access Point (KPD / NAP) | Current national-road disruptions in DATEX II XML / WGS84 | DATEX II 3.4/3.5/3.7; Push on Occurrence preferred; Client Snapshot Pull for recovery/snapshot | Public service catalogue; authenticated recipient integration not connected | Register as a data recipient, obtain/maintain required client certificate, inspect WSDL/schema and test coverage/freshness. This feed describes GDDKiA-managed national roads, not every municipal street. |
 | Geoportal / national spatial services | Spatial reference and infrastructure datasets | WMS/WFS/other services | Candidate — assess | Dataset-level licence and update frequency |
+
+### Building and entrance detail
+
+BusyBee's map detail overlay reads mapped building names, `addr:street`, `addr:housenumber`, and entrance/door nodes from OpenStreetMap via Overpass. It can show `entrance=staircase` as a stairwell and preserve explicit `ref`, `level`, `door`, and access tags. It cannot reliably identify every apartment-block entrance or individual `klatka A/B`: those labels must exist in the source data. Where a building has no name, a mapped street/house number is used instead; unnamed and unaddressed buildings are not assigned invented names.
 
 ## 3. Environmental and contextual feeds
 
