@@ -1,3 +1,25 @@
+# Current engineering checkpoint — 2026-11-13 (map + workspace UX increment)
+
+**Active branch:** `feat/map-first-route-dock-2026-11-13`  
+**Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
+**Latest source commit:** `afb6e796af428e96c1025b2ff60a03cad7daf885`  
+**Status:** implementation authored; build/test/device verification blocked and pending. PR #8 remains untouched and unmerged.
+
+Delivered in this increment:
+- Map remains a full-bleed MapLibre canvas with no persistent header or tab bar. Its floating route dock is compact by default: destination search only. Route estimates and navigation controls appear only when needed; START/STOP state follows navigation state.
+- Route search/loading feedback is shown in the dock instead of being hidden while the compact layout is active.
+- Driver Mirror is reorganised around one financial focal point, compact KPI row, native-capture review inbox, source coverage, horizontal platform/hour comparisons, and compact confirmed-activity rows. Existing calculations, unknown-value handling, source review actions, vehicle-cost assumption, and legacy import history are retained.
+- Offer Desk is reorganised around quick vehicle/rule controls and the user-started native driver-app capture path. Decision filters are edited in a dialog rather than occupying the default screen. Notifications are explicitly secondary; manual correction and ranked offer actions remain available.
+- No new data source, provider API claim, private database access, automatic ride acceptance, or CSV-first workflow was introduced.
+
+Verification boundary:
+- GitHub diff inspection confirms the intended map, Earnings and Offers code changes are present on the isolated branch.
+- No Rust/Android tests or APK build have been run for this branch. The existing Vercel Sandbox request returned HTTP 402 because the Hobby usage limit is exceeded until 2026-12-01; this was not a source build result.
+- This runtime has no `/testbed` checkout, Android SDK or Gradle executable. No physical-device validation is possible here.
+- Keep the branch as a draft candidate. Do not merge, distribute an APK, or call the redesign accepted until automated tests/build and target-phone checks pass. Driver Hub/Sources premium layout and full visual acceptance remain unfinished.
+
+---
+
 # Current acceptance correction — 2026-11-13
 
 The user has confirmed that the previous general click/action bugs are gone, but explicitly rejected the delivered app as not matching the agreed product. The old STOP-WORK freeze and earlier capability snapshot below are historical; they are superseded for product direction by [PRODUCT_CONTRACT.md](PRODUCT_CONTRACT.md).
@@ -40,7 +62,7 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 
 ## 3. Stabilization status (2026-11-13)
 
-**STOP-WORK directive active.** No feature development, scope expansion, speculative fixes, PR merges or release claims until the current app reaches a verified working baseline. PR #3–#8 remain open/unmerged; PR #8 is the current diagnostic source branch, not a stable release.
+**Historical stabilization snapshot — superseded 2026-11-13.** The user later confirmed that the general click/action failures were gone and explicitly authorised continued product work. The remaining acceptance gates are tracked below and in the current checkpoint at the top of this file. The historical defect table is retained as evidence, not as a claim that those issues are still open. PR #3–#8 remain open/unmerged; PR #8 is the current diagnostic source branch, not a stable release.
 
 Known user-reported defects (reproduction detail is incomplete; do not mark reproduced):
 
