@@ -208,7 +208,7 @@ internal object MapMarkerArtwork {
         return bitmap
     }
 
-    fun buildingLabel(context: Context, text: String, night: Boolean): Bitmap {
+    fun buildingLabel(context: Context, text: String, night: Boolean, accentColor: Int = if (night) 0xFF5AD9B0.toInt() else 0xFF168467.toInt()): Bitmap {
         val density = context.resources.displayMetrics.density
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textSize = 11.5f * density
@@ -222,7 +222,7 @@ internal object MapMarkerArtwork {
         val background = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (night) 0xF21A3540.toInt() else 0xF2F8FCF8.toInt() }
         canvas.drawRoundRect(RectF(1f, 1f, width - 1f, height - 1f), 9f * density, 9f * density, background)
         val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (night) 0xFF5AD9B0.toInt() else 0xFF168467.toInt()
+            color = accentColor
             style = Paint.Style.STROKE
             strokeWidth = 1.2f * density
         }
@@ -234,17 +234,6 @@ internal object MapMarkerArtwork {
         return bitmap
     }
 
-    fun entrance(context: Context): Bitmap {
-        val size = (26f * context.resources.displayMetrics.density).toInt().coerceAtLeast(22)
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val center = size / 2f
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFB34F.toInt() }
-        canvas.drawCircle(center, center, center * 0.43f, paint)
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (2f * context.resources.displayMetrics.density).coerceAtLeast(1.5f)
-        canvas.drawCircle(center, center, center * 0.43f, paint)
-        return bitmap
-    }
+    fun entranceLabel(context: Context, text: String, night: Boolean): Bitmap =
+        buildingLabel(context, text, night, 0xFFFFB34F.toInt())
 }
