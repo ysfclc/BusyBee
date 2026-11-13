@@ -123,3 +123,17 @@ These checks establish that the sources exist and what access path is documented
 | [GUGiK Geoportal GDDKiA disruption layer announcement](https://www.gov.pl/web/gugik/nowa-usluga-utrudnienia-drogowe-gddkia-dostepna-w-serwisie-wwwgeoportalgovpl) | A Geoportal service was announced on 28 October 2026, based on KPD data, showing maintenance works, accidents and other disruptions with dates, road identifiers and update information. | Public map viewer confirmed; direct feature-service endpoint and reuse terms not yet verified. | Inspect the published service metadata before treating it as an ingestible API. |
 
 **Connector rule:** a browser-visible map or public web page is not automatically a reusable API. A source becomes connected only after its actual endpoint, licence, geographic coverage, refresh behaviour and failure mode have been tested. Never mark a candidate as live merely because a human can view it in a browser.
+
+
+## 4. Driver-app native data sources — primary integration direction
+
+| Source | Access path | Current code state | Limitations / acceptance requirements |
+|---|---|---|---|
+| Uber Driver | Approved driver API if granted; otherwise user-started Android MediaProjection + local OCR | Native capture candidate with manual review; notification fallback remains | No API connection claimed. Driver must grant Android capture consent each session. Validate on real Uber Driver screens. |
+| Bolt Driver | Approved driver-level API if granted; otherwise user-started Android MediaProjection + local OCR | Native capture candidate with manual review; notification fallback remains | Bolt Fleet API is not presumed available to individual drivers. Validate on real Bolt Driver screens. |
+| FREENOW / other driver apps | Approved API or user-named native capture session | Named-platform capture path added; package-specific API/handoff not yet verified | User-named OCR capture is not proof of a dedicated connector. Validate app-specific screen formats and source provenance. |
+| Ride-app notifications | Android notification listener | Secondary fallback | Never the sole or primary integration. Only exposed notification content is available. |
+
+## 5. WhatsApp selected-group source
+
+Android notification listener discovers WhatsApp/WhatsApp Business group names only when Android exposes the conversation title. The driver explicitly enables each group before message previews are retained. One-to-one conversations are excluded. Android may not expose every message or group; BusyBee does not access the private WhatsApp database or guarantee complete history. Per-group stop/delete controls are required. Chat-export import is not the intended workflow.
