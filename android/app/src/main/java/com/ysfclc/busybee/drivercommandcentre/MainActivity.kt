@@ -752,7 +752,7 @@ class MainActivity : AppCompatActivity() {
         navigationAnnouncementStage=0
         val progress=RoutePlanner.progressMeters(LatLng(fix.latitude,fix.longitude),route.points)
         navigationStepIndex=route.steps.indexOfFirst {
-            it.type!="depart" && it.type!="arrive" && it.distanceAlongRouteMeters > progress-40.0
+            it.type!="depart" && it.type!="arrive" && it.distanceAlongRouteMeters >= progress-40.0
         }.let { if(it<0) route.steps.lastIndex else it }
         startLocationUpdates()
         updateNavigationCamera(fix)
@@ -953,7 +953,7 @@ class MainActivity : AppCompatActivity() {
 
         var next=route.steps.getOrNull(navigationStepIndex)?.takeIf { it.type!="depart" && it.type!="arrive" }
         var advancedStep=false
-        while(next!=null && next.distanceAlongRouteMeters-progress < -40.0) {
+        while(next!=null && next.distanceAlongRouteMeters-progress <= -40.0) {
             navigationStepIndex++
             navigationAnnouncementStage=0
             advancedStep=true
