@@ -32,6 +32,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import org.json.JSONObject
 import org.maplibre.android.MapLibre
 import org.maplibre.android.annotations.Marker
@@ -99,6 +100,9 @@ class MainActivity : AppCompatActivity() {
     private val locationListener=object:LocationListener {
         override fun onLocationChanged(location:Location) {
             lastLocation=location
+            // A location callback can already be queued when onPause() removes updates.
+            // Keep the fix, but do not mutate the paused MapLibre view.
+            if(!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
             updateDriverLocation(location)
         }
     }
@@ -113,11 +117,14 @@ class MainActivity : AppCompatActivity() {
         commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
         locationManager=getSystemService(LOCATION_SERVICE) as LocationManager
         textToSpeech=TextToSpeech(this) { status ->
-            speechReady=status==TextToSpeech.SUCCESS
-            if(speechReady) {
-                val language=textToSpeech?.setLanguage(Locale.UK) ?: TextToSpeech.LANG_NOT_SUPPORTED
-                if(language==TextToSpeech.LANG_MISSING_DATA || language==TextToSpeech.LANG_NOT_SUPPORTED) {
-                    textToSpeech?.setLanguage(Locale.getDefault())
+            uiCallbacks.post {
+                speechReady=status==TextToSpeech.SUCCESS
+                if(speechReady) {
+                    val engine=textToSpeech ?: return@post
+                    val language=engine.setLanguage(Locale.UK)
+                    if(language==TextToSpeech.LANG_MISSING_DATA || language==TextToSpeech.LANG_NOT_SUPPORTED) {
+                        engine.setLanguage(Locale.getDefault())
+                    }
                 }
             }
         }
@@ -135,18 +142,22 @@ class MainActivity : AppCompatActivity() {
         screenHost=TabScreenHost(content,buildMapScreen())
         showTab("MAP")
         mapView.getMapAsync { instance ->
-            CrashDiagnostics.record(this,"map:ready")
-            map=instance
-            instance.setStyle(Style.Builder().fromUri(OPENFREE_MAP_STYLE)) {
-                mapStyleState.markReady()
-                CrashDiagnostics.record(this,"map:style-loaded")
-                val initialTarget=lastLocation?.let { LatLng(it.latitude,it.longitude) } ?: KRAKOW
-                instance.cameraPosition=CameraPosition.Builder().target(initialTarget).zoom(15.0).tilt(48.0).build()
-                lastLocation?.let(::updateDriverLocation)
-                renderRoadEvents()
-                mapStatus?.text="● MAP ONLINE"
-                refreshRoadIntelligence()
-                requestLocation()
+            uiCallbacks.post {
+                CrashDiagnostics.record(this,"map:ready")
+                map=instance
+                instance.setStyle(Style.Builder().fromUri(OPENFREE_MAP_STYLE)) {
+                    uiCallbacks.post {
+                        mapStyleState.markReady()
+                        CrashDiagnostics.record(this,"map:style-loaded")
+                        val initialTarget=lastLocation?.let { LatLng(it.latitude,it.longitude) } ?: KRAKOW
+                        instance.cameraPosition=CameraPosition.Builder().target(initialTarget).zoom(15.0).tilt(48.0).build()
+                        lastLocation?.let(::updateDriverLocation)
+                        renderRoadEvents()
+                        mapStatus?.text="● MAP ONLINE"
+                        refreshRoadIntelligence()
+                        requestLocation()
+                    }
+                }
             }
         }
     }
