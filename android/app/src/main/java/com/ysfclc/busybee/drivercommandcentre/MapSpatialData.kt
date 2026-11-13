@@ -91,7 +91,7 @@ internal object MapPlaceLookup {
             ) continue
 
             if (type == "way" && tags.has("building")) {
-                val name = tags.optString("name").trim()
+                val name = tags.optString("name:pl").trim().ifBlank { tags.optString("name").trim() }.ifBlank { tags.optString("official_name").trim() }
                 val street = tags.optString("addr:street").trim()
                 val number = tags.optString("addr:housenumber").trim()
                 val address = listOf(street, number).filter { it.isNotBlank() }.joinToString(" ")
@@ -110,6 +110,7 @@ internal object MapPlaceLookup {
                 val reference = tags.optString("ref").trim()
                 val label = when {
                     name.isNotBlank() -> name
+                    entrance == "staircase" && reference.isNotBlank() -> "Klatka $reference"
                     entrance == "staircase" -> "Klatka schodowa"
                     entrance == "main" -> "Wejście główne"
                     entrance == "service" -> "Wejście techniczne"
