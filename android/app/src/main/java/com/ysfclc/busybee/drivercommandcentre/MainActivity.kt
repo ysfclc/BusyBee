@@ -992,21 +992,32 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(rulesButton.apply{setPadding(0,dp(9),0,dp(9))})
 
-        root.addView(section("NATIVE DRIVER APP BRIDGE","Primary capture path · started by you · processed on this device"))
+        val liveListenerEnabled=isDriverAppLiveListenerEnabled()
+        root.addView(section("LIVE DRIVER-APP LISTENER","Read-only Android UI events · no screenshots · no button control"))
         root.addView(card().apply {
-            addView(label("OPEN THE DRIVER APP AND CAPTURE ITS VISIBLE SCREEN",10f,MINT,true))
-            addView(label("Choose only the Uber/Bolt Driver app window in Android's system picker. OCR stays on-device; screenshots are not saved or uploaded. Every observation waits for your review.",9f,MUTED,false).apply{setPadding(0,dp(5),0,dp(9))})
+            addView(label(if(liveListenerEnabled)"● LIVE LISTENER ACTIVE" else "LIVE LISTENER NOT ENABLED",10f,if(liveListenerEnabled)MINT:AMBER,true))
+            addView(label("With your Android Accessibility permission, BusyBee observes visible text-change events only inside Uber Driver and Bolt Driver. It extracts relevant trip, offer and earnings text locally, then puts it in your review inbox. It does not read other apps, tap controls, accept/decline rides, record audio or save screenshots.",9f,MUTED,false).apply{setPadding(0,dp(5),0,dp(9))})
+            addView(action(if(liveListenerEnabled)"MANAGE ANDROID LIVE LISTENER" else "ENABLE ANDROID LIVE LISTENER",true){openLiveListenerSettings()})
+            addView(label("NOTIFICATIONS",9f,MINT,true).apply{setPadding(0,dp(12),0,dp(4))})
+            addView(label("The same Android listener can turn new ride-app notifications into BusyBee alerts. Notifications are a second signal, not the only data path.",9f,MUTED,false).apply{setPadding(0,dp(2),0,dp(7))})
+            addView(action(if(DriverAlertManager.notificationsAllowed(this@MainActivity))"BUSYBEE ALERTS · ALLOWED" else "ENABLE BUSYBEE ALERTS",false){requestBusyBeeAlerts()})
+            addView(action(if(notificationAccessEnabled())"RIDE-APP NOTIFICATION ACCESS · ON" else "ENABLE RIDE-APP NOTIFICATION ACCESS",false){startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))}.apply{setPadding(0,dp(7),0,dp(7))})
+        })
+
+        root.addView(section("MANUAL VISUAL FALLBACK","Use only when a driver-app screen does not expose readable UI text"))
+        root.addView(card().apply {
+            addView(label("ONE-SESSION SCREEN WINDOW CAPTURE",9f,AMBER,true))
+            addView(label("Android asks you to select the Uber/Bolt app window for each session. OCR runs locally. This is a fallback, not the normal live-listening path.",9f,MUTED,false).apply{setPadding(0,dp(4),0,dp(8))})
             val platforms=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
-            platforms.addView(action("UBER",true){launchDriverScreenCapture("Uber")},LinearLayout.LayoutParams(0,dp(42),1f))
-            platforms.addView(action("BOLT",false){launchDriverScreenCapture("Bolt")},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
+            platforms.addView(action("CAPTURE UBER",false){launchDriverScreenCapture("Uber")},LinearLayout.LayoutParams(0,dp(38),1f))
+            platforms.addView(action("CAPTURE BOLT",false){launchDriverScreenCapture("Bolt")},LinearLayout.LayoutParams(0,dp(38),1f).apply{marginStart=dp(7)})
             addView(platforms)
             val extra=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
-            extra.addView(action("＋ OTHER APP",false){promptOtherPlatformCapture()},LinearLayout.LayoutParams(0,dp(38),1f))
-            extra.addView(action("STOP",false){stopDriverScreenCapture()},LinearLayout.LayoutParams(dp(82),dp(38)).apply{marginStart=dp(7)})
-            addView(extra.apply{setPadding(0,dp(7),0,dp(7))})
-            addView(label("API STATUS",9f,AMBER,true))
-            addView(label("Uber Driver API access requires approval. Bolt Fleet API is partner-scoped, not a general individual-driver API. No provider API connection is claimed.",9f,MUTED,false).apply{setPadding(0,dp(3),0,dp(7))})
-            addView(action(if(notificationAccessEnabled())"NOTIFICATION FALLBACK · ENABLED" else "ENABLE SECONDARY NOTIFICATION FALLBACK",false){startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))})
+            extra.addView(action("＋ OTHER APP",false){promptOtherPlatformCapture()},LinearLayout.LayoutParams(0,dp(36),1f))
+            extra.addView(action("STOP",false){stopDriverScreenCapture()},LinearLayout.LayoutParams(dp(82),dp(36)).apply{marginStart=dp(7)})
+            addView(extra.apply{setPadding(0,dp(7),0,dp(5))})
+            addView(label("PROVIDER API ACCESS",9f,AMBER,true))
+            addView(label("Uber Driver API access requires approval. Bolt Fleet API is partner-scoped, not a general individual-driver API. No provider API connection is claimed.",9f,MUTED,false).apply{setPadding(0,dp(3),0,0)})
         })
 
         val ranked=OfferEngine.rank(commands.offers(),num("cost_per_km",0.85),num("min_per_hour",35.0),num("max_pickup",8.0),num("min_rating",0.0))
@@ -1529,6 +1540,42 @@ class MainActivity : AppCompatActivity() {
         val row=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(0,dp(9),0,dp(9))}
         row.addView(label(name,12f,WHITE,true));row.addView(label(detail,10f,MUTED,false).apply{setPadding(0,dp(2),0,dp(3))})
         row.addView(label(status,9f,if(status.startsWith("LIVE"))MINT else AMBER,true));parent.addView(row);parent.addView(divider())
+    }
+
+    private fun isDriverAppLiveListenerEnabled():Boolean {
+        val enabled=Settings.Secure.getString(contentResolver,Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+        val targetClass=DriverAppAccessibilityService::class.java.name
+        return enabled.split(':').any { raw ->
+            ComponentName.unflattenFromString(raw)?.className==targetClass
+        }
+    }
+
+    private fun openLiveListenerSettings() {
+        if(isDriverAppLiveListenerEnabled()) {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Enable BusyBee live driver-app listening?")
+            .setMessage("BusyBee will read visible text and screen-change events only from Uber Driver and Bolt Driver. It may capture trip amounts, distance, duration, route/address text and earnings values shown on those screens. The text stays in BusyBee's local review inbox. BusyBee will not read other apps, record audio, take screenshots, tap buttons, accept or decline rides, or change anything inside Uber/Bolt. You can turn the Android service off at any time in Accessibility Settings. Some app screens may not expose readable text.")
+            .setNegativeButton("Not now",null)
+            .setPositiveButton("I understand · OPEN SETTINGS") { _,_ ->
+                getSharedPreferences("busybee_privacy",MODE_PRIVATE)
+                    .edit().putBoolean("driver_app_listener_disclosure_v1",true).apply()
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            .show()
+    }
+
+    private fun requestBusyBeeAlerts() {
+        if(Build.VERSION.SDK_INT>=33 &&
+            ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,arrayOf(Manifest.permission.POST_NOTIFICATIONS),NOTIFICATION_REQUEST)
+            return
+        }
+        DriverAlertManager.setAlertsEnabled(this,true)
+        Toast.makeText(this,"BusyBee driver alerts are enabled.",Toast.LENGTH_SHORT).show()
+        showTab("OFFERS")
     }
 
     private fun notificationAccessEnabled():Boolean=try{
