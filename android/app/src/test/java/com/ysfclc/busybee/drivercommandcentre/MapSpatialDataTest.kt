@@ -13,7 +13,7 @@ class MapSpatialDataTest {
     fun parsesNamedBuildingsAndAddressedBuildings() {
         val result = MapPlaceLookup.parse(
             """{"elements":[
-                {"type":"way","id":101,"center":{"lat":50.061,"lon":19.937},"tags":{"building":"apartments","name":"Kamienica Pod Aniołem","addr:street":"Świętego Jana","addr:housenumber":"12","building:levels":"4"}},
+                {"type":"way","id":101,"center":{"lat":50.061,"lon":19.937},"tags":{"building":"apartments","name:pl":"Kamienica Pod Aniołem","name":"House of Angels","addr:street":"Świętego Jana","addr:housenumber":"12","building:levels":"4"}},
                 {"type":"way","id":102,"center":{"lat":50.062,"lon":19.938},"tags":{"building":"residential","addr:street":"Długa","addr:housenumber":"8"}}
             ]}"""
         )
@@ -27,12 +27,14 @@ class MapSpatialDataTest {
     fun entranceLabelsUseMappedTagsAndDoNotInventStairwellLetters() {
         val result = MapPlaceLookup.parse(
             """{"elements":[
-                {"type":"node","id":201,"lat":50.061,"lon":19.937,"tags":{"entrance":"staircase","level":"0"}},
-                {"type":"node","id":202,"lat":50.062,"lon":19.938,"tags":{"entrance":"yes","ref":"B"}},
-                {"type":"node","id":203,"lat":50.063,"lon":19.939,"tags":{"entrance":"main","name":"Front entrance"}}
+                {"type":"node","id":201,"lat":50.061,"lon":19.937,"tags":{"entrance":"staircase","ref":"A","level":"0"}},
+                {"type":"node","id":202,"lat":50.062,"lon":19.938,"tags":{"entrance":"staircase","level":"1"}},
+                {"type":"node","id":203,"lat":50.063,"lon":19.939,"tags":{"entrance":"yes","ref":"B"}},
+                {"type":"node","id":204,"lat":50.064,"lon":19.940,"tags":{"entrance":"main","name:pl":"Wejście od ulicy","name":"Front entrance"}}
             ]}"""
         )
-        assertEquals(listOf("Klatka schodowa", "Wejście · B", "Front entrance"), result.map { it.label })
+        assertEquals(listOf("Klatka A", "Klatka schodowa", "Wejście · B", "Wejście od ulicy"), result.map { it.label })
+        assertTrue(result[0].detail.contains("Reference A"))
         assertTrue(result[0].detail.contains("Level 0"))
     }
 
