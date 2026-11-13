@@ -17,12 +17,40 @@ class MapStyleStateTest {
     }
 
     @Test
-    fun repeatedStyleLoadedCallbacksAreIdempotent() {
+    fun activationIsDeferredWhileActivityIsPaused() {
         val state = MapStyleState()
-
-        state.markReady()
         state.markReady()
 
-        assertTrue(state.isReady)
+        assertFalse(state.claimActivation(isResumed = false, hasMap = true))
+        assertTrue(state.claimActivation(isResumed = true, hasMap = true))
+    }
+
+    @Test
+    fun activationWaitsForMapInstance() {
+        val state = MapStyleState()
+        state.markReady()
+
+        assertFalse(state.claimActivation(isResumed = true, hasMap = false))
+        assertTrue(state.claimActivation(isResumed = true, hasMap = true))
+    }
+
+    @Test
+    fun activationCanOnlyBeClaimedOnce() {
+        val state = MapStyleState()
+        state.markReady()
+
+        assertTrue(state.claimActivation(isResumed = true, hasMap = true))
+        assertFalse(state.claimActivation(isResumed = true, hasMap = true))
+    }
+
+    @Test
+    fun repeatedStyleLoadedCallbacksDoNotResetActivation() {
+        val state = MapStyleState()
+        state.markReady()
+        assertTrue(state.claimActivation(isResumed = true, hasMap = true))
+
+        state.markReady()
+
+        assertFalse(state.claimActivation(isResumed = true, hasMap = true))
     }
 }
