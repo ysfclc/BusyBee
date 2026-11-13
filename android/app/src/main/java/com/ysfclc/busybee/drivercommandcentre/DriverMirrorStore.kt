@@ -16,14 +16,14 @@ data class DriverRecord(
     val pickup: String?,
     val dropoff: String?,
     val distanceKm: Double?,
-    val durationMinutes: Double?,
     val gross: Double?,
     val fees: Double?,
     val bonus: Double?,
     val currency: String,
     val status: String?,
     val raw: String,
-    val sourceName: String
+    val sourceName: String,
+    val durationMinutes: Double? = null
 )
 
 data class DriverFinancialRow(
@@ -394,11 +394,11 @@ class DriverMirrorStore(context: Context) :
                 c.getLong(0), c.getString(1), c.getString(2), c.getString(3), c.getString(4),
                 c.getString(5), c.getString(6),
                 if (c.isNull(7)) null else c.getDouble(7),
-                if (c.isNull(8)) null else c.getDouble(8),
                 if (c.isNull(9)) null else c.getDouble(9),
                 if (c.isNull(10)) null else c.getDouble(10),
                 if (c.isNull(11)) null else c.getDouble(11),
-                c.getString(12), c.getString(13), c.getString(14), c.getString(15)
+                c.getString(12), c.getString(13), c.getString(14), c.getString(15),
+                if (c.isNull(8)) null else c.getDouble(8)
             ))
         }
         return records
