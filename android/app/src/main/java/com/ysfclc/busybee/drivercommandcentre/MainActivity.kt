@@ -1046,6 +1046,13 @@ class MainActivity : AppCompatActivity() {
             if(navigating || followLocation) startLocationUpdates()
         }
     }
+    override fun onPostResume() {
+        super.onPostResume()
+        // onResume() runs before the Activity lifecycle reaches RESUMED on some API levels.
+        // Retry any style-ready MapLibre activation at the post-resume boundary.
+        activateMapAfterStyleIfResumed()
+    }
+
     override fun onPause(){CrashDiagnostics.record(this,"lifecycle:onPause");try{locationManager.removeUpdates(locationListener)}catch(_:Exception){};mapView.onPause();super.onPause()}
     override fun onStop(){CrashDiagnostics.record(this,"lifecycle:onStop");mapView.onStop();super.onStop()}
     override fun onLowMemory(){super.onLowMemory();mapView.onLowMemory()}
