@@ -99,3 +99,6 @@ A further workflow run for the latest location-lifecycle source commit, run 112 
 ## Build verification blocker — 2026-11-13
 
 GitHub Actions run #117 (`43424986985`) and its one retry both failed before any steps were allocated (retry job `131909911005`, empty step list). The Vercel Sandbox resume endpoint returned HTTP 402 because the Hobby usage limit is exceeded; stated reset: 2026-12-01 UTC. No APK exists for current PR #8 head `727a1289b8618c28ac15b4eca2d322d5be1c422e`. Historical APK artifacts are not evidence for this head.
+
+
+A follow-up workflow run #118 (`43432885303`) on the updated PR head also failed before steps were allocated (job `131910538716`, empty step list). This is an infrastructure blocker, not an Android compile/test failure.
