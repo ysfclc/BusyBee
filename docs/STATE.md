@@ -2,8 +2,8 @@
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
-**Latest source commit:** `928b8154f996fc79b07b6076a2fe8221c50fa83e`  
-**Status:** implementation authored; build/test/device verification blocked and pending. PR #8 remains untouched and unmerged.
+**Latest source commit:** `7460136494ed0fa7b11f5011b56d80401ba344ac`  
+**Status:** implementation authored; build/test/device verification blocked and pending. PR #9 is draft and stacked on PR #8; neither is merged.
 
 Delivered in this increment:
 - Map remains a full-bleed MapLibre canvas with no persistent header or tab bar. Its floating route dock is compact by default: destination search only. Route estimates and navigation controls appear only when needed; START/STOP state follows navigation state.
