@@ -149,17 +149,26 @@ class MainActivity : AppCompatActivity() {
                     uiCallbacks.post {
                         mapStyleState.markReady()
                         CrashDiagnostics.record(this,"map:style-loaded")
-                        val initialTarget=lastLocation?.let { LatLng(it.latitude,it.longitude) } ?: KRAKOW
-                        instance.cameraPosition=CameraPosition.Builder().target(initialTarget).zoom(15.0).tilt(48.0).build()
-                        lastLocation?.let(::updateDriverLocation)
-                        renderRoadEvents()
-                        mapStatus?.text="● MAP ONLINE"
-                        refreshRoadIntelligence()
-                        requestLocation()
+                        activateMapAfterStyleIfResumed()
                     }
                 }
             }
         }
+    }
+
+    /** Activates MapLibre only when its style is ready and this Activity is RESUMED. */
+    private fun activateMapAfterStyleIfResumed() {
+        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+        val activeMap = map ?: return
+        if (!mapStyleState.claimActivation(isResumed = true, hasMap = true)) return
+
+        val initialTarget = lastLocation?.let { LatLng(it.latitude, it.longitude) } ?: KRAKOW
+        activeMap.cameraPosition = CameraPosition.Builder().target(initialTarget).zoom(15.0).tilt(48.0).build()
+        lastLocation?.let(::updateDriverLocation)
+        renderRoadEvents()
+        mapStatus?.text = "● MAP ONLINE"
+        refreshRoadIntelligence()
+        requestLocation()
     }
 
     private fun buildHeader():View {
