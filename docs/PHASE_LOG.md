@@ -2,7 +2,7 @@
 
 **Status:** source committed on draft PR #9; Android build, tests and device verification pending.
 
-**Source revision:** `447d15f8acd69c11dd075b729daceae23b6bbfc7`  
+**Source revision:** `366d5f490c0962e99d1a5824fa3b2334e333bf06`  
 **Branch:** `feat/map-first-route-dock-2026-11-13`  
 **PR:** [#9 — compact map dock and purpose-built driver workspaces](https://github.com/ysfclc/BusyBee/pull/9) (draft, unmerged)
 
@@ -16,7 +16,7 @@ Delivered in source:
 - Added on-demand Overpass detail lookup for named/addressed building ways and multipolygon relations, plus entrance/door nodes. Building names/addresses and amber entrance/Klatka labels render at zoom-gated levels. A label such as `Klatka A` is shown only when OSM explicitly maps a staircase entrance and its reference.
 - Added map context counts with OSM attribution and throttled marker redraws. Place lookups follow the visible camera centre after a manual pan instead of fetching around an off-screen GPS fix.
 
-Regression tests added for local road-name policy, OSM building/entrance/relation parsing, no fabricated stairwell letters, camera look-ahead, heading wrap smoothing, Polish geocoding bias and road-reference fallback.
+Regression tests added for local road-name policy, OSM building/entrance/relation parsing, no fabricated stairwell letters, camera look-ahead, heading wrap smoothing, Polish geocoding bias and road-reference fallback. Added staged turn-announcement tests; the active maneuver is no longer advanced when it is merely announced.
 
 **Scope boundary:** this is GPS-driven forward-perspective navigation with 3D building context. It is not a proprietary Waze-like live-traffic engine or photorealistic 3D road mesh. Map labels, building names and stairwell/entrance coverage depend on OSM data quality.
 
