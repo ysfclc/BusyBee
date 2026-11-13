@@ -275,6 +275,7 @@ Delivered:
 - Rebuilt Earnings hierarchy around a single known-net focal point, compact KPI row, native capture review inbox, coverage/economics, horizontal platform and start-hour comparisons, and compact recent activity. Kept original calculation semantics and evidence/review flows.
 - Rebuilt Offer Desk around native driver-app capture as the primary path, quick vehicle/rule controls, manual correction, ranked offers and clearly secondary notification evidence.
 - Reworked Driver Hub into compact admin, payment-history, group-watch and service-contact workflows. Existing item completion/reopen, document opening, selected-group tracking and group viewing controls remain available.
+- Updated README product-surface descriptions to reflect native-first capture, optional CSV backfill, selected WhatsApp groups and the remaining Sources redesign gate.
 - Kept all user-facing provider/API limitations explicit; no API connection or unsupported data access is claimed.
 
 Verification:
