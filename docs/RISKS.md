@@ -13,6 +13,8 @@ This register tracks material product, data-integrity, safety and delivery risks
 | R-07 | GitHub-hosted CI runner allocation is blocked; Vercel standard deployment creation is also rate-limited, which can delay repeatable APK publishing | High | High | Vercel Sandbox now executes the pinned Android/Rust toolchain and test suite (4 Rust + 31 Android tests passed); retain exact build metadata and artifact checksum; keep standard deployment pending until the daily API cap resets and a READY deployment is verified | Mitigated for build verification; static delivery still open |
 | R-08 | A debug APK or a newly generated signing key could fail to update the installed production app and may appear to lose user data | Medium | High | Keep debug application ID separate; require the persistent release keystore and signature verification for install-over-existing updates; never generate a replacement key casually | Open — debug APK verified; persistent release signing and device upgrade continuity not confirmed |
 
+| R-09 | MapLibre may crash on target-device interactions due to renderer/GL surface lifecycle or device-specific native failures | Medium | High | Keep the renderer visible under secondary tabs, persist bounded action/lifecycle breadcrumbs and uncaught JVM traces, then reproduce and inspect the target-device report | Open — mitigation and diagnostics built; physical-device crash cause not yet confirmed |
+
 ## Release gates
 
 - No financial or import-integrity requirement is marked complete until its focused tests execute successfully.

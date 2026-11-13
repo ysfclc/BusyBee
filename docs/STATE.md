@@ -10,7 +10,7 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 | Area | State | Notes |
 |---|---|---|
 | Product charter / architecture | ✅ baseline | Product direction, source register and ADR-001–008 are committed |
-| Android application shell | 🟡 stability fix built; device validation pending | Stable package ID; persistent MapLibre screen host prevents reparenting during tab navigation; real-device click test still required |
+| Android application shell | 🟡 revised MapLibre hosting + on-device crash diagnostics built; physical-device validation pending | The map remains visible beneath secondary tabs to avoid renderer visibility transitions; diagnostics preserve recent action/lifecycle breadcrumbs and uncaught JVM exceptions; physical-device crash still unconfirmed |
 | Spatial map / routing | 🟡 partial | Tilted Liberty vector map, mapped road observations, weather context and OSRM alternatives; not a complete multi-source live traffic aggregator |
 | Driver Data Mirror import | 🟡 partial | CSV rejects duplicate/empty headers, missing required values and extra cells; omitted trailing optional fields stay unknown; provider-specific exports and statement reconciliation are unvalidated |
 | Mirror evidence / deduplication | 🟡 partial; tests verified | Store-level Robolectric tests pass for duplicate suppression, raw evidence retention, import counts and rollback; provider correction and migration behaviour remain open |
@@ -20,7 +20,7 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 | Driver Hub | 🟡 partial | Documents, reminders, recurrence, expense/contact and WhatsApp TXT import/search surfaces |
 | Source catalogue | 🟡 partial | Honest access/status catalogue; broad connector framework and live feed-health are not complete |
 | Rust domain core | 🟡 partial | Road-event model, TTL logic and JNI version bridge; canonical fusion engine is not implemented |
-| CI / APK | 🟡 Vercel Sandbox build verified; static deployment pending | Prior build: Android 31 tests. Crash/brand fix build: 2 tab-host regression tests added; Rust 4/4, Android suite and debug APK assembly passed on Vercel Sandbox. Standard Vercel deployment remains pending |
+| CI / APK | 🟡 Vercel Sandbox build verified; static deployment pending | Diagnostic build at `22cf953665f747461be22e8ea66540885aa7ae30`: Rust 4/4, Android 35/35 (0 failures/errors/skips), debug APK assembly and v2 signature verification passed. APK SHA-256 `d93f077a2e1bef082918eb9d41b604493eb4c1751f95ac6ee29b6b778d5f2c3e`; external build metadata endpoint returned successfully. Physical tap validation and stable Vercel deployment remain pending |
 | Release signing | ⚪ pending | Persistent release keystore secrets were not configured in the last documented successful build |
 
 ## 3. Currently in flight
@@ -28,6 +28,8 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 - R-DM-005 — trip-only headline earnings. Implementation and 5 focused tests are on branch `fix/trip-only-earnings-2026-11-12`; PR #3 is open and unmerged: https://github.com/ysfclc/BusyBee/pull/3. The Vercel Sandbox build passed the Rust and Android test suites and assembled a debug APK; PR remains open for review.
 - R-DM-001 / CSV integrity — parser hardening and locale-independent normalisation plus Robolectric-backed SQLite tests are on branch `feature/mirror-store-integrity-tests-2026-11-12`, in draft PR #4 (https://github.com/ysfclc/BusyBee/pull/4), based on PR #3. Tests cover malformed CSV rejection, duplicate suppression, evidence retention, import counts and rollback. The complete suite passed on the Vercel Sandbox build (31 Android tests; 4 Rust tests); PR remains open for review.
 - Vercel APK delivery — branch `feat/vercel-apk-builder-2026-11-12`, draft PR #5 (https://github.com/ysfclc/BusyBee/pull/5), based on PR #4. Dedicated Vercel Hobby project `busybee-apk` is linked to `ysfclc/BusyBee`; a Vercel Sandbox build succeeded at commit `d45aa55491757d4f1155c7d9ce441aa97254187b`. Debug APK SHA-256 `77f74c552077ce5e17b06f3bb829e90c4de2b42426ee8eaa7ca3ebfb46d66f06`, 48,877,022 bytes. The standard static deployment remains blocked by the Vercel daily deployment-creation limit; a temporary Sandbox route is serving the APK.
+
+- MapLibre device-crash investigation — branch `fix/capture-device-crash-2026-11-13`, draft PR #7 (https://github.com/ysfclc/BusyBee/pull/7), stacked on PR #6. MapLibre remains visible under secondary tabs rather than switching to `GONE`; a DIAG control exports the last 48 action/lifecycle breadcrumbs and any uncaught JVM stack trace without recording trip content. Vercel Sandbox verification: Rust 4/4, Android 35/35, APK assembly and v2 debug signature passed. Physical-device confirmation remains open.
 
 ## 4. Known gaps & stubs
 
@@ -72,6 +74,15 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 - **Review:** Draft PR #6: https://github.com/ysfclc/BusyBee/pull/6 (stacked on PR #5; keep open for review).
 - **Not done:** Physical-device tap sequence and crash reproduction/confirmation; production release signing; persistent Vercel download deployment; legal trademark/domain clearance.
 - **Next:** Install the new APK, repeatedly switch all five tabs, toggle 3D, use layer chips, refresh and locate. If any crash remains, collect the exact Android crash log and fix that specific path.
+
+## 6. Session handoff — 2026-11-13 (device-crash follow-up)
+
+- **Done:** Changed `TabScreenHost` so the MapLibre screen remains visible and attached beneath secondary tab screens. This avoids hiding/showing the native renderer surface during tab selection. Added a persistent on-device diagnostic trail (last 48 UI/lifecycle action labels) and uncaught JVM exception report, accessible through the `DIAG` header control.
+- **Privacy:** Diagnostics store action names, timestamps, Android/device model, app version and JVM stack traces only. They do not capture route destinations, imported text, earnings or trip rows. The user explicitly copies the report to the clipboard.
+- **Verified:** Vercel Sandbox: Rust 4/4; Android 35/35 (0 failures, errors or skipped); `assembleDebug` successful; APK Signature Scheme v2 verified. APK: 48,879,532 bytes, SHA-256 `d93f077a2e1bef082918eb9d41b604493eb4c1751f95ac6ee29b6b778d5f2c3e`. Build metadata: version `0.1.1794536823-debug`, package `com.ysfclc.busybee.drivercommandcentre.debug`. External build-info URL returned the expected metadata for the exact commit.
+- **Review:** Draft PR #7: https://github.com/ysfclc/BusyBee/pull/7 (stacked on PR #6; keep open).
+- **Not done:** The crash has not been reproduced on the user's physical Android device. The diagnostics can capture JVM crashes and breadcrumbs but cannot directly catch every native SIGSEGV/OS kill. A stable Vercel download deployment and release signing remain pending.
+- **Next:** Install this APK over the previous debug build, reproduce the close once, relaunch, tap `DIAG` in the header, and paste the copied report. If it is a native renderer failure, the last recorded action/lifecycle markers will narrow it down even when Android produced no JVM stack trace.
 
 ## 7. Open questions for the human
 

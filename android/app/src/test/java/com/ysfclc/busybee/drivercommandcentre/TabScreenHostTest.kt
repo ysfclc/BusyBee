@@ -23,7 +23,7 @@ class TabScreenHostTest {
         host.show(offersScreen)
 
         assertSame(container, mapScreen.parent)
-        assertEquals(View.GONE, mapScreen.visibility)
+        assertEquals(View.VISIBLE, mapScreen.visibility)
         assertSame(container, offersScreen.parent)
 
         host.showMap()
@@ -43,7 +43,7 @@ class TabScreenHostTest {
         repeat(12) { index ->
             host.show(TextView(context).apply { text = "Tab $index" })
             assertSame(container, mapScreen.parent)
-            assertEquals(View.GONE, mapScreen.visibility)
+            assertEquals(View.VISIBLE, mapScreen.visibility)
             assertEquals(2, container.childCount)
         }
 

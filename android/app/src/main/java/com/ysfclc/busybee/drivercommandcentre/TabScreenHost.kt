@@ -21,6 +21,7 @@ internal class TabScreenHost(
 
     fun showMap() {
         removeSecondaryScreen()
+        // Keep the native MapLibre surface visible; removing visibility can recreate its GL surface on some devices.
         mapScreen.visibility = View.VISIBLE
         mapScreen.bringToFront()
     }
@@ -28,7 +29,8 @@ internal class TabScreenHost(
     fun show(screen: View) {
         require(screen !== mapScreen) { "Use showMap() for the persistent map screen" }
         removeSecondaryScreen()
-        mapScreen.visibility = View.GONE
+        // Leave MapLibre visible underneath the selected tab. The secondary screen is drawn above it.
+        mapScreen.visibility = View.VISIBLE
         val parent = screen.parent
         if (parent is ViewGroup) parent.removeView(screen)
         check(screen.parent == null) { "Screen is already attached to a non-removable parent" }
