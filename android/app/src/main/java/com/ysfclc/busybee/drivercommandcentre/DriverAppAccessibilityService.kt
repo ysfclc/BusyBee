@@ -81,13 +81,10 @@ class DriverAppAccessibilityService : AccessibilityService() {
             if (!visited.add(node)) continue
             count++
 
-            if (node.isVisibleToUser && !node.isPassword) {
-                // Avoid reading user-entered search/address text from editable fields.
-                val className = node.className?.toString().orEmpty()
-                if (!className.endsWith("EditText", ignoreCase = true)) {
-                    node.text?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let(lines::add)
-                    node.contentDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let(lines::add)
-                }
+            if (node.isVisibleToUser && !node.isPassword && !node.isEditable) {
+                // Do not ingest user-entered search, address, chat or form fields.
+                node.text?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let(lines::add)
+                node.contentDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let(lines::add)
             }
 
             for (index in 0 until node.childCount) {
