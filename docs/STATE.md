@@ -245,3 +245,8 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - **Documentation:** BB-009 added to the risk register and stabilization plan.
 - **Verification:** GitHub source read-back/static inspection only. The package IDs still need confirmation on the target phone; no Android compile/test or APK build has run.
 - **Product limitation:** This is notification capture, not authenticated account integration or ride-action control. Structured parsing and official APIs remain separate work.
+
+## Session handoff — 2026-11-13 (Android driver-app package visibility)
+
+- **Changed:** Added manifest `<queries>` entries for the exact Uber Driver and Bolt Driver packages so Android 11+ package visibility does not hide them from BusyBee's launch-intent lookup.
+- **Verified:** Manifest source read-back only. No APK build, merged-manifest inspection or physical-device handoff test is available.
