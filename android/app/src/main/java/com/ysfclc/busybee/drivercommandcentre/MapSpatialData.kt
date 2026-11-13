@@ -50,6 +50,10 @@ internal object MapPlaceLookup {
             "way(around:$radius,$lat,$lon)[\"building\"][\"name:pl\"];" +
             "way(around:$radius,$lat,$lon)[\"building\"][\"official_name\"];" +
             "way(around:$radius,$lat,$lon)[\"building\"][\"addr:housenumber\"];" +
+            "relation(around:$radius,$lat,$lon)[\"building\"][\"name\"];" +
+            "relation(around:$radius,$lat,$lon)[\"building\"][\"name:pl\"];" +
+            "relation(around:$radius,$lat,$lon)[\"building\"][\"official_name\"];" +
+            "relation(around:$radius,$lat,$lon)[\"building\"][\"addr:housenumber\"];" +
             "node(around:$radius,$lat,$lon)[\"entrance\"];" +
             "node(around:$radius,$lat,$lon)[\"door\"];" +
             ");out center tags;"
@@ -102,7 +106,7 @@ internal object MapPlaceLookup {
                 latitude !in -90.0..90.0 || longitude !in -180.0..180.0
             ) continue
 
-            if (type == "way" && tags.has("building")) {
+            if ((type == "way" || type == "relation") && tags.has("building")) {
                 val name = tags.optString("name:pl").trim().ifBlank { tags.optString("name").trim() }.ifBlank { tags.optString("official_name").trim() }
                 val street = tags.optString("addr:street").trim()
                 val number = tags.optString("addr:housenumber").trim()
@@ -115,7 +119,7 @@ internal object MapPlaceLookup {
                     tags.optString("building:levels").takeIf { it.isNotBlank() }?.let { add("$it floors mapped") }
                     tags.optString("height").takeIf { it.isNotBlank() }?.let { add("Mapped height $it") }
                 }.joinToString(" · ")
-                output += MapPlaceFeature("way/$id", MapPlaceKind.BUILDING, LatLng(latitude, longitude), label, detail)
+                output += MapPlaceFeature("$type/$id", MapPlaceKind.BUILDING, LatLng(latitude, longitude), label, detail)
             } else if (type == "node" && (tags.has("entrance") || tags.has("door"))) {
                 val entrance = tags.optString("entrance").ifBlank { tags.optString("door") }
                 val name = tags.optString("name:pl").trim().ifBlank { tags.optString("name").trim() }.ifBlank { tags.optString("official_name").trim() }
