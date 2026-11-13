@@ -193,3 +193,14 @@ The next narrow stabilization change should separate “style is ready” from �
 - **Regression tests authored:** `NotificationFingerprintTest` covers idempotent reposts, repeated identical text at different times, changed body and platform identity.
 - **Verification:** Source change and test file committed to PR #8 branch; read-back and test execution still pending. This is a targeted source correction, not a claim that notification ingestion is device-verified.
 - **Remaining validation:** Verify Android's postTime behaviour for app updates/reposts on the target device; check notifications from actual Uber/Bolt versions; test service reconnects and ensure no duplicate burst. Add a visible captured-offer counter or acknowledgement only after the event reaches persistent storage.
+
+
+## BB-009 — Passenger and lookalike apps could be misclassified as driver apps
+
+- **Severity:** Medium — integration source correctness.
+- **Reproduction from source:** A notification from any installed package containing `uber`, `bolt`, `taxify`, `freenow`, `mytaxi`, `itaxi`, `cabify` or `lyft` could be captured and labelled as a driver-platform notification.
+- **Expected:** Exact package allowlist only; a passenger app or unrelated package must not enter the driver offer feed. Unverified providers remain explicitly marked as not integrated.
+- **Actual before fix:** Substring matching could misattribute notifications from passenger or adjacent apps.
+- **Source correction:** Added `RidePlatformPackages.platformFor()` with exact IDs `com.ubercab.driver` and `ee.mtakso.driver`, based on package IDs already used by the app's explicit launch handoff. Listener now ignores every other package. Sources UI lists only Uber Driver and Bolt Driver as notification sources.
+- **Regression tests authored:** `RidePlatformPackagesTest` has five tests for supported driver IDs, case-insensitivity, passenger/lookalike packages and unverified providers.
+- **Verification:** Source and tests are committed to PR #8; compilation, test execution and installed-app package verification remain pending.
