@@ -195,3 +195,6 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - **Verified:** Source files and docs have been read from GitHub after the changes; static checks confirm map/style/TTS callbacks are guarded and location updates are gated on RESUMED. **Tests and compilation have not run.**
 - **Not done:** No physical-device test; no root cause assigned to BB-001/BB-002; MapLibre native renderer behavior remains unverified.
 - **Risks/landmines:** Lifecycle dispatcher tests validate Activity liveness policy, not MapLibre internals. The original user-reported IllegalStateException still requires DIAG LAST ACTION FAILURE or logcat and a target-device reproduction.
+
+
+- **Runner update:** GitHub Actions run 112 (43424684264), triggered by the latest GPS lifecycle source commit, also failed before any job steps were exposed (steps=null; no job log URL). No compile/test command ran. The Vercel sandbox remains stopped; its previous resume attempt was blocked by HTTP 402. No repeated resume attempt or billing change was made.
