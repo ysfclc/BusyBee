@@ -312,3 +312,11 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 
 - **Changed:** Added manifest `<queries>` entries for the exact Uber Driver and Bolt Driver packages so Android 11+ package visibility does not hide them from BusyBee's launch-intent lookup.
 - **Verified:** Manifest source read-back only. No APK build, merged-manifest inspection or physical-device handoff test is available.
+
+
+## 2026-11-14 — Android validation host blocked
+
+- Rechecked GitHub Actions after the docs-only commit: workflow run #303 (43527858180) failed before runner allocation; job 132237961320 had no steps or logs. No Android command ran.
+- Found the existing persistent Vercel sandbox busybee-android-build in the linked busybee-apk project. Resume was attempted; Vercel returned HTTP 402 payment_required because the team's Hobby usage limit is exceeded until 2026-12-01 00:00 UTC. No plan or billing changes were made.
+- Local execution environment has no /testbed checkout, Gradle executable or Android SDK. There is no available build runner in this session.
+- Evidence is recorded in docs/CI_RETRY_CHECKPOINT_2026-11-14.md. PR #9 remains draft/unmerged. Android compile, tests, APK/signature/hash and target-device validation remain outstanding. Resume by restoring an authorised build runner, then test the exact PR head; do not infer success from source inspection.
