@@ -2,6 +2,8 @@ package com.ysfclc.busybee.drivercommandcentre
 
 import android.Manifest
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -89,6 +91,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashDiagnostics.install(this)
+        CrashDiagnostics.record(this, "activity:onCreate")
         commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
         locationManager=getSystemService(LOCATION_SERVICE) as LocationManager
         MapLibre.getInstance(this)
@@ -105,8 +109,10 @@ class MainActivity : AppCompatActivity() {
         screenHost=TabScreenHost(content,buildMapScreen())
         showTab("MAP")
         mapView.getMapAsync { instance ->
+            CrashDiagnostics.record(this,"map:ready")
             map=instance
             instance.setStyle(Style.Builder().fromUri(OPENFREE_MAP_STYLE)) {
+                CrashDiagnostics.record(this,"map:style-loaded")
                 instance.cameraPosition=CameraPosition.Builder().target(KRAKOW).zoom(15.0).tilt(48.0).build()
                 mapStatus?.text="● MAP ONLINE";refreshRoadIntelligence()
             }
@@ -119,6 +125,20 @@ class MainActivity : AppCompatActivity() {
         row.addView(label("BUSYBEE",21f,WHITE,true).apply{letterSpacing=.12f})
         row.addView(View(this),LinearLayout.LayoutParams(0,1,1f))
         row.addView(label("DRIVER COMMAND CENTRE",9f,MINT,true))
+        val diagnostics=label("DIAG",8f,AMBER,true).apply {
+            gravity=Gravity.CENTER
+            setPadding(dp(8),dp(6),dp(8),dp(6))
+            background=rounded(CARD,8)
+            setOnClickListener {
+                safeUiAction("copy diagnostics") {
+                    CrashDiagnostics.record(this@MainActivity,"diagnostics:copy")
+                    val clipboard=getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("BusyBee diagnostics",CrashDiagnostics.snapshot(this@MainActivity)))
+                    Toast.makeText(this@MainActivity,"Diagnostics copied. Paste the report into the chat.",Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        row.addView(diagnostics,LinearLayout.LayoutParams(-2,dp(30)).apply{marginStart=dp(8)})
         box.addView(row)
         box.addView(label("ROAD INTELLIGENCE  ·  OFFER DESK  ·  DRIVER LIFE",9f,MUTED,true).apply{setPadding(0,dp(3),0,0);letterSpacing=.06f})
         return box
@@ -133,6 +153,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTab(tab:String) {
+        CrashDiagnostics.record(this,"tab:$tab")
         navButtons.forEach{(key,b)->b.setTextColor(if(key==tab)MINT else MUTED);b.background=rounded(if(key==tab)0xFF1B343B.toInt() else Color.TRANSPARENT,11)}
         if(tab=="MAP") {
             screenHost.showMap()
@@ -638,9 +659,12 @@ class MainActivity : AppCompatActivity() {
     private fun action(title:String,primary:Boolean,onClick:()->Unit)=TextView(this).apply{text=title;gravity=Gravity.CENTER;textSize=9f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.02f;setTextColor(if(primary)BG else WHITE);background=rounded(if(primary)MINT else 0xFF263B46.toInt(),11);setOnClickListener{safeUiAction(title){onClick()}}}
     private fun safeUiAction(actionName:String, action:()->Unit) {
         if(isFinishing || isDestroyed) return
+        CrashDiagnostics.record(this,"tap:start:$actionName")
         try {
             action()
+            CrashDiagnostics.record(this,"tap:complete:$actionName")
         } catch(error:Exception) {
+            CrashDiagnostics.record(this,"tap:exception:$actionName:${error::class.java.simpleName}")
             Log.e("BusyBee", "UI action failed: $actionName", error)
             Toast.makeText(this,"Couldn't complete that action. Please try again.",Toast.LENGTH_LONG).show()
         }
@@ -657,13 +681,13 @@ class MainActivity : AppCompatActivity() {
     private fun parseDate(s:String):Long?=try{SimpleDateFormat("yyyy-MM-dd",Locale.US).apply{isLenient=false}.parse(s)?.time}catch(_:Exception){null}
 
     override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(requestCode==LOCATION_REQUEST&&grantResults.any{it==PackageManager.PERMISSION_GRANTED})requestLocation()}
-    override fun onStart(){super.onStart();mapView.onStart()}
-    override fun onResume(){super.onResume();mapView.onResume()}
-    override fun onPause(){try{locationManager.removeUpdates(locationListener)}catch(_:Exception){};mapView.onPause();super.onPause()}
-    override fun onStop(){mapView.onStop();super.onStop()}
+    override fun onStart(){CrashDiagnostics.record(this,"lifecycle:onStart");super.onStart();mapView.onStart()}
+    override fun onResume(){CrashDiagnostics.record(this,"lifecycle:onResume");super.onResume();mapView.onResume()}
+    override fun onPause(){CrashDiagnostics.record(this,"lifecycle:onPause");try{locationManager.removeUpdates(locationListener)}catch(_:Exception){};mapView.onPause();super.onPause()}
+    override fun onStop(){CrashDiagnostics.record(this,"lifecycle:onStop");mapView.onStop();super.onStop()}
     override fun onLowMemory(){super.onLowMemory();mapView.onLowMemory()}
     override fun onSaveInstanceState(outState:Bundle){super.onSaveInstanceState(outState);mapView.onSaveInstanceState(outState)}
-    override fun onDestroy(){worker.shutdownNow();mapView.onDestroy();super.onDestroy()}
+    override fun onDestroy(){CrashDiagnostics.record(this,"lifecycle:onDestroy");worker.shutdownNow();mapView.onDestroy();super.onDestroy()}
 
     companion object{
         private const val LOCATION_REQUEST=731
