@@ -42,7 +42,10 @@ data class NativeDriverObservation(
     val visibleText: String,
     val detectedAmount: Double?,
     val distanceKm: Double?,
-    val durationMinutes: Double?
+    val durationMinutes: Double?,
+    val sourceType: String = "MEDIA_PROJECTION_OCR",
+    val pickup: String? = null,
+    val dropoff: String? = null
 )
 
 data class ParsedDriverScreen(
@@ -52,7 +55,10 @@ data class ParsedDriverScreen(
     val visibleText: String,
     val detectedAmount: Double?,
     val distanceKm: Double?,
-    val durationMinutes: Double?
+    val durationMinutes: Double?,
+    val sourceType: String = "MEDIA_PROJECTION_OCR",
+    val pickup: String? = null,
+    val dropoff: String? = null
 )
 
 object DriverScreenTextParser {
@@ -62,13 +68,27 @@ object DriverScreenTextParser {
     )
     private val distancePattern = Regex("""([0-9]+(?:[,.][0-9]+)?)\s*(?:km|kilomet(?:er|re)s?)""", RegexOption.IGNORE_CASE)
     private val durationPattern = Regex("""([0-9]+)\s*(?:min|minutes?)""", RegexOption.IGNORE_CASE)
+    private val pickupLabelPattern = Regex(
+        """^(?:pickup(?:\s+(?:address|location))?|pick[\s-]?up|miejsce\s+odbioru|odbiór)(?:\s*[:：\-–]\s*|\s+)?(.*)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val dropoffLabelPattern = Regex(
+        """^(?:drop[\s-]?off(?:\s+(?:address|location))?|destination(?:\s+address)?|miejsce\s+docelowe|cel\s+podróży)(?:\s*[:：\-–]\s*|\s+)?(.*)$""",
+        RegexOption.IGNORE_CASE
+    )
 
-    fun parse(platform: String, text: String, capturedAt: Long): ParsedDriverScreen? {
-        val visibleText = text.lineSequence()
+    fun parse(
+        platform: String,
+        text: String,
+        capturedAt: Long,
+        sourceType: String = "MEDIA_PROJECTION_OCR"
+    ): ParsedDriverScreen? {
+        val lines = text.lineSequence()
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .joinToString("\n")
-            .take(5000)
+            .take(160)
+            .toList()
+        val visibleText = lines.joinToString("\n").take(5000)
         if (visibleText.length < 12) return null
 
         val lower = visibleText.lowercase(Locale.ROOT)
@@ -94,6 +114,9 @@ object DriverScreenTextParser {
             listOf("trip complete", "ride complete", "completed trip", "trip details", "zakończono przejazd", "przejazd zakończony", "ukończono kurs").any(lower::contains) -> "TRIP"
             else -> "DRIVER SCREEN"
         }
+
+        val pickup = extractLabelledLocation(lines, pickupLabelPattern)
+        val dropoff = extractLabelledLocation(lines, dropoffLabelPattern)
         return ParsedDriverScreen(
             platform = platform,
             screenType = screenType,
@@ -101,13 +124,39 @@ object DriverScreenTextParser {
             visibleText = visibleText,
             detectedAmount = amount,
             distanceKm = distance,
-            durationMinutes = duration
+            durationMinutes = duration,
+            sourceType = sourceType,
+            pickup = pickup,
+            dropoff = dropoff
         )
+    }
+
+    private fun extractLabelledLocation(lines: List<String>, pattern: Regex): String? {
+        for (index in lines.indices) {
+            val match = pattern.find(lines[index]) ?: continue
+            var value = match.groupValues.getOrNull(1).orEmpty().trim()
+            if (value.isBlank()) {
+                value = lines.drop(index + 1).firstOrNull { candidate ->
+                    candidate.isNotBlank() &&
+                        !pickupLabelPattern.containsMatchIn(candidate) &&
+                        !dropoffLabelPattern.containsMatchIn(candidate)
+                }.orEmpty()
+            }
+            val cleaned = value
+                .replace(Regex("\\s+"), " ")
+                .trim(' ', ':', '-', '–', '—', '·')
+                .take(180)
+            if (cleaned.length < 3) continue
+            if (Regex("""^(?:in\\s+)?[0-9]+(?:[,.][0-9]+)?\\s*(?:m|min|mins|minutes?|km)$""",RegexOption.IGNORE_CASE).matches(cleaned)) continue
+            if (cleaned.lowercase(Locale.ROOT) in setOf("accept","navigate","cancel","complete","dropoff","pickup","destination")) continue
+            return cleaned
+        }
+        return null
     }
 }
 
 class DriverAppCaptureStore(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "busybee_native_app_capture.db", null, 1) {
+    SQLiteOpenHelper(context.applicationContext, "busybee_native_app_capture.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -120,13 +169,22 @@ class DriverAppCaptureStore(context: Context) :
                 visible_text TEXT NOT NULL,
                 detected_amount REAL,
                 distance_km REAL,
-                duration_minutes REAL
+                duration_minutes REAL,
+                source_type TEXT NOT NULL DEFAULT 'MEDIA_PROJECTION_OCR',
+                pickup TEXT,
+                dropoff TEXT
             )""".trimIndent()
         )
         db.execSQL("CREATE INDEX observations_time_idx ON observations(captured_at DESC)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE observations ADD COLUMN source_type TEXT NOT NULL DEFAULT 'MEDIA_PROJECTION_OCR'")
+            db.execSQL("ALTER TABLE observations ADD COLUMN pickup TEXT")
+            db.execSQL("ALTER TABLE observations ADD COLUMN dropoff TEXT")
+        }
+    }
 
     @Synchronized
     fun save(observation: ParsedDriverScreen): Long {
@@ -144,6 +202,9 @@ class DriverAppCaptureStore(context: Context) :
             put("screen_type", observation.screenType)
             put("captured_at", observation.capturedAt)
             put("visible_text", observation.visibleText)
+            put("source_type", observation.sourceType)
+            if (observation.pickup == null) putNull("pickup") else put("pickup", observation.pickup)
+            if (observation.dropoff == null) putNull("dropoff") else put("dropoff", observation.dropoff)
             if (observation.detectedAmount == null) putNull("detected_amount") else put("detected_amount", observation.detectedAmount)
             if (observation.distanceKm == null) putNull("distance_km") else put("distance_km", observation.distanceKm)
             if (observation.durationMinutes == null) putNull("duration_minutes") else put("duration_minutes", observation.durationMinutes)
@@ -156,7 +217,7 @@ class DriverAppCaptureStore(context: Context) :
     fun recent(limit: Int = 30): List<NativeDriverObservation> {
         val result = mutableListOf<NativeDriverObservation>()
         readableDatabase.rawQuery(
-            """SELECT id,platform,screen_type,captured_at,visible_text,detected_amount,distance_km,duration_minutes
+            """SELECT id,platform,screen_type,captured_at,visible_text,detected_amount,distance_km,duration_minutes,source_type,pickup,dropoff
                FROM observations ORDER BY captured_at DESC,id DESC LIMIT ?""".trimIndent(),
             arrayOf(limit.coerceIn(1, 200).toString())
         ).use { cursor ->
@@ -170,7 +231,10 @@ class DriverAppCaptureStore(context: Context) :
                         visibleText = cursor.getString(4),
                         detectedAmount = if (cursor.isNull(5)) null else cursor.getDouble(5),
                         distanceKm = if (cursor.isNull(6)) null else cursor.getDouble(6),
-                        durationMinutes = if (cursor.isNull(7)) null else cursor.getDouble(7)
+                        durationMinutes = if (cursor.isNull(7)) null else cursor.getDouble(7),
+                        sourceType = cursor.getString(8),
+                        pickup = if (cursor.isNull(9)) null else cursor.getString(9),
+                        dropoff = if (cursor.isNull(10)) null else cursor.getString(10)
                     )
                 )
             }
