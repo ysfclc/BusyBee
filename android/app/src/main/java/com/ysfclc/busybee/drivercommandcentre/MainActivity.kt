@@ -837,20 +837,11 @@ class MainActivity : AppCompatActivity() {
      * variants retained only as fallbacks.
      */
     private fun applyLocalRoadLabels(style:Style) {
-        val roadName=if(Locale.getDefault().language=="pl") {
-            Expression.coalesce(
-                Expression.get("name:pl"),
-                Expression.get("name"),
-                Expression.get("name:latin"),
-                Expression.get("name_en")
-            )
-        } else {
-            Expression.coalesce(
-                Expression.get("name"),
-                Expression.get("name:latin"),
-                Expression.get("name_en")
-            )
-        }
+        val roadName=Expression.coalesce(
+            *RoadNamePolicy.fields(Locale.getDefault().language)
+                .map { Expression.get(it) }
+                .toTypedArray()
+        )
         listOf("highway-name-minor","highway-name-major","highway-name-path","highway_name_other").forEach { id ->
             val layer=style.getLayer(id) as? SymbolLayer ?: return@forEach
             layer.setProperties(PropertyFactory.textField(roadName))
