@@ -72,6 +72,21 @@ Record each action, expected result, actual result, timestamp and stack/breadcru
 - Record test command, exact source commit, test totals, APK checksum and device results.
 - No fixed status until the corresponding target-device check passes.
 
+## Source-review update — asynchronous callback risk (2026-11-13)
+
+A read-only inspection of `MainActivity.kt` at `ea654235a127e189757dd2b912d6ed040815fe9c` found these concrete worker-to-main-thread paths:
+
+| Flow | Worker operation | Main-thread callback | Unprotected Activity-owned work |
+|---|---|---|---|
+| Destination search | `planRoute()` | approx. lines 287–291 and 328+ | Updates route/map labels; may show destination chooser |
+| Route alternatives | nested in `planRoute()` | approx. lines 295–313 | Updates labels; may show route chooser |
+| Off-route reroute | `updateNavigation()` | approx. lines 464–479 | Reads navigation state, updates views, calls `displayRoute()`, speaks |
+| Road/weather refresh | `refreshRoadIntelligence()` | approx. lines 504–508 | Updates labels, adds/removes map annotations, displays Toast |
+
+The callbacks are posted with `runOnUiThread`; they do not all check `isFinishing`/`isDestroyed` before touching Activity-owned state or showing UI. `onDestroy()` calls `worker.shutdownNow()`, but already-posted main-thread callbacks are not withdrawn by executor shutdown. `displayRoute()` has its own liveness guard, but that does not cover the rest of each callback.
+
+**Assessment:** confirmed source-level lifecycle-safety gap; actual crash/reproduction and relation to BB-002 remain unknown. This is not a diagnosis of the reported IllegalStateException. No code patch is authorised until the exact device failure is captured. Next verification should deliberately interrupt each network operation while it is in flight and inspect the resulting DIAG/logcat evidence. A future fix must guard the complete callback body and include lifecycle regression coverage.
+
 ## Working-baseline acceptance criteria
 
 All must pass:
