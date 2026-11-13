@@ -36,7 +36,12 @@ class DriverAppAccessibilityService : AccessibilityService() {
         val visibleText = collectVisibleText(root)
         if (visibleText.length < MIN_TEXT_LENGTH) return
 
-        val parsed = DriverScreenTextParser.parse(platform, visibleText, now) ?: return
+        val parsed = DriverScreenTextParser.parse(
+            platform = platform,
+            text = visibleText,
+            capturedAt = now,
+            sourceType = "ACCESSIBILITY_UI"
+        ) ?: return
         val fingerprint = sha256(platform + "\u0000" + parsed.screenType + "\u0000" + parsed.visibleText)
         if (fingerprint == lastSnapshotFingerprintByPackage[packageName] &&
             now - (lastSnapshotAtByPackage[packageName] ?: 0L) < DUPLICATE_WINDOW_MS
