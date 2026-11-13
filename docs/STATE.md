@@ -209,3 +209,6 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - No APK has been built from current PR head. Do not install/share the historical APK as though it contains the latest lifecycle changes.
 - New source-review finding: MapLibre style-loaded callback can mutate MapView while Activity is paused; record as BB-007 in RISKS.md. Narrow correction is pending build-capable verification.
 - BB-001 and BB-002 remain open; original IllegalStateException root cause is still unknown.
+
+
+- Follow-up CI run #118 (`43432885303`) for the updated PR head also failed before job steps were allocated (`131910538716`, `steps: null`). No Gradle or APK task ran.
