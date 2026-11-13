@@ -1,16 +1,16 @@
 # State Ledger
-_Last updated: 2026-11-12 by ChatGPT — session 4_
+_Last updated: 2026-11-13 by ChatGPT — map crash and brand pass_
 
 ## 1. Product snapshot
 
-BusyBee is the control and delivery repository for Driver Command Centre, an Android-native driver-intelligence product piloting in Kraków. It combines a private, local-first Driver Data Mirror for cross-platform activity and economics with a provider-neutral road-intelligence and navigation experience. The map is a spatial interface to those capabilities, not the product by itself. Kotlin owns Android UI and platform integration; Rust is the deterministic domain core. Completeness means evidence-backed records, honest source coverage, safe driver-facing UX, and end-to-end tested capabilities—not a populated demo map.
+BusyBee is the product brand for Driver Command Centre, an Android-native driver-intelligence product piloting in Kraków. Brand v0.1 now includes an original adaptive Android launcher mark and a documented navy/mint/amber visual system (`docs/BRAND.md`). It combines a private, local-first Driver Data Mirror for cross-platform activity and economics with a provider-neutral road-intelligence and navigation experience. The map is a spatial interface to those capabilities, not the product by itself. Kotlin owns Android UI and platform integration; Rust is the deterministic domain core. Completeness means evidence-backed records, honest source coverage, safe driver-facing UX, and end-to-end tested capabilities—not a populated demo map.
 
 ## 2. Status board
 
 | Area | State | Notes |
 |---|---|---|
 | Product charter / architecture | ✅ baseline | Product direction, source register and ADR-001–008 are committed |
-| Android application shell | ✅ baseline | Stable package ID; Kotlin app and MapLibre integration |
+| Android application shell | 🟡 stability fix built; device validation pending | Stable package ID; persistent MapLibre screen host prevents reparenting during tab navigation; real-device click test still required |
 | Spatial map / routing | 🟡 partial | Tilted Liberty vector map, mapped road observations, weather context and OSRM alternatives; not a complete multi-source live traffic aggregator |
 | Driver Data Mirror import | 🟡 partial | CSV rejects duplicate/empty headers, missing required values and extra cells; omitted trailing optional fields stay unknown; provider-specific exports and statement reconciliation are unvalidated |
 | Mirror evidence / deduplication | 🟡 partial; tests verified | Store-level Robolectric tests pass for duplicate suppression, raw evidence retention, import counts and rollback; provider correction and migration behaviour remain open |
@@ -20,7 +20,7 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 | Driver Hub | 🟡 partial | Documents, reminders, recurrence, expense/contact and WhatsApp TXT import/search surfaces |
 | Source catalogue | 🟡 partial | Honest access/status catalogue; broad connector framework and live feed-health are not complete |
 | Rust domain core | 🟡 partial | Road-event model, TTL logic and JNI version bridge; canonical fusion engine is not implemented |
-| CI / APK | 🟡 Vercel Sandbox build verified; static deployment pending | Rust tests 4/4 and Android unit tests 31/31 passed; debug APK assembled, signature verified and served from the Vercel Sandbox route. Standard Vercel deployment is rate-limited (>100 deployment API creations/day) and remains pending |
+| CI / APK | 🟡 Vercel Sandbox build verified; static deployment pending | Prior build: Android 31 tests. Crash/brand fix build: 2 tab-host regression tests added; Rust 4/4, Android suite and debug APK assembly passed on Vercel Sandbox. Standard Vercel deployment remains pending |
 | Release signing | ⚪ pending | Persistent release keystore secrets were not configured in the last documented successful build |
 
 ## 3. Currently in flight
@@ -62,6 +62,15 @@ BusyBee is the control and delivery repository for Driver Command Centre, an And
 4. Keep PR #3, #4 and #5 open for review; test execution is now verified on the Vercel Sandbox, but do not merge without review.
 3. Validate the generic CSV contract against a real user-owned Uber or Bolt export and implement only evidence-backed provider adapters.
 4. Resolve duplicate/correction semantics before claiming statement reconciliation; then choose one additional road-intelligence source for a provenance/freshness/failure-tested vertical slice.
+
+## 6. Session handoff — 2026-11-13
+
+- **Done:** Added `TabScreenHost`, which keeps the MapLibre screen attached to the Activity's `FrameLayout` while non-map tabs are displayed. Map selection restores visibility without reconstructing or reparenting the native map. The 3D control updates its own label/camera without rebuilding the screen. UI action entry points now log and surface recoverable exceptions rather than silently crashing through uncaught handler exceptions.
+- **Done:** Added two Robolectric regression tests proving the map view remains attached and screen children do not accumulate across repeated tab switches.
+- **Done:** Added BusyBee adaptive launcher icon resources and manifest icon/label references; documented the first working brand system in `docs/BRAND.md`. The icon is a vector bee with road-like bands, using the existing navy/mint palette plus amber.
+- **Verified:** Vercel Sandbox ran Rust workspace tests (4/4), Android `testDebugUnitTest` successfully, and `assembleDebug` successfully. Compiler emitted existing MapLibre deprecation warnings. Exact APK checksum/test count is recorded in this session's build metadata after the icon-enabled rebuild.
+- **Not done:** Physical-device tap sequence and crash reproduction/confirmation; production release signing; persistent Vercel download deployment; legal trademark/domain clearance.
+- **Next:** Install the new APK, repeatedly switch all five tabs, toggle 3D, use layer chips, refresh and locate. If any crash remains, collect the exact Android crash log and fix that specific path.
 
 ## 7. Open questions for the human
 
