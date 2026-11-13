@@ -877,7 +877,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateMapSummary() {
         val buildings=mapPlaces.count { it.kind==MapPlaceKind.BUILDING }
         val entrances=mapPlaces.count { it.kind==MapPlaceKind.ENTRANCE }
-        mapSummary?.text="${roadEvents.size} road observations · $buildings buildings · $entrances entrances"
+        mapSummary?.text="OSM · ${roadEvents.size} road reports · $buildings buildings · $entrances entrances"
     }
 
     private fun maybeRefreshMapPlaces(center:LatLng,force:Boolean=false) {
