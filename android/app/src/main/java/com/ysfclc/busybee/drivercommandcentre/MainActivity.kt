@@ -1,6 +1,7 @@
 package com.ysfclc.busybee.drivercommandcentre
 
 import android.Manifest
+import android.app.Activity
 import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -13,6 +14,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.net.Uri
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
@@ -62,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mapView:MapView
     private lateinit var content:FrameLayout
     private lateinit var screenHost:TabScreenHost
+    private lateinit var appHeader:View
     private var threeDButton:TextView?=null
     private lateinit var nav:LinearLayout
     private val worker=Executors.newFixedThreadPool(2)
@@ -95,6 +98,7 @@ class MainActivity : AppCompatActivity() {
     private var mapSummary:TextView?=null
     private var weatherSummary="Weather feed not checked"
     private var weatherText:TextView?=null
+    private var pendingCapturePlatform = "Uber"
     private val selectedLayers= mutableSetOf("Roadworks","Hazards","Driver reports")
     private val navButtons=mutableMapOf<String,TextView>()
     private val locationListener=object:LocationListener {
@@ -107,8 +111,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
     private val documentPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importDocument(uri)}
-    private val chatPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importCommunity(uri)}
-    private val csvPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importCsv(uri)}
+    private val nativeCaptureLauncher=registerForActivityResult(ActivityResultContracts.StartActivityForResult()){ result ->
+        val data = result.data
+        if(result.resultCode==Activity.RESULT_OK && data!=null) {
+            val serviceIntent=Intent(this,DriverAppCaptureService::class.java).apply {
+                action=DriverAppCaptureService.ACTION_START
+                putExtra(DriverAppCaptureService.EXTRA_RESULT_CODE,result.resultCode)
+                putExtra(DriverAppCaptureService.EXTRA_RESULT_DATA,data)
+                putExtra(DriverAppCaptureService.EXTRA_PLATFORM,pendingCapturePlatform)
+            }
+            try {
+                ContextCompat.startForegroundService(this,serviceIntent)
+                Toast.makeText(this,"Screen capture started. Switch to $pendingCapturePlatform Driver and open the screen you want BusyBee to read.",Toast.LENGTH_LONG).show()
+                openPlatform(pendingCapturePlatform)
+            } catch(error:Exception) {
+                Toast.makeText(this,"Could not start native capture: ${error.javaClass.simpleName}",Toast.LENGTH_LONG).show()
+            }
+        } else {
+            Toast.makeText(this,"Screen capture was not granted. Nothing was read.",Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
@@ -132,7 +154,8 @@ class MainActivity : AppCompatActivity() {
         window.statusBarColor=BG;window.navigationBarColor=BG
         mapView=MapView(this);mapView.onCreate(savedInstanceState)
         val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setBackgroundColor(BG)}
-        root.addView(buildHeader())
+        appHeader=buildHeader()
+        root.addView(appHeader)
         content=FrameLayout(this);root.addView(content,LinearLayout.LayoutParams(-1,0,1f))
         nav=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;setPadding(dp(7),dp(7),dp(7),dp(9));setBackgroundColor(PANEL)}
         root.addView(nav);setContentView(root)
@@ -206,8 +229,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun showTab(tab:String) {
         CrashDiagnostics.record(this,"tab:$tab")
+        val mapSelected = tab=="MAP"
+        appHeader.visibility = if(mapSelected) View.GONE else View.VISIBLE
+        nav.visibility = if(mapSelected) View.GONE else View.VISIBLE
         navButtons.forEach{(key,b)->b.setTextColor(if(key==tab)MINT else MUTED);b.background=rounded(if(key==tab)0xFF1B343B.toInt() else Color.TRANSPARENT,11)}
-        if(tab=="MAP") {
+        if(mapSelected) {
             screenHost.showMap()
             return
         }
@@ -220,72 +246,121 @@ class MainActivity : AppCompatActivity() {
         screenHost.show(view)
     }
 
-    private fun buildMapScreen():View {
-        val frame=FrameLayout(this);frame.addView(mapView,FrameLayout.LayoutParams(-1,-1))
-        val overlay=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(10),dp(12),dp(10))}
-        val top=card()
-        val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
-        mapStatus=label("● CONNECTING MAP",10f,MINT,true);row.addView(mapStatus)
-        row.addView(View(this),LinearLayout.LayoutParams(0,1,1f));row.addView(label("3D 42°",10f,WHITE,true))
-        top.addView(row)
-        mapSummary=label("Road intelligence loading · Kraków pilot",10f,MUTED,false).apply{setPadding(0,dp(5),0,0)}
-        top.addView(mapSummary)
-        val layerScroll=HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;setPadding(0,dp(9),0,0)}
-        val layerRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        listOf("Roadworks","Hazards","Driver reports").forEach{name->
-            val chip=label(name.uppercase(),9f,WHITE,true).apply{
-                gravity=Gravity.CENTER;setPadding(dp(11),dp(9),dp(11),dp(9))
-                background=rounded(if(selectedLayers.contains(name))MINT else 0xFF263B46.toInt(),12)
-                setTextColor(if(selectedLayers.contains(name))BG else WHITE)
-                setOnClickListener{safeUiAction("toggle $name layer"){if(!selectedLayers.add(name))selectedLayers.remove(name);setTextColor(if(selectedLayers.contains(name))BG else WHITE);background=rounded(if(selectedLayers.contains(name))MINT else 0xFF263B46.toInt(),12);renderRoadEvents()}}
+    private fun showMainMenu() {
+        val tabs=arrayOf("OFFERS","EARNINGS","DRIVER HUB","SOURCES")
+        AlertDialog.Builder(this)
+            .setTitle("BusyBee")
+            .setItems(tabs) { _, index -> showTab(tabs[index]) }
+            .show()
+    }
+
+    private fun showMapLayersDialog() {
+        val names=arrayOf("Roadworks","Hazards","Driver reports")
+        val checked=BooleanArray(names.size) { selectedLayers.contains(names[it]) }
+        AlertDialog.Builder(this)
+            .setTitle("Map layers")
+            .setMultiChoiceItems(names,checked) { _, which, enabled ->
+                if(enabled) selectedLayers.add(names[which]) else selectedLayers.remove(names[which])
+                renderRoadEvents()
             }
-            layerRow.addView(chip,LinearLayout.LayoutParams(-2,dp(34)).apply{marginEnd=dp(6)})
+            .setPositiveButton("Done",null)
+            .show()
+    }
+
+    private fun buildMapScreen():View {
+        val frame=FrameLayout(this)
+        frame.addView(mapView,FrameLayout.LayoutParams(-1,-1))
+
+        // The map is the screen. App chrome is hidden on this tab; only compact
+        // floating controls remain over the map canvas.
+        val top=LinearLayout(this).apply {
+            orientation=LinearLayout.HORIZONTAL
+            gravity=Gravity.CENTER_VERTICAL
+            setPadding(dp(12),dp(9),dp(10),dp(9))
+            background=rounded(0xE610232E.toInt(),18)
         }
-        layerScroll.addView(layerRow);top.addView(layerScroll);overlay.addView(top)
-        overlay.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
-        val bottom=card()
-        bottom.addView(label("LIVE ROAD PICTURE",11f,MINT,true))
-        weatherText=label(weatherSummary,11f,WHITE,false).apply{setPadding(0,dp(5),0,dp(5))}
-        bottom.addView(weatherText)
-        routeSummary=label("Choose your destination. Route estimates do not include live traffic.",9f,MUTED,false).apply{setPadding(0,dp(2),0,dp(7))}
-        bottom.addView(routeSummary)
-        navigationStatus=label("NAVIGATION OFF · GPS NEEDED",9f,AMBER,true).apply{setPadding(0,dp(5),0,dp(2))}
-        bottom.addView(navigationStatus)
-        navigationInstruction=label("Your next turn will appear here after route planning.",14f,WHITE,true).apply{setPadding(0,dp(3),0,dp(6))}
-        bottom.addView(navigationInstruction)
-        val routeRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
-        routeDestinationInput=EditText(this).apply{
-            hint="Where are you going?"
-            setSingleLine(true);textSize=12f;setTextColor(WHITE);setHintTextColor(MUTED)
-            setPadding(dp(10),dp(8),dp(10),dp(8));background=rounded(0xFF1B303A.toInt(),10)
-            layoutParams=LinearLayout.LayoutParams(0,dp(42),1f)
-        }
-        routeRow.addView(routeDestinationInput)
-        routeRow.addView(action("ROUTE",true){planRoute(routeDestinationInput?.text?.toString().orEmpty())},LinearLayout.LayoutParams(dp(78),dp(42)).apply{marginStart=dp(7)})
-        bottom.addView(routeRow)
-        val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        actions.addView(action("◎ LOCATE",true){requestLocation()},LinearLayout.LayoutParams(0,dp(42),1f))
-        actions.addView(action("↻ REFRESH",false){refreshRoadIntelligence()},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
-        val threeD=action(if(tilted)"3D ON" else "3D OFF",false){
-            if(!mapStyleState.isReady) {
-                mapStatus?.text="● MAP IS STILL LOADING"
-            } else {
+        val menu=action("☰",false){showMainMenu()}
+        top.addView(menu,LinearLayout.LayoutParams(dp(42),dp(40)))
+        val brand=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(9),0,0,0) }
+        brand.addView(label("BUSYBEE",13f,WHITE,true))
+        mapStatus=label("● CONNECTING",9f,MINT,true).apply { setPadding(0,dp(2),0,0) }
+        brand.addView(mapStatus)
+        top.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
+        top.addView(action("LAYERS",false){showMapLayersDialog()},LinearLayout.LayoutParams(dp(66),dp(38)))
+        top.addView(action(if(tilted)"3D" else "2D",false){
+            if(!mapStyleState.isReady) mapStatus?.text="● LOADING"
+            else {
                 tilted=!tilted
                 val p=map?.cameraPosition
-                if(p!=null)map?.animateCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder().target(p.target?:KRAKOW).zoom(p.zoom).bearing(p.bearing).tilt(if(tilted)42.0 else 0.0).build()),300)
-                threeDButton?.text=if(tilted)"3D ON" else "3D OFF"
+                if(p!=null)map?.animateCamera(CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder().target(p.target?:KRAKOW).zoom(p.zoom).bearing(p.bearing).tilt(if(tilted)55.0 else 0.0).build()
+                ),350)
+                threeDButton?.text=if(tilted)"3D" else "2D"
             }
+        },LinearLayout.LayoutParams(dp(48),dp(38)).apply { marginStart=dp(6) })
+        threeDButton=top.getChildAt(3) as TextView
+        frame.addView(top,FrameLayout.LayoutParams(-1,-2,Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+            setMargins(dp(12),dp(12),dp(12),0)
+        })
+
+        val side=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER }
+        side.addView(action("◎",true){requestLocation()},LinearLayout.LayoutParams(dp(48),dp(46)))
+        side.addView(action("＋",false){reportRoadHazard()},LinearLayout.LayoutParams(dp(48),dp(46)).apply { topMargin=dp(8) })
+        frame.addView(side,FrameLayout.LayoutParams(-2,-2,Gravity.END or Gravity.CENTER_VERTICAL).apply {
+            setMargins(0,0,dp(12),dp(40))
+        })
+
+        val bottom=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(12),dp(10),dp(12),dp(10))
+            background=rounded(0xF010232E.toInt(),20)
         }
-        threeDButton=threeD
-        actions.addView(threeD,LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
-        bottom.addView(actions)
-        val navActions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        navActions.addView(action("▶ START IN-APP NAV",true){startNavigation()},LinearLayout.LayoutParams(0,dp(42),1f))
-        navActions.addView(action("STOP",false){stopNavigation("Navigation stopped",announce=false)},LinearLayout.LayoutParams(0,dp(42),0.42f).apply{marginStart=dp(7)})
-        bottom.addView(navActions,LinearLayout.LayoutParams(-1,dp(42)).apply{topMargin=dp(7)})
-        bottom.addView(action("OPEN IN GOOGLE MAPS",false){openExternalNavigation()},LinearLayout.LayoutParams(-1,dp(34)).apply{topMargin=dp(6)})
-        bottom.addView(action("＋ REPORT A ROAD HAZARD",false){reportRoadHazard()},LinearLayout.LayoutParams(-1,dp(36)).apply{topMargin=dp(6)})
-        overlay.addView(bottom);frame.addView(overlay,FrameLayout.LayoutParams(-1,-1));return frame
+        routeDestinationInput=EditText(this).apply {
+            hint="Search destination or address"
+            setSingleLine(true);textSize=13f;setTextColor(WHITE);setHintTextColor(MUTED)
+            setPadding(dp(12),dp(8),dp(10),dp(8));background=rounded(0xFF1B303A.toInt(),12)
+            layoutParams=LinearLayout.LayoutParams(0,dp(44),1f)
+        }
+        val searchRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+        searchRow.addView(routeDestinationInput)
+        searchRow.addView(action("GO",true){planRoute(routeDestinationInput?.text?.toString().orEmpty())},
+            LinearLayout.LayoutParams(dp(58),dp(44)).apply { marginStart=dp(7) })
+        bottom.addView(searchRow)
+        routeSummary=label("Ready · route times exclude live traffic",10f,MUTED,false).apply { setPadding(dp(2),dp(7),0,0); maxLines=1 }
+        bottom.addView(routeSummary)
+        navigationStatus=label("GPS · NAVIGATION OFF",9f,AMBER,true).apply { setPadding(dp(2),dp(5),0,0); maxLines=1 }
+        bottom.addView(navigationStatus)
+        navigationInstruction=label("",13f,WHITE,true).apply { setPadding(dp(2),dp(5),0,0); maxLines=1; visibility=View.GONE }
+        bottom.addView(navigationInstruction)
+        val navActions=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+        navActions.addView(action("START",true){startNavigation()},LinearLayout.LayoutParams(0,dp(36),1f))
+        navActions.addView(action("STOP",false){stopNavigation("Navigation stopped",announce=false)},LinearLayout.LayoutParams(0,dp(36),1f).apply { marginStart=dp(6) })
+        navActions.addView(action("MAPS",false){openExternalNavigation()},LinearLayout.LayoutParams(0,dp(36),1f).apply { marginStart=dp(6) })
+        bottom.addView(navActions,LinearLayout.LayoutParams(-1,dp(36)).apply { topMargin=dp(7) })
+        frame.addView(bottom,FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+            setMargins(dp(12),0,dp(12),dp(12))
+        })
+        mapSummary=label("Road intelligence loading",1f,MUTED,false)
+        weatherText=label(weatherSummary,1f,MUTED,false)
+        return frame
+    }
+
+    private fun launchDriverScreenCapture(platform:String) {
+        if(platform !in setOf("Uber","Bolt")) return
+        pendingCapturePlatform=platform
+        try {
+            val manager=getSystemService(MediaProjectionManager::class.java)
+            nativeCaptureLauncher.launch(manager.createScreenCaptureIntent())
+        } catch(error:Exception) {
+            Toast.makeText(this,"Android screen capture is unavailable: ${error.javaClass.simpleName}",Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun stopDriverScreenCapture() {
+        stopService(Intent(this,DriverAppCaptureService::class.java).apply {
+            action=DriverAppCaptureService.ACTION_STOP
+        })
+        Toast.makeText(this,"Native screen capture stopped.",Toast.LENGTH_SHORT).show()
     }
 
     private fun planRoute(query:String) {
