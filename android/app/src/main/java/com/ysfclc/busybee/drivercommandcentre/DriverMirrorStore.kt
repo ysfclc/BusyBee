@@ -286,7 +286,8 @@ class DriverMirrorStore(context: Context) :
         durationMinutes: Double?,
         currency: String = "PLN"
     ): Long {
-        require(platform in setOf("Uber", "Bolt")) { "Unsupported driver platform" }
+        val safePlatform = platform.trim().take(60)
+        require(safePlatform.matches(Regex("[\\p{L}0-9 ._-]{2,60}"))) { "Enter a valid driver platform name" }
         val type = recordType.trim().lowercase(Locale.ROOT)
         require(type in setOf("offer", "trip", "ride", "completed_trip", "payout", "adjustment")) {
             "Choose a supported record type"
@@ -300,7 +301,7 @@ class DriverMirrorStore(context: Context) :
         val raw = visibleText.take(5000)
         val occurredAt = java.time.Instant.ofEpochMilli(capturedAt).toString()
         val fingerprint = sha256(
-            listOf(platform, type, occurredAt, raw, gross, fees, bonus, distanceKm, safeCurrency).joinToString("|")
+            listOf(safePlatform, type, occurredAt, raw, gross, fees, bonus, distanceKm, safeCurrency).joinToString("|")
         )
         val db = writableDatabase
         db.beginTransaction()
@@ -322,7 +323,7 @@ class DriverMirrorStore(context: Context) :
             val recordId = db.insertOrThrow("records", null, ContentValues().apply {
                 put("fingerprint", fingerprint)
                 put("import_id", importId)
-                put("platform", platform)
+                put("platform", safePlatform)
                 put("record_type", type)
                 putNull("external_id")
                 put("occurred_at", occurredAt)
