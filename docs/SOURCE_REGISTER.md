@@ -31,7 +31,7 @@ The register is deliberately status-based. A source is promoted to **connected**
 
 ### Building and entrance detail
 
-BusyBee's map detail overlay reads mapped building names, `addr:street`, `addr:housenumber`, and entrance/door nodes from OpenStreetMap via Overpass. It can show `entrance=staircase` as a stairwell and preserve explicit `ref`, `level`, `door`, and access tags. It cannot reliably identify every apartment-block entrance or individual `klatka A/B`: those labels must exist in the source data. Where a building has no name, a mapped street/house number is used instead; unnamed and unaddressed buildings are not assigned invented names.
+BusyBee's map detail overlay reads mapped building-way and multipolygon-relation names, `addr:street`, `addr:housenumber`, and entrance/door nodes from OpenStreetMap via Overpass. It can show `entrance=staircase` as a stairwell and preserve explicit `ref`, `level`, `door`, and access tags. It cannot reliably identify every apartment-block entrance or individual `klatka A/B`: those labels must exist in the source data. Where a building has no name, a mapped street/house number is used instead; unnamed and unaddressed buildings are not assigned invented names.
 
 ## 3. Environmental and contextual feeds
 
