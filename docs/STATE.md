@@ -1,3 +1,18 @@
+# Current acceptance correction — 2026-11-13
+
+The user has confirmed that the previous general click/action bugs are gone, but explicitly rejected the delivered app as not matching the agreed product. The old STOP-WORK freeze and earlier capability snapshot below are historical; they are superseded for product direction by [PRODUCT_CONTRACT.md](PRODUCT_CONTRACT.md).
+
+Current code candidate on feat/live-navigation-vehicle-2026-11-13:
+- User-started Android MediaProjection bridge with on-device OCR, platform label and a manual review queue. This is the native fallback path, not an approved Uber/Bolt API connection.
+- Per-group WhatsApp discovery, explicit tracking choice, message review, stop and delete controls. Visibility is limited to notification content Android exposes.
+- Trip duration in the local Driver Mirror schema, preserving unknowns and original evidence.
+- Map screen uses the full content canvas with floating controls; full premium UX redesign remains incomplete and not accepted.
+- CSV/chat export screens are no longer presented as the normal workflow; legacy CSV evidence remains for backwards compatibility.
+
+**Verification boundary:** Vercel deployment dpl_D6JRWWpjiHuzmE4kaETzneeKP5xq built commit 3cc846a85f892e028ae7b1109d3a8c9bda94632f and reached READY; log confirms APK assembly and verified ZIP archive. The subsequent test-only commit 5e8f9dd720bbdbc2c9a27b8bd9828f384d9ce562 is not included in that deployment. No target-device test of the new native capture/group workflow has been completed. Do not mark it accepted until the tests run and the APK is exercised on the user's Android device.
+
+---
+
 # State Ledger
 _Last updated: 2026-11-13 — GPS routing, vehicle profile and click diagnostics slice_
 
