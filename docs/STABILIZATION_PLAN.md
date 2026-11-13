@@ -181,3 +181,15 @@ The next narrow stabilization change should separate “style is ready” from �
 
 
 - After implementing the BB-007 source correction, workflow run #124 (`43433780437`) on the updated branch also failed before any job steps were allocated. One retry was queued and then failed with an empty step list (`131913684624`). No Gradle, unit-test, APK assembly or signing task ran.
+
+
+## BB-008 — Notification capture silently drops repeated identical offers
+
+- **Severity:** High — offer ingestion correctness.
+- **Reproduction from source:** Capture a notification from Uber/Bolt, then receive a second distinct notification from the same platform with identical title and body but a later Android `postTime`. Before the fix, the SHA-256 identity omitted time and the unique database constraint rejected the second row with `CONFLICT_IGNORE`.
+- **Expected:** Same notification repost/update (same post time and content) is deduplicated; a new notification event (new post time) is preserved even when its visible text is identical.
+- **Actual before fix:** All future identical text events collided indefinitely. The listener did not surface the ignored insert.
+- **Source correction:** `NotificationFingerprint.create(platform, title, body, postedAt)` now includes the notification's Android post timestamp. `captureNotice` passes its `at` argument (the listener passes `sbn.postTime`).
+- **Regression tests authored:** `NotificationFingerprintTest` covers idempotent reposts, repeated identical text at different times, changed body and platform identity.
+- **Verification:** Source change and test file committed to PR #8 branch; read-back and test execution still pending. This is a targeted source correction, not a claim that notification ingestion is device-verified.
+- **Remaining validation:** Verify Android's postTime behaviour for app updates/reposts on the target device; check notifications from actual Uber/Bolt versions; test service reconnects and ensure no duplicate burst. Add a visible captured-offer counter or acknowledgement only after the event reaches persistent storage.
