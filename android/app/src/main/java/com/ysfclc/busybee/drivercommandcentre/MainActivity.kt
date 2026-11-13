@@ -1166,64 +1166,76 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildDriverHubScreen():View{
         val root=columnScroll()
-        root.addView(section("DRIVER LIFE","Vehicle profile, documents, insurance, payments and selected driver-group intelligence."))
+        root.addView(section("DRIVER HUB","Vehicle, documents, payments and the driver groups you choose to follow."))
         root.addView(buildVehicleCard())
-        val top=card();top.addView(label("YOUR DRIVER ADMIN",11f,MINT,true))
-        top.addView(label("Keep insurance renewals, instalments, recurring payments, documents, vehicle costs and service reminders together.",11f,MUTED,false))
-        val buttons=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        buttons.addView(action("＋ REMINDER",true){itemDialog()},LinearLayout.LayoutParams(0,dp(42),1f))
-        buttons.addView(action("＋ DOCUMENT",false){documentPicker.launch(arrayOf("*/*"))},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
-        top.addView(buttons)
-        root.addView(top)
-        root.addView(section("UPCOMING & SAVED ITEMS","Tap complete when paid, renewed or serviced. Documents can be opened from here."))
+
+        val quick=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        quick.addView(action("＋ REMINDER / PAYMENT",true){itemDialog()},LinearLayout.LayoutParams(0,dp(42),1f))
+        quick.addView(action("＋ DOCUMENT",false){documentPicker.launch(arrayOf("*/*"))},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
+        root.addView(quick.apply{setPadding(0,dp(5),0,dp(12))})
+
+        root.addView(section("YOUR ADMIN LIST","Tap an item to mark it completed; linked documents stay on this device."))
         val items=commands.items()
-        if(items.isEmpty())root.addView(card().apply{addView(label("Nothing saved yet. Add an insurance renewal, payment, document expiry, maintenance or expense.",11f,MUTED,false))})
-        items.forEach{item->root.addView(card().apply{
-            addView(label(item.kind.uppercase()+" · "+(item.dueAt?.let{date(it)}?:"No due date")+(item.recurrence?.let{" · "+it}?: ""),9f,MINT,true))
-            addView(label(item.title,14f,WHITE,true).apply{setPadding(0,dp(4),0,dp(3))})
-            addView(label(item.details.ifBlank{"No details"}+(item.amount?.let{" · "+money(it)}?:""),10f,MUTED,false))
-            val row=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
-            row.addView(action(if(item.done)"COMPLETED" else "MARK DONE",false){commands.completeItem(item.id,!item.done);showTab("DRIVER HUB")},LinearLayout.LayoutParams(0,dp(36),1f))
-            if(item.uri!=null)row.addView(action("OPEN FILE",true){openUri(Uri.parse(item.uri))},LinearLayout.LayoutParams(0,dp(36),1f).apply{marginStart=dp(7)})
-            addView(row.apply{setPadding(0,dp(9),0,0)})
-        })}
-        val paymentHistory=items.filter{it.done}
-        root.addView(section("PAYMENT & COMPLETION HISTORY",paymentHistory.size.toString()+" completed payments, renewals and services"))
-        if(paymentHistory.isEmpty()) root.addView(card().apply{addView(label("Completed items will appear here as your payment and service history.",10f,MUTED,false))})
-        paymentHistory.forEach{item->root.addView(card().apply{
-            addView(label(item.kind.uppercase()+" · "+(item.completedAt?.let{dateTime(it)}?:"Completed"),9f,MINT,true))
-            addView(label(item.title,12f,WHITE,true))
-            addView(label(item.details+" · "+(item.amount?.let{money(it)}?:"Amount not recorded"),10f,MUTED,false))
-        })}
-        root.addView(section("WHATSAPP GROUP WATCH","Choose exactly which driver groups BusyBee may monitor. No chat exports or backfilled history."))
+        if(items.isEmpty()) root.addView(label("No reminders yet. Add an insurance renewal, payment, document expiry, maintenance or expense.",10f,MUTED,false).apply{setPadding(dp(4),dp(4),0,dp(12))})
+        items.filter{!it.done}.forEach { item ->
+            val row=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(10),dp(4),dp(10))}
+            val title=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+            title.addView(label(item.title,12f,WHITE,true),LinearLayout.LayoutParams(0,-2,1f))
+            title.addView(label(item.dueAt?.let{date(it)}?:"NO DUE DATE",9f,if(item.dueAt!=null&&item.dueAt<System.currentTimeMillis())AMBER else MUTED,true))
+            row.addView(title)
+            row.addView(label(item.kind.uppercase()+"  ·  "+(item.recurrence?: "one-time")+(item.amount?.let{"  ·  "+money(it)}?:""),9f,MINT,true).apply{setPadding(0,dp(3),0,dp(3))})
+            row.addView(label(item.details.ifBlank{"No additional details"},9f,MUTED,false))
+            val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+            actions.addView(action("MARK DONE",true){commands.completeItem(item.id,true);showTab("DRIVER HUB")},LinearLayout.LayoutParams(0,dp(36),1f))
+            if(item.uri!=null) actions.addView(action("OPEN FILE",false){openUri(Uri.parse(item.uri))},LinearLayout.LayoutParams(dp(100),dp(36)).apply{marginStart=dp(7)})
+            row.addView(actions.apply{setPadding(0,dp(8),0,0)})
+            root.addView(row);root.addView(divider())
+        }
+
+        val completed=items.filter{it.done}
+        root.addView(section("COMPLETED HISTORY",completed.size.toString()+" paid, renewed or serviced items"))
+        if(completed.isEmpty()) root.addView(label("Completed items will appear here.",9f,MUTED,false).apply{setPadding(dp(4),0,0,dp(8))})
+        completed.take(20).forEach { item ->
+            val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(4),dp(7),dp(4),dp(7))}
+            val info=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
+            info.addView(label(item.title,10f,WHITE,true))
+            info.addView(label(item.kind.uppercase()+"  ·  "+(item.completedAt?.let{dateTime(it)}?:"Completed")+"  ·  "+(item.amount?.let{money(it)}?:"amount not recorded"),8f,MUTED,false).apply{setPadding(0,dp(3),0,0)})
+            row.addView(info,LinearLayout.LayoutParams(0,-2,1f))
+            row.addView(action("REOPEN",false){commands.completeItem(item.id,false);showTab("DRIVER HUB")},LinearLayout.LayoutParams(dp(78),dp(34)))
+            root.addView(row);root.addView(divider())
+        }
+
+        root.addView(section("WHATSAPP GROUP WATCH","Discover notification-visible groups, then choose which ones BusyBee may track."))
         val groupCard=card()
-        groupCard.addView(label("PRIVATE BY DEFAULT",10f,MINT,true))
-        groupCard.addView(label("BusyBee discovers group names from WhatsApp notification metadata. It stores message previews only for groups you enable. Only messages surfaced by Android notifications can be seen.",10f,MUTED,false).apply { setPadding(0,dp(4),0,dp(8)) })
+        groupCard.addView(label("PRIVATE BY DEFAULT",9f,MINT,true))
+        groupCard.addView(label("Android exposes only notification content. BusyBee cannot read WhatsApp's private database or recover full chat history. No message body is stored while a group is off.",9f,MUTED,false).apply{setPadding(0,dp(4),0,dp(8))})
         groupCard.addView(action(if(notificationAccessEnabled())"NOTIFICATION ACCESS ENABLED" else "ENABLE ANDROID NOTIFICATION ACCESS",false){
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         },LinearLayout.LayoutParams(-1,dp(38)))
-        val watchedGroups=commands.whatsappGroups()
-        if(watchedGroups.isEmpty()) groupCard.addView(label("No groups discovered yet. New group notifications will appear here; open WhatsApp and receive a message in the driver groups you want to choose.",10f,MUTED,false).apply { setPadding(0,dp(9),0,0) })
-        watchedGroups.forEach { group ->
-            val row=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(0,dp(10),0,dp(10)) }
-            val info=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-            info.addView(label(group.title,12f,WHITE,true))
-            info.addView(label((if(group.trackingEnabled)"TRACKING ON" else "DISCOVERED · OFF")+" · "+group.capturedMessages+" saved messages",9f,if(group.trackingEnabled)MINT else MUTED,true).apply { setPadding(0,dp(3),0,0) })
+        val groups=commands.whatsappGroups()
+        if(groups.isEmpty()) groupCard.addView(label("No groups discovered. Open WhatsApp and receive a group message notification; only groups exposed by Android can appear here.",9f,MUTED,false).apply{setPadding(0,dp(8),0,0)})
+        groups.forEach { group ->
+            val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(0,dp(9),0,dp(9))}
+            val info=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
+            info.addView(label(group.title,10f,WHITE,true))
+            info.addView(label((if(group.trackingEnabled)"TRACKING ON" else "DISCOVERED · OFF")+"  ·  "+group.capturedMessages+" saved",8f,if(group.trackingEnabled)MINT else MUTED,true).apply{setPadding(0,dp(3),0,0)})
             row.addView(info,LinearLayout.LayoutParams(0,-2,1f))
-            row.addView(action(if(group.trackingEnabled)"ON" else "TRACK",group.trackingEnabled){
-                commands.setWhatsAppGroupTracking(group.id,!group.trackingEnabled)
-                showTab("DRIVER HUB")
-            },LinearLayout.LayoutParams(dp(72),dp(36)))
-            row.addView(action("VIEW",false){openWhatsAppGroup(group)},LinearLayout.LayoutParams(dp(64),dp(36)).apply { marginStart=dp(5) })
-            groupCard.addView(row)
-            groupCard.addView(divider())
+            row.addView(action(if(group.trackingEnabled)"PAUSE" else "TRACK",group.trackingEnabled){
+                commands.setWhatsAppGroupTracking(group.id,!group.trackingEnabled);showTab("DRIVER HUB")
+            },LinearLayout.LayoutParams(dp(76),dp(34)))
+            row.addView(action("VIEW",false){openWhatsAppGroup(group)},LinearLayout.LayoutParams(dp(62),dp(34)).apply{marginStart=dp(5)})
+            groupCard.addView(row);groupCard.addView(divider())
         }
         root.addView(groupCard)
-        root.addView(section("VEHICLE SERVICES & DRIVER NETWORK","Save trusted mechanics, tyre shops, insurers, car washes, fleet contacts and deals."))
-        root.addView(card().apply{
-            addView(action("＋ SAVE SERVICE / CONTACT",false){itemDialog("Service")})
-            commands.items("Service").forEach{addView(label(it.title+" · "+it.details,11f,WHITE,false).apply{setPadding(0,dp(7),0,dp(2))})}
-        })
+
+        root.addView(section("TRUSTED SERVICES","Mechanics, tyre shops, insurers, car washes and fleet contacts."))
+        val services=commands.items("Service")
+        root.addView(action("＋ SAVE SERVICE / CONTACT",false){itemDialog("Service")}.apply{setPadding(0,dp(9),0,dp(9))})
+        if(services.isEmpty()) root.addView(label("No service contacts saved.",9f,MUTED,false).apply{setPadding(dp(4),0,0,dp(8))})
+        services.forEach { service ->
+            root.addView(label(service.title+"  ·  "+service.details,10f,WHITE,false).apply{setPadding(dp(4),dp(8),0,dp(8))})
+            root.addView(divider())
+        }
         return root
     }
 
