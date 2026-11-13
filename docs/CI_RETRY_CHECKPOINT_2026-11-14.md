@@ -38,3 +38,10 @@ The documentation-only commit `db24bd9876790871660ba8f2bd2f41fe9bc04f5c` trigger
 - No build or test command ran
 
 This independently confirms the current hosted-runner allocation problem also affects a docs-only commit. Do not spend more retries on this identical failure mode until runner availability changes.
+
+
+## Alternative build host check — 2026-11-14
+
+The existing persistent Vercel sandbox busybee-android-build was discovered in project busybee-apk (prj_01ZKEE6MsBwDA3WZ4dZC2UiRS5ml). Its last saved state is stopped. Resuming it was attempted for the current Android validation, but Vercel returned HTTP 402 payment_required: the team's Hobby usage limit is exceeded until 2026-12-01 00:00 UTC. The Vercel response explicitly requires the account owner to resolve the plan/usage restriction. No automatic upgrade or billing change was made. There is no available Vercel CLI fallback in this session.
+
+The local execution container also has no /testbed checkout, Gradle executable or Android SDK. Therefore there is currently no permitted build environment available in this session. Do not claim tests or APK were produced. To unblock validation, the account owner must restore Vercel Sandbox access (or provide another runner/build environment); then resume the existing sandbox snapshot and run the documented build/test script against the exact PR branch revision.
