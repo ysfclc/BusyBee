@@ -148,3 +148,8 @@ This review does not identify the user's IllegalStateException root cause and do
 - LifecycleSafeUiDispatcherTest now covers queued callback rejection after destruction, rejection after finish, and delivery while alive (3 tests authored).
 - **Not verified:** No test or compile run has succeeded for this increment. The available GitHub Actions and Vercel runner blockers remain. Source read-back is the only verification until a runner becomes available.
 - **Assessment:** Narrow lifecycle hardening only. It does not establish that BB-002 is fixed, and it does not replace MapLibre physical-device lifecycle tests or the original DIAG/logcat evidence.
+
+
+### Latest runner check — 2026-11-13
+
+After the GPS lifecycle changes, GitHub Actions run 112 (43424684264) also completed as failure before any job steps were exposed. Its job response has steps=null and no job log URL; no compile or test command ran. The Vercel Android sandbox remains stopped after the previously reported HTTP 402 Hobby usage-cap rejection. The current lifecycle changes therefore remain source-readback-only and uncompiled.
