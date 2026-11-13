@@ -45,6 +45,18 @@ class RoutePlannerTest {
         assertTrue(RoutePlanner.distanceToRouteMeters(LatLng(50.061, 19.935), route.points) < 1.0)
     }
 
+    @Test fun gpsProgressProjectsOntoTheRouteSegmentBetweenVertices() {
+        val points = listOf(LatLng(50.0, 19.90), LatLng(50.0, 19.91))
+        val midpoint = LatLng(50.0 + 20.0 / 111_195.0, 19.905)
+
+        val total = RoutePlanner.distanceMeters(points[0], points[1])
+        val distance = RoutePlanner.distanceToRouteMeters(midpoint, points)
+        val progress = RoutePlanner.progressMeters(midpoint, points)
+
+        assertEquals(20.0, distance, 1.0)
+        assertEquals(total / 2.0, progress, 1.0)
+    }
+
     @Test fun alternativeRankingKeepsFastestDistinctRoutes() {
         val destination = LatLng(50.1, 19.9)
         val points = listOf(LatLng(50.0, 19.8), destination)

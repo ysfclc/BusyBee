@@ -120,7 +120,6 @@ object RoutePlanner {
 
     private fun parseSteps(legs: JSONArray?, points: List<LatLng>): List<RouteStep> {
         if (legs == null) return emptyList()
-        val cumulative = cumulativeDistances(points)
         val out = mutableListOf<RouteStep>()
         for (legIndex in 0 until legs.length()) {
             val steps = legs.optJSONObject(legIndex)?.optJSONArray("steps") ?: continue
@@ -134,14 +133,14 @@ object RoutePlanner {
                 val type = maneuver.optString("type", "continue")
                 val modifier = maneuver.optString("modifier", "")
                 val road = step.optString("name", "").trim()
-                val nearestIndex = nearestPointIndex(point, points)
+                val alongRoute = projectToRoute(point, points).progressMeters
                 out.add(
                     RouteStep(
                         instruction(type, modifier, road, maneuver.optInt("exit", -1)),
                         type, modifier, road,
                         step.optDouble("distance", 0.0).coerceAtLeast(0.0),
                         step.optDouble("duration", 0.0).coerceAtLeast(0.0),
-                        point, cumulative[nearestIndex]
+                        point, alongRoute
                     )
                 )
             }
@@ -181,27 +180,55 @@ object RoutePlanner {
     }
 
     fun distanceToRouteMeters(location: LatLng, points: List<LatLng>): Double =
-        points.minOfOrNull { distanceMeters(location, it) } ?: Double.POSITIVE_INFINITY
+        projectToRoute(location, points).distanceMeters
 
-    fun progressMeters(location: LatLng, points: List<LatLng>): Double {
-        if (points.isEmpty()) return 0.0
-        return cumulativeDistances(points)[nearestPointIndex(location, points)]
-    }
+    fun progressMeters(location: LatLng, points: List<LatLng>): Double =
+        projectToRoute(location, points).progressMeters
 
-    private fun cumulativeDistances(points: List<LatLng>): List<Double> {
-        if (points.isEmpty()) return emptyList()
-        val result = ArrayList<Double>(points.size)
-        var total = 0.0
-        result.add(total)
-        for (index in 1 until points.size) {
-            total += distanceMeters(points[index - 1], points[index])
-            result.add(total)
+    private data class RouteProjection(val distanceMeters: Double, val progressMeters: Double)
+
+    /**
+     * Project GPS/maneuver coordinates onto route segments in a local
+     * equirectangular plane. Vertex-only snapping caused progress jumps between
+     * geometry points and could trigger false off-route readings.
+     */
+    private fun projectToRoute(location: LatLng, points: List<LatLng>): RouteProjection {
+        if (points.isEmpty()) return RouteProjection(Double.POSITIVE_INFINITY, 0.0)
+        if (points.size == 1) return RouteProjection(distanceMeters(location, points.first()), 0.0)
+
+        val earthRadius = 6_371_000.0
+        var cumulative = 0.0
+        var bestDistance = Double.POSITIVE_INFINITY
+        var bestProgress = 0.0
+
+        for (index in 0 until points.lastIndex) {
+            val start = points[index]
+            val end = points[index + 1]
+            val meanLatitude = Math.toRadians((start.latitude + end.latitude + location.latitude) / 3.0)
+            val scaleX = earthRadius * cos(meanLatitude)
+            val startX = Math.toRadians(start.longitude) * scaleX
+            val startY = Math.toRadians(start.latitude) * earthRadius
+            val endX = Math.toRadians(end.longitude) * scaleX
+            val endY = Math.toRadians(end.latitude) * earthRadius
+            val locationX = Math.toRadians(location.longitude) * scaleX
+            val locationY = Math.toRadians(location.latitude) * earthRadius
+            val dx = endX - startX
+            val dy = endY - startY
+            val segmentSquared = dx * dx + dy * dy
+            val fraction = if (segmentSquared <= 1e-9) 0.0 else
+                (((locationX - startX) * dx + (locationY - startY) * dy) / segmentSquared).coerceIn(0.0, 1.0)
+            val projectedX = startX + fraction * dx
+            val projectedY = startY + fraction * dy
+            val offset = hypot(locationX - projectedX, locationY - projectedY)
+            val segmentLength = distanceMeters(start, end)
+            if (offset < bestDistance) {
+                bestDistance = offset
+                bestProgress = cumulative + fraction * segmentLength
+            }
+            cumulative += segmentLength
         }
-        return result
+        return RouteProjection(bestDistance, bestProgress)
     }
-
-    private fun nearestPointIndex(point: LatLng, points: List<LatLng>): Int =
-        points.indices.minByOrNull { distanceMeters(point, points[it]) } ?: 0
 
     private fun validCoordinate(point: LatLng): Boolean =
         point.latitude.isFinite() && point.longitude.isFinite() &&
