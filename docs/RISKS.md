@@ -130,3 +130,11 @@ Follow-up workflow run #124 (`43433780437`) after the BB-007 source correction f
 - **Correction:** Added an exact package allowlist for the two driver packages already used by BusyBee's explicit app-launch handoff: `com.ubercab.driver` and `ee.mtakso.driver`. Other provider names are no longer inferred from substrings. The Sources screen now names only those two verified packages.
 - **Regression tests authored:** Five cases cover Uber, Bolt, case-insensitive matching, passenger/lookalike rejection and unverified provider rejection.
 - **Verification status:** Source read-back/static inspection only. Package IDs still require confirmation against installed app versions on the target phone; no compile/test/device run is available.
+
+## BB-010 — Android package visibility may hide installed driver apps
+
+- **Severity:** Medium (third-party handoff may falsely report an installed app as missing).
+- **Area:** Android 11+ package visibility / driver-app integration.
+- **Evidence:** BusyBee calls `PackageManager.getLaunchIntentForPackage()` for Uber Driver and Bolt Driver, but the manifest previously declared no package visibility queries. On Android 11+ this can cause package lookup to return no visible launch intent even when the app is installed.
+- **Correction:** Added explicit `<queries>` entries for the two exact driver package IDs used by the handoff and notification allowlist.
+- **Verification:** Manifest read-back only. Must verify merged manifest and launch handoff on Android 11+ target device; no build/device validation yet.
