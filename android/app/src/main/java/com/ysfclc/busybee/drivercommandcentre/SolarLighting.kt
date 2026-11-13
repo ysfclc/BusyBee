@@ -110,21 +110,21 @@ internal object SolarLighting {
 internal object BusyBeePalettes {
     fun forPhase(phase: DaylightPhase): BusyBeePalette = when (phase) {
         DaylightPhase.DAY -> BusyBeePalette(
-            background = 0xFFF3F7F4.toInt(),
-            panel = 0xFFFFFFFF.toInt(),
-            card = 0xFFFFFFFF.toInt(),
-            primaryText = 0xFF172D35.toInt(),
-            mutedText = 0xFF5C7279.toInt(),
+            background = 0xFFE7F0EA.toInt(),
+            panel = 0xFFDFEAE2.toInt(),
+            card = 0xFFF1F6F0.toInt(),
+            primaryText = 0xFF15343A.toInt(),
+            mutedText = 0xFF536D70.toInt(),
             accent = 0xFF087A5A.toInt(),
             warning = 0xFFB46A1D.toInt(),
-            stroke = 0xFFD6E2DC.toInt(),
-            field = 0xFFEDF3EF.toInt(),
-            secondary = 0xFFE4EEE8.toInt(),
-            overlay = 0xF2FFFFFF.toInt(),
-            selected = 0xFFDCEFE5.toInt(),
+            stroke = 0xFFC4D8CC.toInt(),
+            field = 0xFFD5E4DC.toInt(),
+            secondary = 0xFFD4E5DB.toInt(),
+            overlay = 0xF2E8F1EA.toInt(),
+            selected = 0xFFC3E4D2.toInt(),
             actionText = 0xFFFFFFFF.toInt(),
-            divider = 0xFFDCE5DF.toInt(),
-            mapStyleUri = "https://tiles.openfreemap.org/styles/bright"
+            divider = 0xFFC9DCD1.toInt(),
+            mapStyleUri = "https://tiles.openfreemap.org/styles/liberty"
         )
         DaylightPhase.DUSK -> BusyBeePalette(
             background = 0xFF17222D.toInt(),
