@@ -234,6 +234,109 @@ class MainActivity : AppCompatActivity() {
         requestLocation()
     }
 
+    private fun updateTimeBasedAppearance(location:Location?=lastLocation,force:Boolean=false) {
+        val phase=SolarLighting.phase(location?.latitude,location?.longitude,System.currentTimeMillis())
+        if(!force && phase==daylightPhase) return
+        daylightPhase=phase
+        palette=BusyBeePalettes.forPhase(phase)
+        applySystemBars()
+        rootContainer?.setBackgroundColor(BG)
+        if(::appHeader.isInitialized) appHeader.setBackgroundColor(BG)
+        if(::nav.isInitialized) nav.setBackgroundColor(PANEL)
+        refreshActionPalettes()
+        if(::screenHost.isInitialized) {
+            if(selectedTab=="MAP") updateMapChromePalette() else showTab(selectedTab)
+        }
+        if(map!=null && activeMapStyleUri!=palette.mapStyleUri) reloadMapStyle()
+    }
+
+    private fun applySystemBars() {
+        window.statusBarColor=BG
+        window.navigationBarColor=PANEL
+        val lightBars=daylightPhase==DaylightPhase.DAY
+        window.decorView.systemUiVisibility=if(lightBars) {
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        } else 0
+    }
+
+    private fun refreshActionPalettes() {
+        themedActions.entries.toList().forEach { (view,primary) ->
+            applyActionPalette(view,primary)
+        }
+    }
+
+    private fun applyActionPalette(view:TextView,primary:Boolean) {
+        view.setTextColor(if(primary)palette.actionText else palette.primaryText)
+        view.background=GradientDrawable().apply {
+            setColor(if(primary)palette.accent else palette.secondary)
+            cornerRadius=dp(11).toFloat()
+            if(!primary) setStroke(dp(1),palette.stroke)
+        }
+    }
+
+    private fun updateMapChromePalette() {
+        mapTopChrome?.background=rounded(palette.overlay,18)
+        mapBottomChrome?.background=rounded(palette.overlay,18)
+        mapDestinationField?.apply {
+            setTextColor(WHITE)
+            setHintTextColor(MUTED)
+            background=rounded(palette.field,11)
+        }
+        mapStatus?.setTextColor(MINT)
+        weatherText?.setTextColor(MUTED)
+        routeSummary?.setTextColor(MUTED)
+        navigationStatus?.setTextColor(AMBER)
+        navigationInstruction?.setTextColor(WHITE)
+    }
+
+    private fun clearMapAnnotations() {
+        val active=map ?: return
+        eventMarkers.forEach { active.removeAnnotation(it) };eventMarkers.clear()
+        reportMarkers.forEach { active.removeAnnotation(it) };reportMarkers.clear()
+        routeMarkers.forEach { active.removeAnnotation(it) };routeMarkers.clear()
+        routePolyline?.let { active.removeAnnotation(it) };routePolyline=null
+        driverMarker?.let { active.removeAnnotation(it) };driverMarker=null
+    }
+
+    private fun reloadMapStyle() {
+        val active=map ?: return
+        val nextStyle=palette.mapStyleUri
+        if(nextStyle==activeMapStyleUri) return
+        val camera=active.cameraPosition
+        clearMapAnnotations()
+        activeMapStyleUri=nextStyle
+        mapStyleState.markLoading()
+        try {
+            active.setStyle(Style.Builder().fromUri(nextStyle)) {
+                uiCallbacks.post {
+                    mapStyleState.markReady()
+                    camera?.let { active.cameraPosition=it }
+                    renderRoadEvents()
+                    lastLocation?.let(::updateDriverLocation)
+                    redrawActiveRoute()
+                    mapStatus?.text=if(navigating)"● NAVIGATION GPS ACTIVE" else "● MAP "+daylightPhase.name
+                }
+            }
+        } catch(error:Exception) {
+            activeMapStyleUri=""
+            mapStatus?.text="● MAP STYLE UNAVAILABLE"
+            Log.w("BusyBee","Could not switch map style to $nextStyle",error)
+        }
+    }
+
+    private fun redrawActiveRoute() {
+        val route=activeRoute ?: return
+        val active=map ?: return
+        if(!mapStyleState.isReady) return
+        routePolyline=active.addPolyline(PolylineOptions().addAll(route.points).color(MINT).width(5f))
+        val origin=activeRouteOrigin ?: lastLocation?.let { LatLng(it.latitude,it.longitude) }
+        origin?.let { point ->
+            active.addMarker(MarkerOptions().position(point).title("Route starts here"))?.let { routeMarkers.add(it) }
+        }
+        active.addMarker(MarkerOptions().position(route.destination).title("Destination").snippet(route.destinationName))
+            ?.let { routeMarkers.add(it) }
+    }
+
     private fun buildHeader():View {
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(17),dp(12),dp(17),dp(10));setBackgroundColor(BG)}
         val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
