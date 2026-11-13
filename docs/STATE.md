@@ -2,7 +2,7 @@
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
-**Latest source commit:** `7992df4863ac5c816f4cce9266e84d3843fb3d7b`  
+**Latest source commit:** `3cd5b3719d820c74be7048a902cfba215e835fd9`  
 **Status:** implementation authored; build/test/device verification blocked and pending. PR #9 is draft and stacked on PR #8; neither is merged.
 
 Delivered in this increment:
@@ -16,7 +16,7 @@ Delivered in this increment:
 - No provider API access is claimed; no private database access, background screen recording, ride actions, automatic acceptance/decline or fake live traffic is introduced.
 
 Verification boundary:
-- GitHub source read-back confirms the observer, notification alert path, solar palettes, service manifest, Sources capability panel and pickup/drop-off persistence are present. Parser and review regression tests were added/extended.
+- GitHub source read-back confirms the observer, notification alert path, solar palettes, service manifest, Sources capability panel, pickup/drop-off persistence and parser-confidence persistence are present. Regression tests cover explicit route labels, ETA rejection, parser confidence and SQLite observation persistence. A source review caught and corrected one mismatched manual-OCR confidence expectation before handoff; tests still have not executed.
 - No Rust/Android tests or APK build have been run for this branch. Vercel Sandbox returns HTTP 402 because the Hobby usage cap is exceeded until 2026-12-01; this is not a source build result.
 - This runtime has no `/testbed` checkout, Android SDK or Gradle executable. No physical-device validation is possible here.
 - Keep the branch as a draft candidate. Do not merge, distribute an APK, or call the redesign accepted until automated tests/build and target-phone checks pass. Sources still needs its own purpose-built layout pass; full visual acceptance remains unfinished.
