@@ -212,3 +212,10 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 
 
 - Follow-up CI run #118 (`43432885303`) for the updated PR head also failed before job steps were allocated (`131910538716`, `steps: null`). No Gradle or APK task ran.
+
+
+## BB-007 source correction checkpoint — 2026-11-13
+
+- Implemented one-time MapLibre activation gating in `MapStyleState` and `MainActivity`; deferred activation is retried in `onPostResume()`.
+- Added pure unit tests for paused deferral, map availability and one-time activation.
+- This is source-level only. No Android compile/test/APK verification is available: GitHub Actions runs fail before job steps and Vercel Sandbox is blocked by the Hobby usage cap.
