@@ -17,7 +17,7 @@ Delivered in this increment:
 
 Verification boundary:
 - GitHub source read-back confirms the observer, notification alert path, solar palettes, service manifest, Sources capability panel, pickup/drop-off persistence and parser-confidence persistence are present. Regression tests cover explicit route labels, ETA rejection, parser confidence and SQLite observation persistence. A source review caught and corrected one mismatched manual-OCR confidence expectation before handoff; tests still have not executed.
-- No Rust/Android tests or APK build have been run for this branch. Vercel Sandbox returns HTTP 402 because the Hobby usage cap is exceeded until 2026-12-01; this is not a source build result.
+- No Rust/Android tests or APK build have been run for this branch. GitHub Actions run 234 (`43522861659`) completed as failure before runner/job-step allocation (`steps: null`, no job logs); no Gradle/test command ran. Vercel Sandbox returns HTTP 402 because the Hobby usage cap is exceeded until 2026-12-01; this is not a source build result.
 - This runtime has no `/testbed` checkout, Android SDK or Gradle executable. No physical-device validation is possible here.
 - Keep the branch as a draft candidate. Do not merge, distribute an APK, or call the redesign accepted until automated tests/build and target-phone checks pass. Sources still needs its own purpose-built layout pass; full visual acceptance remains unfinished.
 
