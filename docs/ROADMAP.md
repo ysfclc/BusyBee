@@ -1,3 +1,7 @@
+## Product contract correction — native-first workflow
+
+The canonical requirement is [PRODUCT_CONTRACT.md](PRODUCT_CONTRACT.md). Phase 3 must not be treated as complete on the basis of CSV import. The next accepted Driver Mirror milestone is a tested native integration for real driver-app screens or approved APIs, with reviewable evidence and cross-platform trip records. CSV remains optional backfill/reconciliation only. WhatsApp work is selected-group monitoring, not exported-chat indexing. Phase 6 must preserve the full-screen map-first workspace and purpose-built overlays. The premium redesign remains an explicit unfinished milestone.
+
 # Delivery Roadmap
 
 **Rule:** one phase at a time. Each phase must deliver a usable product capability, not just infrastructure or a visual demo.
