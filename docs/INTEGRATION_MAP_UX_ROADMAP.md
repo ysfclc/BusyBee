@@ -1,3 +1,12 @@
+## Product contract correction — 2026-11-13
+
+The opening capability table and rollout order below are historical planning context where they conflict with the canonical contract. See [PRODUCT_CONTRACT.md](PRODUCT_CONTRACT.md).
+
+- Native driver-app capture or approved provider API is primary; notification capture is fallback only.
+- CSV import is optional backfill/reconciliation; no CSV upload should be required for normal use.
+- WhatsApp is selected-group tracking; exported chat import is not the desired workflow.
+- The map is the full-screen default workspace, with floating controls and context-sensitive overlays. The premium redesign must replace generic stacked-card layouts across every tab; the current visual work does not yet meet that bar.
+
 # BusyBee — Integrations, Map and Driver UX Roadmap
 
 **Status:** requested product direction; planning only. This document does not claim that the integrations, live-traffic map or redesigned interface exist today.
