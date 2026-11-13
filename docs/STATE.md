@@ -222,3 +222,16 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 
 
 - After the BB-007 code change, GitHub Actions run #124 (`43433780437`) and its retry (`131913684624`) both failed before allocating job steps. No Gradle, tests, APK assembly or signing ran.
+
+
+## Session handoff — 2026-11-13 (repeated notification identity correction)
+
+- **Done:** Source review found that notification deduplication used only platform/title/body. Since the notices table has a UNIQUE fingerprint and inserts use CONFLICT_IGNORE, two distinct ride offers with identical visible text could collapse into one record forever.
+- **Changed:** Added `NotificationFingerprint.create(platform, title, body, postedAt)`; `captureNotice` now includes the Android notification post timestamp in the SHA-256 identity. Same content and same post time remain idempotent; a later notification with identical text is retained.
+- **Tests authored:** Four `NotificationFingerprintTest` cases cover duplicate repost, later identical offer, changed body and platform separation.
+- **Documentation:** BB-008 added to `docs/RISKS.md` and `docs/STABILIZATION_PLAN.md` with severity, reproduction, expected/actual, correction and remaining device validation.
+- **State changed:** Kotlin source, one new unit-test file and documentation committed to PR #8 branch. No schema migration, merge, release or APK was performed.
+- **Verified:** GitHub read-back confirms the helper is used by `captureNotice`, the old time-independent fingerprint expression is gone, four tests exist, and BB-008 appears in both ledgers. Static source checks only.
+- **Not verified:** Android compilation, unit-test execution, live notification listener behaviour and physical-device validation. The Vercel named Android sandbox is stopped and its resume request again returned HTTP 402 due to the Hobby usage limit (reset 2026-12-01 UTC). No APK was built from this commit.
+- **Next:** Run the four tests and full Android suite when a permitted runner is available; validate real notification postTime semantics and notification reconnect/update behavior on device.
+- **Risks/landmines:** This fixes a confirmed source-level data-loss path but does not yet parse notification text into structured offers, authenticate ride-platform accounts, or control acceptance/decline actions.
