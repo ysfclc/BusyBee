@@ -10,6 +10,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import org.maplibre.android.annotations.Icon
+import org.maplibre.android.annotations.IconFactory
+import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.FillExtrusionLayer
+import org.maplibre.android.style.layers.PropertyFactory
 import android.graphics.drawable.GradientDrawable
 import android.location.Location
 import android.location.LocationListener
@@ -105,6 +110,12 @@ class MainActivity : AppCompatActivity() {
     private val AMBER get()=palette.warning
     private var roadEvents:List<RoadEvent> = emptyList()
     private val eventMarkers=mutableListOf<Marker>()
+    private val placeMarkers=mutableListOf<Marker>()
+    private var mapPlaces:List<MapPlaceFeature> = emptyList()
+    private var lastPlaceFetchCenter:LatLng? = null
+    private var lastPlaceFetchAt=0L
+    private var placeFetchInProgress=false
+    private var vehicleIcon:Icon?=null
     private val reportMarkers=mutableListOf<Marker>()
     private val routeMarkers=mutableListOf<Marker>()
     private var routePolyline:Polyline?=null
@@ -207,9 +218,16 @@ class MainActivity : AppCompatActivity() {
             uiCallbacks.post {
                 CrashDiagnostics.record(this,"map:ready")
                 map=instance
+                instance.addOnCameraIdleListener {
+                    instance.cameraPosition.target?.let { center ->
+                        maybeRefreshMapPlaces(center)
+                        renderMapPlaces()
+                    }
+                }
                 val initialStyleUri=palette.mapStyleUri
                 activeMapStyleUri=initialStyleUri
-                instance.setStyle(Style.Builder().fromUri(initialStyleUri)) {
+                instance.setStyle(Style.Builder().fromUri(initialStyleUri)) { loadedStyle ->
+                    install3DBuildings(loadedStyle)
                     if(activeMapStyleUri==initialStyleUri) {
                         uiCallbacks.post {
                             mapStyleState.markReady()
@@ -232,6 +250,8 @@ class MainActivity : AppCompatActivity() {
         activeMap.cameraPosition = CameraPosition.Builder().target(initialTarget).zoom(15.0).tilt(48.0).build()
         lastLocation?.let(::updateDriverLocation)
         renderRoadEvents()
+        renderMapPlaces()
+        lastLocation?.let { maybeRefreshMapPlaces(LatLng(it.latitude,it.longitude),force=true) }
         mapStatus?.text = "● MAP ONLINE"
         refreshRoadIntelligence()
         requestLocation()
@@ -310,6 +330,7 @@ class MainActivity : AppCompatActivity() {
     private fun clearMapAnnotations() {
         val active=map ?: return
         eventMarkers.forEach { active.removeAnnotation(it) };eventMarkers.clear()
+        placeMarkers.forEach { active.removeAnnotation(it) };placeMarkers.clear()
         reportMarkers.forEach { active.removeAnnotation(it) };reportMarkers.clear()
         routeMarkers.forEach { active.removeAnnotation(it) };routeMarkers.clear()
         routePolyline?.let { active.removeAnnotation(it) };routePolyline=null
@@ -326,12 +347,14 @@ class MainActivity : AppCompatActivity() {
         activeMapStyleUri=nextStyle
         mapStyleState.markLoading()
         try {
-            active.setStyle(Style.Builder().fromUri(nextStyle)) {
+            active.setStyle(Style.Builder().fromUri(nextStyle)) { loadedStyle ->
+                install3DBuildings(loadedStyle)
                 if(activeMapStyleUri==nextStyle) {
                     uiCallbacks.post {
                         mapStyleState.markReady()
                         camera?.let { active.cameraPosition=it }
                         renderRoadEvents()
+                        renderMapPlaces()
                         lastLocation?.let(::updateDriverLocation)
                         redrawActiveRoute()
                         mapStatus?.text=if(navigating)"● NAVIGATION GPS ACTIVE" else "● MAP "+daylightPhase.name
@@ -484,7 +507,11 @@ class MainActivity : AppCompatActivity() {
         })
 
         val side=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER }
-        side.addView(action("◎",true){requestLocation()},LinearLayout.LayoutParams(dp(44),dp(44)))
+        side.addView(action("◎",true){
+            followLocation=true
+            val fix=lastLocation?.takeIf { System.currentTimeMillis()-it.time in 0..120000L }
+            if(fix!=null) updateDriverLocation(fix) else requestLocation()
+        },LinearLayout.LayoutParams(dp(44),dp(44)))
         side.addView(action("＋",false){reportRoadHazard()},LinearLayout.LayoutParams(dp(44),dp(44)).apply { topMargin=dp(7) })
         frame.addView(side,FrameLayout.LayoutParams(-2,-2,Gravity.END or Gravity.CENTER_VERTICAL).apply {
             setMargins(0,0,dp(10),dp(18))
@@ -713,6 +740,7 @@ class MainActivity : AppCompatActivity() {
             it.type!="depart" && it.type!="arrive" && it.distanceAlongRouteMeters > progress+25.0
         }.let { if(it<0) route.steps.lastIndex else it }
         startLocationUpdates()
+        updateNavigationCamera(fix)
         val next=route.steps.getOrNull(navigationStepIndex)
         if(next!=null) {
             val distance=(next.distanceAlongRouteMeters-progress).coerceAtLeast(0.0)
@@ -757,19 +785,111 @@ class MainActivity : AppCompatActivity() {
         if(!mapStyleState.isReady || isFinishing || isDestroyed) return
         val point=LatLng(location.latitude,location.longitude)
         mapStatus?.text=if(navigating)"● NAVIGATION GPS ACTIVE" else "● LOCATION LIVE"
+        val icon=vehicleIcon ?: IconFactory.getInstance(this).fromBitmap(MapMarkerArtwork.vehicle(this)).also { vehicleIcon=it }
         val marker=driverMarker
-        if(marker!=null) marker.position=point
-        else driverMarker=map?.addMarker(MarkerOptions().position(point).title("Your position"))
-        if(!centeredOnFirstFix || followLocation || navigating) {
-            val bearing=if(location.hasBearing() && location.speed>2.0f) location.bearing.toDouble() else map?.cameraPosition?.bearing?:0.0
-            val zoom=if(navigating)17.5 else 15.5
-            val tilt=if(navigating && tilted)55.0 else if(tilted)42.0 else 0.0
-            map?.animateCamera(CameraUpdateFactory.newCameraPosition(
-                CameraPosition.Builder().target(point).zoom(zoom).bearing(bearing).tilt(tilt).build()
-            ),500)
+        if(marker!=null) {
+            marker.position=point
+            marker.icon=icon
+        } else {
+            driverMarker=map?.addMarker(
+                MarkerOptions().position(point).title("Your vehicle").snippet("Live Android GPS · heading follows road travel").icon(icon)
+            )
         }
+        maybeRefreshMapPlaces(point)
+        if(!centeredOnFirstFix || followLocation || navigating) updateNavigationCamera(location)
         centeredOnFirstFix=true
         if(navigating) updateNavigation(location)
+    }
+
+    /**
+     * Forward-facing navigation camera. The camera looks ahead along the GPS
+     * course so the vehicle sits lower in the viewport instead of being pinned
+     * to the centre of a flat overview map.
+     */
+    private fun updateNavigationCamera(location:Location) {
+        val point=LatLng(location.latitude,location.longitude)
+        val previousBearing=map?.cameraPosition?.bearing ?: 0.0
+        val bearing=if(location.hasBearing() && location.speed>1.0f) location.bearing.toDouble() else previousBearing
+        val cameraTarget=if(navigating && tilted) NavigationCameraMath.aheadOf(point,bearing,if(location.speed>2.0f)48.0 else 26.0) else point
+        val zoom=if(navigating)18.2 else 15.5
+        val tilt=if(navigating && tilted)62.0 else if(tilted)42.0 else 0.0
+        map?.animateCamera(CameraUpdateFactory.newCameraPosition(
+            CameraPosition.Builder().target(cameraTarget).zoom(zoom).bearing(bearing).tilt(tilt).build()
+        ),650)
+    }
+
+    private fun install3DBuildings(style:Style) {
+        if(style.getSource("openmaptiles")==null || style.getLayer("busybee-3d-buildings")!=null) return
+        runCatching {
+            val layer=FillExtrusionLayer("busybee-3d-buildings","openmaptiles").apply {
+                sourceLayer="building"
+                minZoom=15f
+                val buildingColor=when(daylightPhase) {
+                    DaylightPhase.DAY -> Color.rgb(183,202,190)
+                    DaylightPhase.DUSK -> Color.rgb(151,132,111)
+                    DaylightPhase.NIGHT -> Color.rgb(49,78,91)
+                }
+                setProperties(
+                    PropertyFactory.fillExtrusionColor(buildingColor),
+                    PropertyFactory.fillExtrusionHeight(Expression.get("render_height")),
+                    PropertyFactory.fillExtrusionBase(Expression.get("render_min_height")),
+                    PropertyFactory.fillExtrusionOpacity(0.88f)
+                )
+            }
+            style.addLayer(layer)
+        }.onFailure { error ->
+            Log.w("BusyBee","3D building layer unavailable for this basemap style",error)
+        }
+    }
+
+    private fun maybeRefreshMapPlaces(center:LatLng,force:Boolean=false) {
+        if(placeFetchInProgress || !mapStyleState.isReady || isFinishing || isDestroyed) return
+        val now=System.currentTimeMillis()
+        val previous=lastPlaceFetchCenter
+        if(!force && previous!=null && now-lastPlaceFetchAt<240000L &&
+            RoutePlanner.distanceMeters(center,previous)<450.0) return
+        placeFetchInProgress=true
+        lastPlaceFetchAt=now
+        lastPlaceFetchCenter=center
+        worker.execute {
+            val result=runCatching { MapPlaceLookup.fetch(center.latitude,center.longitude) }
+            uiCallbacks.post {
+                placeFetchInProgress=false
+                if(result.isSuccess) {
+                    mapPlaces=result.getOrDefault(emptyList())
+                    renderMapPlaces()
+                    val named=mapPlaces.count { it.kind==MapPlaceKind.BUILDING }
+                    val entrances=mapPlaces.count { it.kind==MapPlaceKind.ENTRANCE }
+                    mapSummary?.text="$named mapped buildings · $entrances mapped entrances · OpenStreetMap"
+                } else {
+                    Log.w("BusyBee","Building/entrance lookup unavailable",result.exceptionOrNull())
+                }
+            }
+        }
+    }
+
+    private fun renderMapPlaces() {
+        val active=map ?: return
+        if(!mapStyleState.isReady) return
+        placeMarkers.forEach { active.removeAnnotation(it) }
+        placeMarkers.clear()
+        val zoom=active.cameraPosition.zoom
+        if(zoom<15.5) return
+        val night=daylightPhase==DaylightPhase.NIGHT
+        val factory=IconFactory.getInstance(this)
+        val buildings=mapPlaces.filter { it.kind==MapPlaceKind.BUILDING }.take(if(zoom>=17.0)55 else 24)
+        buildings.forEach { feature ->
+            val icon=factory.fromBitmap(MapMarkerArtwork.buildingLabel(this,feature.label,night))
+            active.addMarker(MarkerOptions().position(feature.point).title(feature.label).snippet(feature.detail).icon(icon))
+                ?.let { placeMarkers.add(it) }
+        }
+        if(zoom>=17.0) {
+            mapPlaces.filter { it.kind==MapPlaceKind.ENTRANCE }.take(36).forEach { feature ->
+                val icon=factory.fromBitmap(MapMarkerArtwork.entrance(this))
+                active.addMarker(MarkerOptions().position(feature.point).title(feature.label).snippet(feature.detail).icon(icon))
+                    ?.let { placeMarkers.add(it) }
+            }
+        }
     }
 
     private fun updateNavigation(location:Location) {
