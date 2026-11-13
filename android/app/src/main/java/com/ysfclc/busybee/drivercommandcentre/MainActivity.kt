@@ -133,6 +133,7 @@ class MainActivity : AppCompatActivity() {
     private var centeredOnFirstFix=false
     private var navigating=false
     private var navigationStepIndex=0
+    private var navigationAnnouncementStage=0
     private var rerouteInProgress=false
     private var offRouteReadings=0
     private var lastRerouteAt=0L
@@ -748,23 +749,25 @@ class MainActivity : AppCompatActivity() {
         stopNavigationAction?.visibility=View.VISIBLE
         routeActions?.visibility=View.VISIBLE
         offRouteReadings=0
+        navigationAnnouncementStage=0
         val progress=RoutePlanner.progressMeters(LatLng(fix.latitude,fix.longitude),route.points)
         navigationStepIndex=route.steps.indexOfFirst {
             it.type!="depart" && it.type!="arrive" && it.distanceAlongRouteMeters > progress+25.0
         }.let { if(it<0) route.steps.lastIndex else it }
         startLocationUpdates()
         updateNavigationCamera(fix)
-        val next=route.steps.getOrNull(navigationStepIndex)
+        val next=route.steps.getOrNull(navigationStepIndex)?.takeIf { it.type!="depart" && it.type!="arrive" }
         if(next!=null) {
-            val distance=(next.distanceAlongRouteMeters-progress).coerceAtLeast(0.0)
-            val announcement=if(distance>70.0) "In ${distance.toInt()} metres, ${next.instruction}" else next.instruction
-            navigationInstruction?.text=announcement
-            navigationStatus?.text=String.format(Locale.US,"NAVIGATION ACTIVE · %.1f KM REMAINING",((route.distanceKm*1000-progress).coerceAtLeast(0.0))/1000.0)
-            speak(announcement)
+            val distance=next.distanceAlongRouteMeters-progress
+            val stage=NavigationGuidance.nextAnnouncementStage(distance,navigationAnnouncementStage)
+            navigationAnnouncementStage=stage
+            val instruction=if(stage>0) NavigationGuidance.announcement(distance,next.instruction,stage) else next.instruction
+            navigationInstruction?.text=instruction
+            navigationStatus?.text=String.format(Locale.US,"NEXT MANOEUVRE · %.0f M · %.1f KM REMAINING",distance.coerceAtLeast(0.0),((route.distanceKm*1000-progress).coerceAtLeast(0.0))/1000.0)
+            if(stage>0) speak(instruction)
         } else {
-            navigationInstruction?.text="Follow the highlighted route."
-            navigationStatus?.text="NAVIGATION ACTIVE"
-            speak("Follow the highlighted route.")
+            navigationInstruction?.text="Continue along the highlighted route."
+            navigationStatus?.text=String.format(Locale.US,"NAVIGATION ACTIVE · %.1f KM REMAINING",((route.distanceKm*1000-progress).coerceAtLeast(0.0))/1000.0)
         }
     }
 
@@ -774,6 +777,7 @@ class MainActivity : AppCompatActivity() {
         followLocation=false
         rerouteInProgress=false
         offRouteReadings=0
+        navigationAnnouncementStage=0
         navigationStatus?.text=message.uppercase(Locale.getDefault())
         navigationStatus?.visibility=View.GONE
         navigationInstruction?.visibility=View.GONE
@@ -947,19 +951,30 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val next=route.steps.getOrNull(navigationStepIndex)
+        var next=route.steps.getOrNull(navigationStepIndex)?.takeIf { it.type!="depart" && it.type!="arrive" }
+        var advancedStep=false
+        while(next!=null && next.distanceAlongRouteMeters-progress < -40.0) {
+            navigationStepIndex++
+            navigationAnnouncementStage=0
+            advancedStep=true
+            next=route.steps.getOrNull(navigationStepIndex)?.takeIf { it.type!="depart" && it.type!="arrive" }
+        }
         if(next!=null) {
             val metersToTurn=next.distanceAlongRouteMeters-progress
-            if(metersToTurn < -40.0) {
-                navigationStepIndex++
-            } else if(metersToTurn<=450.0) {
-                val prefix=if(metersToTurn>70.0) "In ${metersToTurn.toInt()} metres, " else ""
-                val message=prefix+next.instruction
+            if(advancedStep) navigationInstruction?.text=next.instruction
+            val stage=NavigationGuidance.nextAnnouncementStage(metersToTurn,navigationAnnouncementStage)
+            if(stage>navigationAnnouncementStage) {
+                navigationAnnouncementStage=stage
+                val message=NavigationGuidance.announcement(metersToTurn,next.instruction,stage)
                 navigationInstruction?.text=message
-                navigationStatus?.text=String.format(Locale.US,"NEXT MANOEUVRE · %.0f M · %.1f KM REMAINING",metersToTurn.coerceAtLeast(0.0),remaining/1000.0)
                 speak(message)
-                navigationStepIndex++
             }
+            navigationStatus?.text=String.format(
+                Locale.US,
+                "NEXT MANOEUVRE · %.0f M · %.1f KM REMAINING",
+                metersToTurn.coerceAtLeast(0.0),
+                remaining/1000.0
+            )
         } else {
             navigationInstruction?.text="Continue along the highlighted route."
             navigationStatus?.text=String.format(Locale.US,"%.1f KM REMAINING · ESTIMATES EXCLUDE LIVE TRAFFIC",remaining/1000.0)
@@ -982,6 +997,7 @@ class MainActivity : AppCompatActivity() {
                             navigating=true
                             followLocation=true
                             navigationStepIndex=updated.steps.indexOfFirst { it.type!="depart" && it.type!="arrive" }.let { if(it<0) updated.steps.lastIndex else it }
+                            navigationAnnouncementStage=0
                             navigationStatus?.text="ROUTE UPDATED · CONTINUE"
                             speak("Route updated. ${updated.steps.getOrNull(navigationStepIndex)?.instruction ?: "Continue to destination."}")
                         }
@@ -997,7 +1013,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
     private fun openExternalNavigation() {
         val route=activeRoute
         if(route==null) { Toast.makeText(this,"Plan a route first.",Toast.LENGTH_SHORT).show();return }
