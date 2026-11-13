@@ -15,6 +15,7 @@ import org.maplibre.android.annotations.IconFactory
 import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.FillExtrusionLayer
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
 import android.graphics.drawable.GradientDrawable
 import android.location.Location
 import android.location.LocationListener
@@ -828,6 +829,7 @@ class MainActivity : AppCompatActivity() {
             val layer=FillExtrusionLayer("busybee-3d-buildings","openmaptiles").apply {
                 sourceLayer="building"
                 minZoom=15f
+                setFilter(Expression.all(Expression.has("render_height"),Expression.has("render_min_height")))
                 val buildingColor=when(daylightPhase) {
                     DaylightPhase.DAY -> Color.rgb(183,202,190)
                     DaylightPhase.DUSK -> Color.rgb(151,132,111)
@@ -840,7 +842,8 @@ class MainActivity : AppCompatActivity() {
                     PropertyFactory.fillExtrusionOpacity(0.88f)
                 )
             }
-            style.addLayer(layer)
+            val firstLabelLayer=style.layers.firstOrNull { it is SymbolLayer }?.id
+            if(firstLabelLayer!=null) style.addLayerBelow(layer,firstLabelLayer) else style.addLayer(layer)
         }.onFailure { error ->
             Log.w("BusyBee","3D building layer unavailable for this basemap style",error)
         }
