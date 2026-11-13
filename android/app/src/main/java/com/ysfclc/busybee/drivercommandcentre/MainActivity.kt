@@ -1667,7 +1667,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(requestCode==LOCATION_REQUEST&&grantResults.any{it==PackageManager.PERMISSION_GRANTED})requestLocation()}
+    override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray) {
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+        when(requestCode) {
+            LOCATION_REQUEST -> if(grantResults.any{it==PackageManager.PERMISSION_GRANTED}) requestLocation()
+            NOTIFICATION_REQUEST -> {
+                val granted=grantResults.firstOrNull()==PackageManager.PERMISSION_GRANTED
+                DriverAlertManager.setAlertsEnabled(this,granted)
+                Toast.makeText(this,if(granted)"BusyBee driver alerts enabled." else "BusyBee alerts remain off. You can enable them in Android settings.",Toast.LENGTH_LONG).show()
+                if(selectedTab=="OFFERS") showTab("OFFERS")
+            }
+        }
+    }
     override fun onStart(){CrashDiagnostics.record(this,"lifecycle:onStart");super.onStart();mapView.onStart()}
     override fun onResume(){
         CrashDiagnostics.record(this,"lifecycle:onResume")
