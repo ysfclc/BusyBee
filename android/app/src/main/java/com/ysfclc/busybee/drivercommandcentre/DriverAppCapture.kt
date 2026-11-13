@@ -135,7 +135,7 @@ object DriverScreenTextParser {
         val lower = value.lowercase(Locale.ROOT)
         if (moneyPattern.containsMatchIn(value) || distancePattern.containsMatchIn(value) || durationPattern.containsMatchIn(value)) return true
         return Regex(
-            """^(?:fare|price|earnings?|total|fees?|bonus|distance|duration|time|trip|ride|offer|accept|navigate|cancel|complete|completed|details|payment|payout|zarobki|opłata|przychód|wypłata|odległość|czas|premia|prowizja)\\b""",
+            """^(?:fare|price|earnings?|total|fees?|bonus|distance|duration|time|trip|ride|offer|accept|navigate|cancel|complete|completed|details|payment|payout|zarobki|opłata|przychód|wypłata|odległość|czas|premia|prowizja)\b""",
             RegexOption.IGNORE_CASE
         ).containsMatchIn(lower)
     }
