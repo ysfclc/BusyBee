@@ -79,6 +79,9 @@ class MainActivity : AppCompatActivity() {
     private val routeMarkers=mutableListOf<Marker>()
     private var routePolyline:Polyline?=null
     private var routeSummary:TextView?=null
+    private var routeActions:LinearLayout?=null
+    private var startNavigationAction:TextView?=null
+    private var stopNavigationAction:TextView?=null
     private var routeDestinationInput:EditText?=null
     private var activeRoute:RoutePlan?=null
     private var driverMarker:Marker?=null
@@ -283,24 +286,23 @@ class MainActivity : AppCompatActivity() {
         val frame=FrameLayout(this)
         frame.addView(mapView,FrameLayout.LayoutParams(-1,-1))
 
-        // The map is the screen. App chrome is hidden on this tab; only compact
-        // floating controls remain over the map canvas.
+        // Full-bleed map: no persistent app header or tab bar. Controls float
+        // above the map and the route dock stays compact until a route exists.
         val top=LinearLayout(this).apply {
             orientation=LinearLayout.HORIZONTAL
             gravity=Gravity.CENTER_VERTICAL
-            setPadding(dp(12),dp(9),dp(10),dp(9))
+            setPadding(dp(9),dp(7),dp(8),dp(7))
             background=rounded(0xE610232E.toInt(),18)
         }
-        val menu=action("☰",false){showMainMenu()}
-        top.addView(menu,LinearLayout.LayoutParams(dp(42),dp(40)))
+        top.addView(action("☰",false){showMainMenu()},LinearLayout.LayoutParams(dp(40),dp(38)))
         val brand=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(9),0,0,0) }
-        brand.addView(label("BUSYBEE",13f,WHITE,true))
-        mapStatus=label("● CONNECTING",9f,MINT,true).apply { setPadding(0,dp(2),0,0) }
+        brand.addView(label("BUSYBEE",12f,WHITE,true))
+        mapStatus=label("● CONNECTING",8f,MINT,true).apply { setPadding(0,dp(2),0,0) }
         brand.addView(mapStatus)
-        weatherText=label(weatherSummary,9f,MUTED,false).apply { setPadding(0,dp(3),0,0); maxLines=1 }
+        weatherText=label(weatherSummary,8f,MUTED,false).apply { setPadding(0,dp(2),0,0); maxLines=1 }
         brand.addView(weatherText)
         top.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
-        top.addView(action("LAYERS",false){showMapLayersDialog()},LinearLayout.LayoutParams(dp(66),dp(38)))
+        top.addView(action("LAYERS",false){showMapLayersDialog()},LinearLayout.LayoutParams(dp(62),dp(36)))
         top.addView(action(if(tilted)"3D" else "2D",false){
             if(!mapStyleState.isReady) mapStatus?.text="● LOADING"
             else {
@@ -311,52 +313,70 @@ class MainActivity : AppCompatActivity() {
                 ),350)
                 threeDButton?.text=if(tilted)"3D" else "2D"
             }
-        },LinearLayout.LayoutParams(dp(48),dp(38)).apply { marginStart=dp(6) })
+        },LinearLayout.LayoutParams(dp(44),dp(36)).apply { marginStart=dp(5) })
         threeDButton=top.getChildAt(3) as TextView
         frame.addView(top,FrameLayout.LayoutParams(-1,-2,Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-            setMargins(dp(12),dp(12),dp(12),0)
+            setMargins(dp(10),dp(10),dp(10),0)
         })
 
         val side=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER }
-        side.addView(action("◎",true){requestLocation()},LinearLayout.LayoutParams(dp(48),dp(46)))
-        side.addView(action("＋",false){reportRoadHazard()},LinearLayout.LayoutParams(dp(48),dp(46)).apply { topMargin=dp(8) })
+        side.addView(action("◎",true){requestLocation()},LinearLayout.LayoutParams(dp(44),dp(44)))
+        side.addView(action("＋",false){reportRoadHazard()},LinearLayout.LayoutParams(dp(44),dp(44)).apply { topMargin=dp(7) })
         frame.addView(side,FrameLayout.LayoutParams(-2,-2,Gravity.END or Gravity.CENTER_VERTICAL).apply {
-            setMargins(0,0,dp(12),dp(40))
+            setMargins(0,0,dp(10),dp(18))
         })
 
         val bottom=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
-            setPadding(dp(12),dp(10),dp(12),dp(10))
-            background=rounded(0xF010232E.toInt(),20)
+            setPadding(dp(9),dp(8),dp(9),dp(8))
+            background=rounded(0xF010232E.toInt(),18)
         }
         routeDestinationInput=EditText(this).apply {
-            hint="Search destination or address"
+            hint="Where to?"
             setSingleLine(true);textSize=13f;setTextColor(WHITE);setHintTextColor(MUTED)
-            setPadding(dp(12),dp(8),dp(10),dp(8));background=rounded(0xFF1B303A.toInt(),12)
-            layoutParams=LinearLayout.LayoutParams(0,dp(44),1f)
+            setPadding(dp(12),dp(7),dp(9),dp(7));background=rounded(0xFF1B303A.toInt(),11)
+            layoutParams=LinearLayout.LayoutParams(0,dp(42),1f)
         }
         val searchRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
         searchRow.addView(routeDestinationInput)
         searchRow.addView(action("GO",true){planRoute(routeDestinationInput?.text?.toString().orEmpty())},
-            LinearLayout.LayoutParams(dp(58),dp(44)).apply { marginStart=dp(7) })
+            LinearLayout.LayoutParams(dp(54),dp(42)).apply { marginStart=dp(6) })
         bottom.addView(searchRow)
-        routeSummary=label("Ready · route times exclude live traffic",10f,MUTED,false).apply { setPadding(dp(2),dp(7),0,0); maxLines=1 }
+        routeSummary=label("Ready · route estimates exclude live traffic",9f,MUTED,false).apply {
+            setPadding(dp(2),dp(6),0,0); maxLines=1; visibility=View.GONE
+        }
         bottom.addView(routeSummary)
-        navigationStatus=label("GPS · NAVIGATION OFF",9f,AMBER,true).apply { setPadding(dp(2),dp(5),0,0); maxLines=1 }
+        navigationStatus=label("GPS · NAVIGATION OFF",8f,AMBER,true).apply {
+            setPadding(dp(2),dp(5),0,0); maxLines=1; visibility=View.GONE
+        }
         bottom.addView(navigationStatus)
-        navigationInstruction=label("",13f,WHITE,true).apply { setPadding(dp(2),dp(5),0,0); maxLines=1; visibility=View.GONE }
+        navigationInstruction=label("",12f,WHITE,true).apply {
+            setPadding(dp(2),dp(5),0,0); maxLines=1; visibility=View.GONE
+        }
         bottom.addView(navigationInstruction)
-        val navActions=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
-        navActions.addView(action("START",true){startNavigation()},LinearLayout.LayoutParams(0,dp(36),1f))
-        navActions.addView(action("STOP",false){stopNavigation("Navigation stopped",announce=false)},LinearLayout.LayoutParams(0,dp(36),1f).apply { marginStart=dp(6) })
-        navActions.addView(action("MAPS",false){openExternalNavigation()},LinearLayout.LayoutParams(0,dp(36),1f).apply { marginStart=dp(6) })
-        bottom.addView(navActions,LinearLayout.LayoutParams(-1,dp(36)).apply { topMargin=dp(7) })
+
+        routeActions=LinearLayout(this).apply {
+            orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+            visibility=View.GONE
+        }
+        startNavigationAction=action("START",true){startNavigation()}.apply {
+            layoutParams=LinearLayout.LayoutParams(0,dp(36),1f)
+        }
+        stopNavigationAction=action("STOP",false){stopNavigation("Navigation stopped",announce=false)}.apply {
+            layoutParams=LinearLayout.LayoutParams(0,dp(36),1f); visibility=View.GONE
+        }
+        routeActions?.addView(startNavigationAction)
+        routeActions?.addView(stopNavigationAction,LinearLayout.LayoutParams(0,dp(36),1f).apply { marginStart=dp(6) })
+        routeActions?.addView(action("MAPS",false){openExternalNavigation()},
+            LinearLayout.LayoutParams(0,dp(36),1f).apply { marginStart=dp(6) })
+        bottom.addView(routeActions,LinearLayout.LayoutParams(-1,dp(36)).apply { topMargin=dp(7) })
         frame.addView(bottom,FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-            setMargins(dp(12),0,dp(12),dp(12))
+            setMargins(dp(10),0,dp(10),dp(10))
         })
         mapSummary=label("Road intelligence loading",1f,MUTED,false)
         return frame
     }
+
 
     private fun promptOtherPlatformCapture() {
         val name=field("Driver app / platform name","FREENOW")
@@ -477,9 +497,15 @@ class MainActivity : AppCompatActivity() {
         map?.addMarker(MarkerOptions().position(plan.destination).title("Destination").snippet(plan.destinationName))?.let{routeMarkers.add(it)}
         activeRoute=plan
         navigationStepIndex=0
-        routeSummary?.text=String.format(Locale.US,"%s · %.1f km · %.0f min estimated · standard car routing; no live traffic",kind,plan.distanceKm,plan.durationMinutes)
+        routeSummary?.text=String.format(Locale.US,"%s · %.1f km · %.0f min · no live traffic",kind,plan.distanceKm,plan.durationMinutes)
+        routeSummary?.visibility=View.VISIBLE
         navigationInstruction?.text=plan.steps.firstOrNull { it.type!="depart" }?.instruction ?: "Follow the highlighted route."
         navigationStatus?.text=if(plan.steps.isEmpty())"ROUTE READY · TURN LIST UNAVAILABLE" else "ROUTE READY · ${plan.steps.size} MANOEUVRES"
+        navigationStatus?.visibility=View.GONE
+        navigationInstruction?.visibility=View.GONE
+        routeActions?.visibility=View.VISIBLE
+        startNavigationAction?.visibility=View.VISIBLE
+        stopNavigationAction?.visibility=View.GONE
         mapStatus?.text="● ROUTE READY"
         val bounds=org.maplibre.android.geometry.LatLngBounds.Builder().includes(plan.points).build()
         map?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds,dp(48)),650)
@@ -503,7 +529,11 @@ class MainActivity : AppCompatActivity() {
         }
         navigating=true
         followLocation=true
+        navigationStatus?.visibility=View.VISIBLE
         navigationInstruction?.visibility=View.VISIBLE
+        startNavigationAction?.visibility=View.GONE
+        stopNavigationAction?.visibility=View.VISIBLE
+        routeActions?.visibility=View.VISIBLE
         offRouteReadings=0
         val progress=RoutePlanner.progressMeters(LatLng(fix.latitude,fix.longitude),route.points)
         navigationStepIndex=route.steps.indexOfFirst {
@@ -531,7 +561,16 @@ class MainActivity : AppCompatActivity() {
         rerouteInProgress=false
         offRouteReadings=0
         navigationStatus?.text=message.uppercase(Locale.getDefault())
+        navigationStatus?.visibility=View.GONE
         navigationInstruction?.visibility=View.GONE
+        if(activeRoute!=null) {
+            routeSummary?.visibility=View.VISIBLE
+            routeActions?.visibility=View.VISIBLE
+            startNavigationAction?.visibility=View.VISIBLE
+            stopNavigationAction?.visibility=View.GONE
+        } else {
+            routeActions?.visibility=View.GONE
+        }
         if(announce && wasNavigating) speak(message)
     }
 
