@@ -1506,43 +1506,60 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildSourcesScreen():View{
         val root=columnScroll()
-        root.addView(section("INTELLIGENCE NETWORK","Independent source status. Candidate does not mean connected."))
-        val live=card();live.addView(label("AVAILABLE IN THIS BUILD",11f,MINT,true))
-        sourceRow(live,"OpenFreeMap / OpenStreetMap","Vector streets, labels and 3D building extrusions","LIVE · OSM attribution")
-        sourceRow(live,"Overpass API","Mapped construction and hazard observations","LIVE WHEN ENDPOINT RESPONDS")
-        sourceRow(live,"Open-Meteo","Current weather context","LIVE WHEN ENDPOINT RESPONDS")
-        sourceRow(live,"Android location","Driver position, speed and bearing after permission","DEVICE PERMISSION")
-        sourceRow(live,"Uber Driver / Bolt Driver","User-started Android MediaProjection with local OCR; each session requires Android consent","NATIVE SCREEN BRIDGE")
-        sourceRow(live,"Uber Driver API","Trips and payments through approved partner access","LIMITED · APPROVAL REQUIRED")
-        sourceRow(live,"WhatsApp group watch","Discover notification-visible groups; retain message previews only for selected groups","USER SELECTED")
-        sourceRow(live,"Ride app notifications","Secondary fallback signal for visible offer and status notifications","OPTIONAL PERMISSION");root.addView(live)
-        val gated=card();gated.addView(label("CONNECTOR CATALOGUE · NOT CONNECTED",11f,AMBER,true))
+        val locationGranted =
+            ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED
+        val watchedGroupCount=commands.whatsappGroups().count{it.trackingEnabled}
+        root.addView(section("LIVE INTELLIGENCE","Real data sources, their permission state and what BusyBee can actually read."))
+
+        val active=card()
+        active.addView(label("ACTIVE MAP & DEVICE SOURCES",10f,MINT,true))
+        sourceRow(active,"Map · OpenFreeMap / OpenStreetMap","Vector road network, names, land use and building geometry · current ${daylightPhase.name.lowercase()} style","LIVE · ${daylightPhase.name}")
+        sourceRow(active,"Mapped road observations · Overpass","OpenStreetMap-tagged construction and hazard objects · not live traffic speed","LIVE WHEN ENDPOINT RESPONDS")
+        sourceRow(active,"Weather · Open-Meteo","Current weather context near the map centre · not a road-incident feed","LIVE WHEN ENDPOINT RESPONDS")
+        sourceRow(active,"Driver location · Android GPS","Location, speed and bearing used for the driver marker and foreground navigation",if(locationGranted)"PERMISSION GRANTED" else "PERMISSION REQUIRED")
+        sourceRow(active,"Driver apps · read-only live listener","Uber Driver and Bolt Driver visible UI text-change events, filtered by package · explicit Android Accessibility opt-in",if(isDriverAppLiveListenerEnabled())"ENABLED BY YOU" else "AVAILABLE · USER OPT-IN")
+        sourceRow(active,"Driver app · visual fallback","One-session Android app-window capture with on-device OCR for screens that expose no readable UI text","MANUAL · PER-SESSION CONSENT")
+        sourceRow(active,"BusyBee driver alerts","Local notifications for newly detected offer, trip and earnings events",if(DriverAlertManager.notificationsAllowed(this))"ALLOWED" else "NOTIFICATION PERMISSION REQUIRED")
+        sourceRow(active,"Ride-app notifications","Secondary signal from OS notifications; never the only driver-app integration",if(notificationAccessEnabled())"LISTENER PERMISSION ENABLED" else "OPTIONAL PERMISSION")
+        sourceRow(active,"WhatsApp selected groups","${watchedGroupCount} group(s) currently enabled · notification content only · no private database access",if(watchedGroupCount>0)"USER SELECTED" else "NO GROUPS SELECTED")
+        root.addView(active)
+
+        val public=card()
+        public.addView(label("PUBLIC ROAD DATA · NEXT CONNECTORS",10f,MINT,true))
+        sourceRow(public,"GDDKiA / National Access Point","Polish road disruption events in DATEX II; account/client certificate registration and connector implementation required","PUBLIC DATA · AUTHENTICATION REQUIRED")
+        sourceRow(public,"GDDKiA Geoportal · Road disruptions","Official visualisation service for GDDKiA road disruptions · layer/service still needs technical integration and attribution check","CANDIDATE · NOT CONNECTED")
+        sourceRow(public,"Kraków MSIP / ZDMK","Municipal roadworks and restrictions · validate dataset freshness, geometry and service terms","OPEN DATA · CONNECTOR NOT BUILT")
+        sourceRow(public,"ZTP Kraków / GTFS-RT","Transit disruption context · feed discovery and schema validation","NOT CONNECTED")
+        sourceRow(public,"Air quality / severe weather","Official feed selection and quality validation","NOT CONNECTED")
+        root.addView(public)
+
+        val gated=card();gated.addView(label("COMMERCIAL / PARTNER CONNECTORS",10f,AMBER,true))
         listOf(
-            Pair("TomTom Traffic / Incidents / Routing","Commercial API credentials and storage/display rights"),
-            Pair("HERE Traffic / Routing","Commercial credentials and entitlements"),
-            Pair("Mapbox Traffic / Directions","Token and product licence review"),
-            Pair("Google Navigation SDK","Separate navigation SDK evaluation"),
-            Pair("Waze for Cities","Partner programme access; not a public API"),
-            Pair("Kraków MSIP / ZDMK","Municipal feed and dataset licence validation"),
-            Pair("ZTP Kraków / GTFS-RT","Transit feed discovery and schema validation"),
-            Pair("Polish NAP / DATEX II / GDDKiA","Registration, credentials and coverage"),
-            Pair("Air quality / severe weather","Official feed selection and quality validation"),
-            Pair("Bolt Fleet API","Fleet-company integration; credentials and company access required"),
-            Pair("Additional driver app APIs","Partner approval or authorised data scope required"),
-            Pair("Driver community reports","Consent-based sharing and moderation service")
+            Pair("TomTom Traffic / Incidents / Routing","Commercial credentials, Kraków coverage and display/storage rights"),
+            Pair("HERE Traffic / Routing","Commercial credentials, incident coverage and entitlements"),
+            Pair("Mapbox Traffic / Directions","Token, traffic coverage and product licence review"),
+            Pair("Google Navigation SDK","Separate navigation SDK and usage-policy evaluation"),
+            Pair("Waze for Cities","Partner programme access; no general public traffic API"),
+            Pair("Uber Driver API","Approved driver-level access; no API connection is currently established"),
+            Pair("Bolt Fleet API","Fleet-company integration; not a general individual-driver API"),
+            Pair("Additional driver-app APIs","Provider-specific authorised read scopes and revocation path")
         ).forEach{sourceRow(gated,it.first,it.second,"NOT CONNECTED")}
         root.addView(gated)
         root.addView(card().apply{
-            addView(label("EVIDENCE RULE",11f,MINT,true))
-            addView(label("Every road event needs source, observed time, spatial precision, freshness, licence and conflict state. No fake traffic, demand heatmaps or police-location claims.",11f,MUTED,false))
+            addView(label("DATA HONESTY",10f,MINT,true))
+            addView(label("Map geometry is not traffic. Mapped roadworks are not a live closure feed. Weather is not a crash alert. Every future road event must carry its source, observed time, freshness, geometry, access terms and confidence. BusyBee never invents traffic flow or demand heatmaps.",9f,MUTED,false).apply{setPadding(0,dp(5),0,dp(8))})
             addView(action("REFRESH ROAD SOURCES",true){showTab("MAP");refreshRoadIntelligence()})
         })
         return root
     }
     private fun sourceRow(parent:LinearLayout,name:String,detail:String,status:String){
         val row=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(0,dp(9),0,dp(9))}
-        row.addView(label(name,12f,WHITE,true));row.addView(label(detail,10f,MUTED,false).apply{setPadding(0,dp(2),0,dp(3))})
-        row.addView(label(status,9f,if(status.startsWith("LIVE"))MINT else AMBER,true));parent.addView(row);parent.addView(divider())
+        val healthy=status.startsWith("LIVE") || status.startsWith("ENABLED") || status.startsWith("ALLOWED") || status.startsWith("PERMISSION GRANTED") || status=="USER SELECTED"
+        row.addView(label(name,11f,WHITE,true))
+        row.addView(label(detail,9f,MUTED,false).apply{setPadding(0,dp(3),0,dp(4))})
+        row.addView(label(status,8f,if(healthy)MINT else AMBER,true))
+        parent.addView(row);parent.addView(divider())
     }
 
     private fun isDriverAppLiveListenerEnabled():Boolean {
