@@ -26,3 +26,15 @@ Do not keep retrying the same run indefinitely: the initial attempt plus two ret
 ## Static source review performed
 
 Read back the current branch versions of `MainActivity.kt`, `MapSpatialData.kt`, `NavigationGuidance.kt`, `MapSpatialDataTest.kt`, `NavigationGuidanceTest.kt` and `MapStyleState.kt`. The intended source changes and regression tests are present. Static read-back does not substitute for Kotlin compilation or Android runtime validation.
+
+## Follow-up: documentation-head workflow — 2026-11-14
+
+The documentation-only commit `db24bd9876790871660ba8f2bd2f41fe9bc04f5c` triggered workflow run #303 (`43527858180`). It also failed before runner allocation:
+
+- Job ID: `132237961320`
+- Job conclusion: `failure`
+- Steps: empty array
+- Logs URL: unavailable
+- No build or test command ran
+
+This independently confirms the current hosted-runner allocation problem also affects a docs-only commit. Do not spend more retries on this identical failure mode until runner availability changes.
