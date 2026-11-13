@@ -39,14 +39,19 @@ class NativeDriverMirrorReviewTest {
             fees = 8.50,
             bonus = 0.0,
             distanceKm = 8.4,
-            durationMinutes = 23.0
+            durationMinutes = 23.0,
+            pickup = "Main Street 12, Kraków",
+            dropoff = "Rynek Główny, Kraków",
+            sourceName = "Android live UI listener"
         )
 
         assertTrue(id > 0)
         val record = store.recent().single()
         assertEquals(23.0, record.durationMinutes ?: 0.0, 0.001)
         assertEquals(8.4, record.distanceKm ?: 0.0, 0.001)
-        assertEquals("Android screen capture", record.sourceName)
+        assertEquals("Main Street 12, Kraków", record.pickup)
+        assertEquals("Rynek Główny, Kraków", record.dropoff)
+        assertEquals("Android live UI listener", record.sourceName)
         assertEquals("driver-reviewed", record.status)
         assertEquals(34.0, store.summary().knownNet ?: 0.0, 0.001)
         assertTrue(store.evidencePreview().single().contains("TRIP COMPLETE"))
