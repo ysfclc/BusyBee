@@ -198,3 +198,14 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 
 
 - **Runner update:** GitHub Actions run 112 (43424684264), triggered by the latest GPS lifecycle source commit, also failed before any job steps were exposed (steps=null; no job log URL). No compile/test command ran. The Vercel sandbox remains stopped; its previous resume attempt was blocked by HTTP 402. No repeated resume attempt or billing change was made.
+
+
+## Current stabilization/build checkpoint — 2026-11-13
+
+- Current branch: `feat/live-navigation-vehicle-2026-11-13`; PR #8 remains open/draft/unmerged at `727a1289b8618c28ac15b4eca2d322d5be1c422e`.
+- Lifecycle guards are source-read back, but latest code remains uncompiled and tests remain unexecuted.
+- Latest GitHub Actions run #117 and its one retry failed before allocating steps; retry step list is empty.
+- Vercel Android build sandbox resume is blocked by HTTP 402 Hobby usage cap (reset 2026-12-01 UTC).
+- No APK has been built from current PR head. Do not install/share the historical APK as though it contains the latest lifecycle changes.
+- New source-review finding: MapLibre style-loaded callback can mutate MapView while Activity is paused; record as BB-007 in RISKS.md. Narrow correction is pending build-capable verification.
+- BB-001 and BB-002 remain open; original IllegalStateException root cause is still unknown.
