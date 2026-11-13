@@ -923,7 +923,7 @@ class MainActivity : AppCompatActivity() {
         }
         if(zoom>=17.0) {
             mapPlaces.filter { it.kind==MapPlaceKind.ENTRANCE }.take(36).forEach { feature ->
-                val icon=factory.fromBitmap(MapMarkerArtwork.entrance(this))
+                val icon=factory.fromBitmap(MapMarkerArtwork.entranceLabel(this,feature.label,night))
                 active.addMarker(MarkerOptions().position(feature.point).title(feature.label).snippet(feature.detail).icon(icon))
                     ?.let { placeMarkers.add(it) }
             }
