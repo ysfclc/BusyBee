@@ -1,3 +1,10 @@
+## 2026-11-13 — Map navigation crash fix and first BusyBee brand
+
+- Keep the MapLibre map screen attached to the Activity's screen host while other tabs are displayed; tab switches and the 3D toggle no longer detach/reparent the native map view.
+- Add a reusable tab screen host and Robolectric regression tests for repeated tab switching.
+- Add an original geometric bee-and-road adaptive Android launcher icon, BusyBee launcher label and a documented navy/mint/amber brand palette.
+- Verification on Vercel Sandbox at commit `7095489fa3810082c91a81a274d0bd1784e0d389`: Rust workspace tests 4/4; Android unit tests 33/33 (0 failures/errors/skips); APK assembly and debug signature v2 verification passed. Icon-enabled APK: 48,879,532 bytes, SHA-256 `41c3ab575a72ef3d3279aa6f7bebbb89fc41f46190f96b9680d04922400fdf43`. APK manifest reports launcher label `BusyBee` and the custom adaptive icon. Real-device click validation remains required.
+
 ## 2026-11-12 — Vercel Android APK build pipeline
 
 - Added a dedicated Vercel Hobby project (`busybee-apk`) linked to the BusyBee repository, without changing other Vercel projects.

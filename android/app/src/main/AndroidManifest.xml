@@ -6,7 +6,9 @@
 
     <application
         android:allowBackup="false"
-        android:label="BusyBee Driver"
+        android:label="BusyBee"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
         <service

@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
+import android.util.Log
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
@@ -54,6 +55,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var locationManager:LocationManager
     private lateinit var mapView:MapView
     private lateinit var content:FrameLayout
+    private lateinit var screenHost:TabScreenHost
+    private var threeDButton:TextView?=null
     private lateinit var nav:LinearLayout
     private val worker=Executors.newFixedThreadPool(2)
     private var map:MapLibreMap?=null
@@ -96,7 +99,11 @@ class MainActivity : AppCompatActivity() {
         content=FrameLayout(this);root.addView(content,LinearLayout.LayoutParams(-1,0,1f))
         nav=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;setPadding(dp(7),dp(7),dp(7),dp(9));setBackgroundColor(PANEL)}
         root.addView(nav);setContentView(root)
-        buildNavigation();showTab("MAP")
+        buildNavigation()
+        // Keep MapLibre's native view attached for the full Activity lifetime.
+        // Reparenting it on every tab change can tear down/recreate its GL surface.
+        screenHost=TabScreenHost(content,buildMapScreen())
+        showTab("MAP")
         mapView.getMapAsync { instance ->
             map=instance
             instance.setStyle(Style.Builder().fromUri(OPENFREE_MAP_STYLE)) {
@@ -120,22 +127,24 @@ class MainActivity : AppCompatActivity() {
     private fun buildNavigation() {
         nav.removeAllViews()
         listOf("MAP","OFFERS","EARNINGS","DRIVER HUB","SOURCES").forEach { tab ->
-            val b=label(tab,9f,MUTED,true).apply{gravity=Gravity.CENTER;setPadding(dp(4),dp(12),dp(4),dp(12));setOnClickListener{showTab(tab)}}
+            val b=label(tab,9f,MUTED,true).apply{gravity=Gravity.CENTER;setPadding(dp(4),dp(12),dp(4),dp(12));setOnClickListener{safeUiAction("open $tab"){showTab(tab)}}}
             navButtons[tab]=b;nav.addView(b,LinearLayout.LayoutParams(0,-1,1f))
         }
     }
 
     private fun showTab(tab:String) {
-        content.removeAllViews()
         navButtons.forEach{(key,b)->b.setTextColor(if(key==tab)MINT else MUTED);b.background=rounded(if(key==tab)0xFF1B343B.toInt() else Color.TRANSPARENT,11)}
+        if(tab=="MAP") {
+            screenHost.showMap()
+            return
+        }
         val view=when(tab) {
-            "MAP"->buildMapScreen()
             "OFFERS"->buildOffersScreen()
             "EARNINGS"->buildEarningsScreen()
             "DRIVER HUB"->buildDriverHubScreen()
             else->buildSourcesScreen()
         }
-        content.addView(view,FrameLayout.LayoutParams(-1,-1))
+        screenHost.show(view)
     }
 
     private fun buildMapScreen():View {
@@ -155,7 +164,7 @@ class MainActivity : AppCompatActivity() {
                 gravity=Gravity.CENTER;setPadding(dp(11),dp(9),dp(11),dp(9))
                 background=rounded(if(selectedLayers.contains(name))MINT else 0xFF263B46.toInt(),12)
                 setTextColor(if(selectedLayers.contains(name))BG else WHITE)
-                setOnClickListener{if(!selectedLayers.add(name))selectedLayers.remove(name);setTextColor(if(selectedLayers.contains(name))BG else WHITE);background=rounded(if(selectedLayers.contains(name))MINT else 0xFF263B46.toInt(),12);renderRoadEvents()}
+                setOnClickListener{safeUiAction("toggle $name layer"){if(!selectedLayers.add(name))selectedLayers.remove(name);setTextColor(if(selectedLayers.contains(name))BG else WHITE);background=rounded(if(selectedLayers.contains(name))MINT else 0xFF263B46.toInt(),12);renderRoadEvents()}}
             }
             layerRow.addView(chip,LinearLayout.LayoutParams(-2,dp(34)).apply{marginEnd=dp(6)})
         }
@@ -180,11 +189,14 @@ class MainActivity : AppCompatActivity() {
         val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
         actions.addView(action("◎ LOCATE",true){requestLocation()},LinearLayout.LayoutParams(0,dp(42),1f))
         actions.addView(action("↻ REFRESH",false){refreshRoadIntelligence()},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
-        actions.addView(action(if(tilted)"3D ON" else "3D OFF",false){
-            tilted=!tilted;val p=map?.cameraPosition
+        val threeD=action(if(tilted)"3D ON" else "3D OFF",false){
+            tilted=!tilted
+            val p=map?.cameraPosition
             if(p!=null)map?.animateCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder().target(p.target?:KRAKOW).zoom(p.zoom).bearing(p.bearing).tilt(if(tilted)42.0 else 0.0).build()),300)
-            showTab("MAP")
-        },LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
+            threeDButton?.text=if(tilted)"3D ON" else "3D OFF"
+        }
+        threeDButton=threeD
+        actions.addView(threeD,LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
         bottom.addView(actions)
         bottom.addView(action("START TURN-BY-TURN IN MAPS",false){openExternalNavigation()},LinearLayout.LayoutParams(-1,dp(36)).apply{topMargin=dp(7)})
         bottom.addView(action("＋ REPORT A ROAD HAZARD",false){reportRoadHazard()},LinearLayout.LayoutParams(-1,dp(36)).apply{topMargin=dp(6)})
@@ -623,7 +635,17 @@ class MainActivity : AppCompatActivity() {
     private fun metric(title:String,value:String)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(9),dp(10),dp(7),dp(9));background=rounded(0xFF1A2D37.toInt(),12);addView(label(title,9f,MUTED,true));addView(label(value,12f,WHITE,true).apply{setPadding(0,dp(6),0,0)})}
     private fun label(value:String,size:Float,color:Int,bold:Boolean)=TextView(this).apply{text=value;textSize=size;setTextColor(color);if(bold)typeface=Typeface.DEFAULT_BOLD}
     private fun field(hintText:String,value:String)=EditText(this).apply{hint=hintText;setText(value);textSize=13f;setTextColor(WHITE);setHintTextColor(MUTED);setSingleLine(true);setPadding(dp(10),dp(9),dp(10),dp(9));background=rounded(0xFF1B303A.toInt(),10);layoutParams=LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(7)}}
-    private fun action(title:String,primary:Boolean,onClick:()->Unit)=TextView(this).apply{text=title;gravity=Gravity.CENTER;textSize=9f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.02f;setTextColor(if(primary)BG else WHITE);background=rounded(if(primary)MINT else 0xFF263B46.toInt(),11);setOnClickListener{onClick()}}
+    private fun action(title:String,primary:Boolean,onClick:()->Unit)=TextView(this).apply{text=title;gravity=Gravity.CENTER;textSize=9f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.02f;setTextColor(if(primary)BG else WHITE);background=rounded(if(primary)MINT else 0xFF263B46.toInt(),11);setOnClickListener{safeUiAction(title){onClick()}}}
+    private fun safeUiAction(actionName:String, action:()->Unit) {
+        if(isFinishing || isDestroyed) return
+        try {
+            action()
+        } catch(error:Exception) {
+            Log.e("BusyBee", "UI action failed: $actionName", error)
+            Toast.makeText(this,"Couldn't complete that action. Please try again.",Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun addViewAction(parent:LinearLayout,title:String,onClick:()->Unit){parent.addView(action(title,true,onClick),LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(9)})}
     private fun divider()=View(this).apply{setBackgroundColor(0xFF263943.toInt());layoutParams=LinearLayout.LayoutParams(-1,dp(1))}
     private fun rounded(color:Int,radius:Int)=GradientDrawable().apply{setColor(color);cornerRadius=dp(radius).toFloat()}
