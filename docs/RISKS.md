@@ -75,6 +75,6 @@ These are source-level lifecycle gaps, not evidence that MapLibre or TTS caused 
 ### R-15 mitigation update — 2026-11-13
 
 - **Changed in source:** MapLibre map acquisition and style-loaded callbacks, plus TextToSpeech initialization completion, now pass through LifecycleSafeUiDispatcher. Its pre-post and main-thread execution checks suppress callbacks after Activity finishing/destruction.
-- **Changed in source:** LocationListener still retains the newest fix but skips map mutation unless the Activity lifecycle is RESUMED. onResume reapplies the cached fix after MapView resumes, then restarts active/follow location updates.
+- **Changed in source:** LocationListener retains the newest fix but skips map mutation unless the Activity lifecycle is RESUMED. Location registration is deferred until RESUMED, and onDestroy removes the listener defensively. onResume reapplies only a fix no older than 120 seconds after MapView resumes, then restarts active/follow location updates.
 - **Regression coverage:** Added a third Robolectric test that rejects a callback when the Activity is already finishing. Tests are authored, not executed.
 - **Verification limit:** GitHub source read-back and static inspection only. No Android test/build runner is currently available. This is not a diagnosis or confirmed fix for BB-002; MapLibre native lifecycle behavior still needs physical-device validation.
