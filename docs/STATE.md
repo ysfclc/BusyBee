@@ -2,7 +2,7 @@
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
-**Latest source commit:** `2cbce0160329baa114f581408d66fe63a7b831f5`  
+**Latest source commit:** `d668ba5f433c9d781c12554c786083b47895affe`  
 **Status:** implementation authored; build/test/device verification blocked and pending. PR #9 is draft and stacked on PR #8; neither is merged.
 
 
@@ -26,7 +26,7 @@ The user explicitly rejected the prior map because it had no recognisable vehicl
 
 Delivered in this increment:
 - Map remains a full-bleed MapLibre canvas with no persistent header or tab bar. Its floating route dock is compact by default: destination search only. Route estimates and navigation controls appear only when needed; START/STOP state follows navigation state.
-- Map appearance now uses solar elevation at the driver's last permitted location for Bright (day), Fiord (dusk) and Dark (night) map styles, with a local-clock fallback before GPS. The view palette and system bars follow the same phase; MapLibre style reload preserves camera, driver marker and active route.
+- Map appearance now uses solar elevation at the driver's last permitted location for Liberty (day), Fiord (dusk) and Dark (night) map styles, with a local-clock fallback before GPS. The view palette and system bars follow the same phase; MapLibre style reload preserves camera, driver marker and active route.
 - Driver-app capture now has a read-only AccessibilityService path, explicitly enabled in Android Settings after an in-app disclosure. It is package-scoped to the Uber and Bolt Driver package IDs, reads visible non-password/non-editable text only, and does not interact with the source apps. Notification capture is the second signal; MediaProjection/OCR remains the manual fallback.
 - Newly detected offer/trip/earnings observations and relevant notifications can issue generic BusyBee notifications deep-linking to Offers or Earnings. Alert permission, mute state and source state are visible in the UI.
 - The local observation parser now preserves explicit pickup/drop-off labels as well as amounts, distance, duration and source type. The review form keeps those fields editable; original visible text remains attached as evidence. Unknown fields stay null.
