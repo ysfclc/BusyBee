@@ -191,9 +191,10 @@ class DriverAppCaptureService : Service() {
     private var display: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     private val handler = Handler(Looper.getMainLooper())
-    private val recognizer by lazy {
+    private val recognizerLazy = lazy {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
+    private val recognizer by recognizerLazy
     private var platform = "Uber"
     private var processingFrame = false
     private var lastFrameAt = 0L
@@ -281,7 +282,6 @@ class DriverAppCaptureService : Service() {
         var bitmap: Bitmap? = null
         try {
             val plane = image.planes.firstOrNull() ?: run {
-                image.close()
                 processingFrame = false
                 return
             }
@@ -372,7 +372,7 @@ class DriverAppCaptureService : Service() {
         val activeProjection = projection
         projection = null
         activeProjection?.stop()
-        recognizer.close()
+        if (recognizerLazy.isInitialized()) recognizer.close()
         super.onDestroy()
     }
 
