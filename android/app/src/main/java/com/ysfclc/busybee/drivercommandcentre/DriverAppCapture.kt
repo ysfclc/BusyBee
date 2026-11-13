@@ -31,8 +31,9 @@ import java.util.Locale
 /**
  * A user-started, Android system-approved bridge for reading visible Uber/Bolt
  * Driver screens. Frames are OCR'd locally; screenshots are never persisted or
- * uploaded. Only the extracted text and confidence-neutral hints are retained
- * for user review. Nothing is committed to earnings until the driver confirms it.
+ * uploaded. Extracted text and a rule-based parser-confidence hint are retained
+ * for review; that hint is not a factual accuracy probability. Nothing enters earnings
+ * until the driver confirms the values.
  */
 data class NativeDriverObservation(
     val id: Long = 0,
