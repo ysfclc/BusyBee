@@ -16,6 +16,16 @@ import kotlin.math.*
 
 internal enum class MapPlaceKind { BUILDING, ENTRANCE }
 
+internal object RoadNamePolicy {
+    fun fields(language: String): List<String> =
+        if (language.equals("pl", ignoreCase = true)) {
+            listOf("name:pl", "name", "name:latin", "name_en")
+        } else {
+            listOf("name", "name:latin", "name_en")
+        }
+}
+
+
 internal data class MapPlaceFeature(
     val id: String,
     val kind: MapPlaceKind,
