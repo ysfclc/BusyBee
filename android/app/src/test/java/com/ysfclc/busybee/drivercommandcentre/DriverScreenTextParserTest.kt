@@ -35,6 +35,35 @@ class DriverScreenTextParserTest {
     }
 
     @Test
+    fun extractsOnlyExplicitPickupAndDropoffLabelsFromLiveUiText() {
+        val parsed = DriverScreenTextParser.parse(
+            platform = "Uber",
+            text = "TRIP DETAILS\nPickup\nMain Street 12, Kraków\nDrop-off: Rynek Główny, Kraków\nFare 42.50 PLN\nDistance 8.4 km\nDuration 23 min",
+            capturedAt = 1_800_000_000_000L,
+            sourceType = "ACCESSIBILITY_UI"
+        )
+
+        assertNotNull(parsed)
+        assertEquals("Main Street 12, Kraków", parsed?.pickup)
+        assertEquals("Rynek Główny, Kraków", parsed?.dropoff)
+        assertEquals("ACCESSIBILITY_UI", parsed?.sourceType)
+    }
+
+    @Test
+    fun doesNotMistakePickupEtaForPickupAddress() {
+        val parsed = DriverScreenTextParser.parse(
+            platform = "Bolt",
+            text = "NEW TRIP OFFER\nPickup in 7 min\nFare 18.50 PLN\nTrip distance 3 km",
+            capturedAt = 1_800_000_000_000L,
+            sourceType = "ACCESSIBILITY_UI"
+        )
+
+        assertNotNull(parsed)
+        assertNull(parsed?.pickup)
+        assertNull(parsed?.dropoff)
+    }
+
+    @Test
     fun ignoresUnrelatedDriverAppScreenText() {
         assertNull(
             DriverScreenTextParser.parse(
