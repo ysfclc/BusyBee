@@ -10,6 +10,10 @@ internal class MapStyleState {
 
     private var activationClaimed = false
 
+    fun markLoading() {
+        isReady = false
+    }
+
     fun markReady() {
         isReady = true
     }
