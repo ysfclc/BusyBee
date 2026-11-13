@@ -153,3 +153,13 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - **Verified:** Audit document was committed to this branch and must be read back before treating it as persisted.
 - **Not done/next:** Resolve BB-001/BB-002 from the device DIAG/logcat evidence; continue target-device stability gates. After acceptance, prioritize safe record correction/deletion, import review/rollback and user data export.
 - **Risks/landmines:** Do not add CRUD writes while the app is unstable; any future corrections to imported earnings must preserve immutable raw evidence and be separately auditable.
+
+
+## Session handoff — 2026-11-13 (read-only asynchronous lifecycle review)
+
+- **Done:** Inspected the current PR #8 source at `ea654235a127e189757dd2b912d6ed040815fe9c`, including route search, route-alternative selection, off-route rerouting, road/weather refresh, and Activity teardown.
+- **Finding:** Four worker-to-main-thread UI flows contain callbacks that do not consistently guard the complete callback against a finishing/destroyed Activity. Executor shutdown in `onDestroy()` does not retract main-thread callbacks already queued. This is a confirmed source-level safety gap, not proof of the user's IllegalStateException.
+- **State changed:** Documentation only. No Kotlin code, schema, UI, APK or PR merge changed. STOP-WORK remains active.
+- **Verified:** Source line locations were read from GitHub; the risk and stabilization records are being updated with exact flow names and verification requirements.
+- **Not done/next:** No root cause is assigned to BB-002. Capture the DIAG LAST ACTION FAILURE/logcat and reproduce lifecycle interruption while each worker is in flight before authorizing a fix.
+- **Risks/landmines:** Guarding only `displayRoute()` is insufficient; the complete callback body, dialogs, Toasts, map annotation calls and Activity-owned state need lifecycle consideration. A source-level guard still requires target-device verification.
