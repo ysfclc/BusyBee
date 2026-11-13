@@ -18,6 +18,7 @@ import java.util.ArrayDeque
 class DriverAppAccessibilityService : AccessibilityService() {
     private var lastReadAt = 0L
     private var lastSnapshotFingerprint = ""
+    private var lastSnapshotAt = 0L
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
@@ -31,13 +32,15 @@ class DriverAppAccessibilityService : AccessibilityService() {
         lastReadAt = now
 
         val root = rootInActiveWindow ?: return
+        if (root.packageName?.toString() != packageName) return
         val visibleText = collectVisibleText(root)
         if (visibleText.length < MIN_TEXT_LENGTH) return
 
         val parsed = DriverScreenTextParser.parse(platform, visibleText, now) ?: return
         val fingerprint = sha256(platform + "\u0000" + parsed.screenType + "\u0000" + parsed.visibleText)
-        if (fingerprint == lastSnapshotFingerprint && now - lastReadAt < DUPLICATE_WINDOW_MS) return
+        if (fingerprint == lastSnapshotFingerprint && now - lastSnapshotAt < DUPLICATE_WINDOW_MS) return
         lastSnapshotFingerprint = fingerprint
+        lastSnapshotAt = now
 
         val rowId = runCatching {
             DriverAppCaptureStore(applicationContext).save(parsed)
