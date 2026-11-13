@@ -118,3 +118,15 @@ Follow-up workflow run #124 (`43433780437`) after the BB-007 source correction f
 - **Correction:** Fingerprint now includes the Android notification post timestamp, with NUL-delimited fields and UTF-8 SHA-256. Same notification/time remains deduplicated; a new post time becomes a new record.
 - **Regression coverage authored:** Four pure unit tests cover same-notification dedupe, repeated identical text at a later timestamp, changed content and platform separation.
 - **Verification status:** Source commit and test file read-back required; compilation and tests remain unexecuted until a working Android runner is available. Existing database schema remains compatible; no migration is required because the fingerprint is stored as an opaque unique string.
+
+
+## BB-009 — Broad package matching can capture passenger-app notifications
+
+- **Severity:** Medium (incorrect source attribution / noisy offer inbox).
+- **Area:** Android notification listener / third-party app integration.
+- **Evidence:** The listener previously matched package names using substring checks such as `contains("uber")` and `contains("bolt")`. This can classify passenger, food-delivery or unrelated lookalike apps as driver offer sources.
+- **Expected:** Capture only notifications from exact, verified driver-app package IDs; require Android notification-listener opt-in; keep unverified providers visibly unavailable.
+- **Actual before correction:** Any package containing a provider keyword could be labelled as that provider.
+- **Correction:** Added an exact package allowlist for the two driver packages already used by BusyBee's explicit app-launch handoff: `com.ubercab.driver` and `ee.mtakso.driver`. Other provider names are no longer inferred from substrings. The Sources screen now names only those two verified packages.
+- **Regression tests authored:** Five cases cover Uber, Bolt, case-insensitive matching, passenger/lookalike rejection and unverified provider rejection.
+- **Verification status:** Source read-back/static inspection only. Package IDs still require confirmation against installed app versions on the target phone; no compile/test/device run is available.
