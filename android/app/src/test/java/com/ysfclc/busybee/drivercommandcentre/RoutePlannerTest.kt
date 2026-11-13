@@ -21,13 +21,12 @@ class RoutePlannerTest {
         assertEquals(50.0614, results[0].location.latitude, 0.00001)
     }
 
-    @Test fun destinationSearchUsesPolishNamesAndStaysInsideTheDriverArea() {
+    @Test fun destinationSearchPrefersPolishNamesAndBiasesTowardTheDriverArea() {
         val url = RoutePlanner.destinationSearchUrl("ulica Długa 8", LatLng(50.061, 19.937))
         assertTrue(url.contains("accept-language=pl"))
         assertTrue(url.contains("countrycodes=pl"))
         assertTrue(url.contains("viewbox="))
         assertTrue(!url.contains("bounded=1"))
-        assertTrue(url.contains("viewbox="))
     }
 
     @Test fun routeInstructionsFallBackToRoadReferenceWhenNameIsMissing() {
