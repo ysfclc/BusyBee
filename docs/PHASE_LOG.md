@@ -257,3 +257,8 @@ Remaining gates:
 - Added tests for native OCR parsing, WhatsApp notification parsing, per-group consent and reviewed-record evidence. These new tests still require a successful run in a build of the latest test commit.
 
 Build evidence: deployment dpl_D6JRWWpjiHuzmE4kaETzneeKP5xq reached READY for code commit 3cc846a85f892e028ae7b1109d3a8c9bda94632f; Android APK assembly and ZIP integrity verification succeeded. Test-only commit 5e8f9dd720bbdbc2c9a27b8bd9828f384d9ce562 is newer than that APK. No physical-device validation or product acceptance is claimed.
+
+
+### Verification blocker update — 2026-11-13
+
+Latest source checkpoint: a1471cd3d1905064b47a5eb21dfa61005579ff5b. The Vercel build that included the new tests stopped after Gradle started Android unit tests and produced no further logs; it was cancelled rather than reported as passed. The next deployment request was rejected by the Vercel Hobby daily deployment API limit (HTTP 402). GitHub Actions PR run 43507100722 failed before runner assignment (runner_id 0), with no downloadable job logs. Therefore no passing test count or latest-source APK is claimed. The previous READY APK is an earlier code snapshot only.
