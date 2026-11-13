@@ -802,53 +802,80 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildOffersScreen():View{
         val root=columnScroll()
-        root.addView(section("OFFER COMMAND","Capture platform offers, calculate trip economics, then decide."))
+        root.addView(section("OFFER DESK","See the real offer, check the economics, then decide inside the platform."))
+
         val vehicle=commands.vehicleProfile()
         root.addView(card().apply {
-            addView(label("ACTIVE VEHICLE",10f,MINT,true))
-            addView(label(vehicle.summary(),11f,WHITE,false).apply { setPadding(0,dp(5),0,dp(5)) })
-            addView(action("EDIT VEHICLE PROFILE",false){showTab("DRIVER HUB")})
+            val line=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+            val info=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.VERTICAL}
+            info.addView(label("ACTIVE VEHICLE",9f,MINT,true))
+            info.addView(label(vehicle.summary(),11f,WHITE,true).apply{setPadding(0,dp(4),0,0)})
+            line.addView(info,LinearLayout.LayoutParams(0,-2,1f))
+            line.addView(action("VEHICLE",false){showTab("DRIVER HUB")},LinearLayout.LayoutParams(dp(88),dp(38)))
+            addView(line)
         })
-        val rules=card();rules.addView(label("YOUR DECISION RULES",11f,MINT,true))
-        val cost=field("Vehicle cost per km (PLN)",commands.setting("cost_per_km","0.85"))
-        val minHour=field("Minimum net per hour (PLN)",commands.setting("min_per_hour","35"))
-        val maxPickup=field("Maximum pickup distance (km)",commands.setting("max_pickup","8"))
-        val minRating=field("Minimum passenger rating (0 = ignore)",commands.setting("min_rating","0"))
-        listOf(cost,minHour,maxPickup,minRating).forEach{rules.addView(it)}
-        rules.addView(action("SAVE OFFER RULES",true){
-            commands.setSetting("cost_per_km",cost.text.toString().replace(',','.').ifBlank{"0.85"})
-            commands.setSetting("min_per_hour",minHour.text.toString().replace(',','.').ifBlank{"35"})
-            commands.setSetting("max_pickup",maxPickup.text.toString().replace(',','.').ifBlank{"8"})
-            commands.setSetting("min_rating",minRating.text.toString().replace(',','.').ifBlank{"0"})
-            showTab("OFFERS")
-        });root.addView(rules)
-        val capture=card()
-        capture.addView(label("NATIVE DRIVER APP BRIDGE",11f,MINT,true))
-        capture.addView(label("Read the actual driver-app screen using Android's system app-sharing consent. Choose only the Uber/Bolt app window. OCR runs on-device; no screenshots are saved or uploaded. Every record waits for your review.",11f,MUTED,false))
-        val captureButtons=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
-        captureButtons.addView(action("CAPTURE UBER",true){launchDriverScreenCapture("Uber")},LinearLayout.LayoutParams(0,dp(42),1f))
-        captureButtons.addView(action("CAPTURE BOLT",false){launchDriverScreenCapture("Bolt")},LinearLayout.LayoutParams(0,dp(42),1f).apply { marginStart=dp(7) })
-        capture.addView(captureButtons.apply { setPadding(0,dp(10),0,dp(7)) })
-        capture.addView(action("CAPTURE ANOTHER DRIVER APP",false){promptOtherPlatformCapture()},LinearLayout.LayoutParams(-1,dp(38)))
-        capture.addView(action("STOP SCREEN CAPTURE",false){stopDriverScreenCapture()},LinearLayout.LayoutParams(-1,dp(38)).apply { topMargin=dp(6) })
-        capture.addView(label("API CONNECTIONS",10f,WHITE,true).apply { setPadding(0,dp(12),0,dp(3)) })
-        capture.addView(label("Uber's Driver API requires approved access. Bolt's published Fleet API is for fleet partners. The native bridge is the direct, user-controlled Android path while API access is unavailable.",10f,MUTED,false))
-        capture.addView(action(if(notificationAccessEnabled())"NOTIFICATION FALLBACK · ENABLED" else "ENABLE NOTIFICATION FALLBACK",false){startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))}.apply { setPadding(0,dp(8),0,dp(8)) })
-        root.addView(capture)
-        val add=card();add.addView(label("MANUAL CORRECTION",11f,MINT,true));add.addView(label("Use this only to correct an offer when the source screen cannot be read. No automatic acceptance or decline.",10f,MUTED,false))
-        addViewAction(add,"＋ ADD OFFER"){offerDialog()};root.addView(add)
+
+        val rulesButton=action("DECISION RULES  ·  EDIT",false) {
+            val panel=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),0,dp(18),0)}
+            val cost=field("Vehicle cost per km (PLN)",commands.setting("cost_per_km","0.85"))
+            val minHour=field("Minimum net per hour (PLN)",commands.setting("min_per_hour","35"))
+            val maxPickup=field("Maximum pickup distance (km)",commands.setting("max_pickup","8"))
+            val minRating=field("Minimum passenger rating (0 = ignore)",commands.setting("min_rating","0"))
+            listOf(cost,minHour,maxPickup,minRating).forEach{panel.addView(it)}
+            AlertDialog.Builder(this).setTitle("Your offer filters")
+                .setView(panel)
+                .setNegativeButton("Cancel",null)
+                .setPositiveButton("Save rules"){_,_->
+                    commands.setSetting("cost_per_km",cost.text.toString().replace(',','.').ifBlank{"0.85"})
+                    commands.setSetting("min_per_hour",minHour.text.toString().replace(',','.').ifBlank{"35"})
+                    commands.setSetting("max_pickup",maxPickup.text.toString().replace(',','.').ifBlank{"8"})
+                    commands.setSetting("min_rating",minRating.text.toString().replace(',','.').ifBlank{"0"})
+                    showTab("OFFERS")
+                }.show()
+        }
+        root.addView(rulesButton.apply{setPadding(0,dp(9),0,dp(9))})
+
+        root.addView(section("NATIVE DRIVER APP BRIDGE","Primary capture path · started by you · processed on this device"))
+        root.addView(card().apply {
+            addView(label("OPEN THE DRIVER APP AND CAPTURE ITS VISIBLE SCREEN",10f,MINT,true))
+            addView(label("Choose only the Uber/Bolt Driver app window in Android's system picker. OCR stays on-device; screenshots are not saved or uploaded. Every observation waits for your review.",9f,MUTED,false).apply{setPadding(0,dp(5),0,dp(9))})
+            val platforms=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
+            platforms.addView(action("UBER",true){launchDriverScreenCapture("Uber")},LinearLayout.LayoutParams(0,dp(42),1f))
+            platforms.addView(action("BOLT",false){launchDriverScreenCapture("Bolt")},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
+            addView(platforms)
+            val extra=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
+            extra.addView(action("＋ OTHER APP",false){promptOtherPlatformCapture()},LinearLayout.LayoutParams(0,dp(38),1f))
+            extra.addView(action("STOP",false){stopDriverScreenCapture()},LinearLayout.LayoutParams(dp(82),dp(38)).apply{marginStart=dp(7)})
+            addView(extra.apply{setPadding(0,dp(7),0,dp(7))})
+            addView(label("API STATUS",9f,AMBER,true))
+            addView(label("Uber Driver API access requires approval. Bolt Fleet API is partner-scoped, not a general individual-driver API. No provider API connection is claimed.",9f,MUTED,false).apply{setPadding(0,dp(3),0,dp(7))})
+            addView(action(if(notificationAccessEnabled())"NOTIFICATION FALLBACK · ENABLED" else "ENABLE SECONDARY NOTIFICATION FALLBACK",false){startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))})
+        })
+
         val ranked=OfferEngine.rank(commands.offers(),num("cost_per_km",0.85),num("min_per_hour",35.0),num("max_pickup",8.0),num("min_rating",0.0))
-        root.addView(section("RANKED OFFERS",ranked.size.toString()+" offers meet your rules · sorted by estimated net PLN/hour"))
-        if(ranked.isEmpty())root.addView(card().apply{addView(label("No qualifying offers yet.",15f,WHITE,true));addView(label("Enable notification capture or add an offer. No demo offers are inserted.",11f,MUTED,false))})
+        val add=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+        add.addView(label("RANKED OFFERS",13f,WHITE,true),LinearLayout.LayoutParams(0,-2,1f))
+        add.addView(action("＋ MANUAL",true){offerDialog()},LinearLayout.LayoutParams(dp(112),dp(38)))
+        root.addView(add.apply{setPadding(dp(2),dp(17),dp(2),dp(8))})
+        root.addView(label("\${ranked.size} offers meet your current rules · ranked by estimated net PLN/hour",9f,MUTED,false).apply{setPadding(dp(2),0,0,dp(7))})
+        if(ranked.isEmpty()) root.addView(card().apply{
+            addView(label("No qualifying offers yet",14f,WHITE,true))
+            addView(label("Start a native capture session or add an offer for correction. BusyBee does not insert demo offers.",9f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+        })
         ranked.forEach{root.addView(offerCard(it))}
-        root.addView(section("CAPTURED PLATFORM NOTIFICATIONS","Raw notification text; review and convert into a structured offer."))
+
+        root.addView(section("SECONDARY SIGNALS","Notifications are optional evidence, never the primary integration"))
         val notices=commands.notices()
-        if(notices.isEmpty())root.addView(card().apply{addView(label("No ride-platform notifications captured.",11f,MUTED,false))})
-        notices.forEach{n->root.addView(card().apply{
-            addView(label(n.platform+" · "+dateTime(n.capturedAt),10f,MINT,true));addView(label(n.title,13f,WHITE,true))
-            addView(label(n.body,11f,MUTED,false).apply{setPadding(0,dp(4),0,dp(7))})
-            addViewAction(this,"CREATE OFFER FROM NOTICE"){offerDialog(n.platform,n.body)}
-        })}
+        if(notices.isEmpty()) root.addView(label("No ride-platform notifications captured.",10f,MUTED,false).apply{setPadding(dp(4),dp(3),0,dp(10))})
+        notices.forEach { notice ->
+            val item=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(9),dp(4),dp(9))}
+            item.addView(label(notice.platform.uppercase()+"  ·  "+dateTime(notice.capturedAt),9f,MINT,true))
+            item.addView(label(notice.title,11f,WHITE,true).apply{setPadding(0,dp(3),0,dp(2))})
+            item.addView(label(notice.body.take(180),9f,MUTED,false).apply{maxLines=3})
+            item.addView(action("REVIEW AS OFFER",false){offerDialog(notice.platform,notice.body)}.apply{setPadding(0,dp(7),0,dp(7))})
+            root.addView(item)
+            root.addView(divider())
+        }
         return root
     }
 
