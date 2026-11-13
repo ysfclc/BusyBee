@@ -144,7 +144,7 @@ This review does not identify the user's IllegalStateException root cause and do
 
 - MapLibre map acquisition and style-loaded callbacks now use LifecycleSafeUiDispatcher, checking Activity lifetime before and immediately before callback execution.
 - TextToSpeech initialization completion now uses the same dispatcher and resolves the current engine reference only inside the guarded callback.
-- Location callbacks retain the latest fix but do not touch the map unless the Activity is RESUMED. onResume reapplies the cached fix after MapView resumes and restarts active/follow updates.
+- Location callbacks retain the latest fix but do not touch the map unless the Activity is RESUMED. Location registration is deferred until RESUMED; onDestroy removes the listener defensively. onResume reapplies only a fix no older than 120 seconds after MapView resumes and restarts active/follow updates.
 - LifecycleSafeUiDispatcherTest now covers queued callback rejection after destruction, rejection after finish, and delivery while alive (3 tests authored).
 - **Not verified:** No test or compile run has succeeded for this increment. The available GitHub Actions and Vercel runner blockers remain. Source read-back is the only verification until a runner becomes available.
 - **Assessment:** Narrow lifecycle hardening only. It does not establish that BB-002 is fixed, and it does not replace MapLibre physical-device lifecycle tests or the original DIAG/logcat evidence.
