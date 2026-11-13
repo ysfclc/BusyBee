@@ -118,6 +118,7 @@ class MainActivity : AppCompatActivity() {
     private var placeFetchInProgress=false
     private var lastRenderedPlaceZoom=-1.0
     private var vehicleIcon:Icon?=null
+    private var smoothedNavigationBearing:Double?=null
     private val reportMarkers=mutableListOf<Marker>()
     private val routeMarkers=mutableListOf<Marker>()
     private var routePolyline:Polyline?=null
@@ -821,7 +822,10 @@ class MainActivity : AppCompatActivity() {
     private fun updateNavigationCamera(location:Location) {
         val point=LatLng(location.latitude,location.longitude)
         val previousBearing=map?.cameraPosition?.bearing ?: 0.0
-        val bearing=if(location.hasBearing() && location.speed>1.0f) location.bearing.toDouble() else previousBearing
+        val bearing=if(location.hasBearing() && location.speed>1.0f) {
+            NavigationCameraMath.smoothBearing(smoothedNavigationBearing ?: previousBearing,location.bearing.toDouble())
+                .also { smoothedNavigationBearing=it }
+        } else smoothedNavigationBearing ?: previousBearing
         val cameraTarget=if(navigating && tilted) NavigationCameraMath.aheadOf(point,bearing,if(location.speed>2.0f)48.0 else 26.0) else point
         val zoom=if(navigating)18.2 else 15.5
         val tilt=if(navigating && tilted)58.0 else if(tilted)42.0 else 0.0
