@@ -251,9 +251,11 @@ class MainActivity : AppCompatActivity() {
             rootContainer?.let { root ->
                 val oldIndex=root.indexOfChild(appHeader)
                 val oldParams=appHeader.layoutParams
+                val oldVisibility=appHeader.visibility
                 if(oldIndex>=0) {
                     root.removeView(appHeader)
                     appHeader=buildHeader()
+                    appHeader.visibility=oldVisibility
                     root.addView(appHeader,oldIndex,oldParams)
                 }
             }
