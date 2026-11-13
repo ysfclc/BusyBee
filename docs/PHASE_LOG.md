@@ -20,7 +20,7 @@ Regression tests added for local road-name policy, OSM building/entrance/relatio
 
 **Scope boundary:** this is GPS-driven forward-perspective navigation with 3D building context. It is not a proprietary Waze-like live-traffic engine or photorealistic 3D road mesh. Map labels, building names and stairwell/entrance coverage depend on OSM data quality.
 
-**Verification:** the current PR head has no PR-triggered Actions run. The latest available run #258 (for the preceding source revision) failed before runner/job-step allocation; its retry was cancelled before allocation. No Gradle/test command ran. Vercel reports a build-rate-limit failure. Android compilation, unit-test execution, APK/signature/hash, emulator and Redmi driving checks remain unverified.
+**Verification:** GitHub Actions run #298 (`43527209054`) was created for source revision `e8ae4a23...`; both its initial attempt and retry failed before runner/job-step allocation (`steps: null`, no job logs), so no Gradle/test command ran. Earlier runs #292 and #258 failed/cancelled at the same infrastructure stage. Vercel reports a build-rate-limit failure. Android compilation, unit-test execution, APK/signature/hash, emulator and Redmi driving checks remain unverified.
 
 Do not merge PR #9 until the source builds, tests run, a signed APK is produced, and the map is verified on the target device.
 
