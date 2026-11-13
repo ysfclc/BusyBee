@@ -45,7 +45,8 @@ data class NativeDriverObservation(
     val durationMinutes: Double?,
     val sourceType: String = "MEDIA_PROJECTION_OCR",
     val pickup: String? = null,
-    val dropoff: String? = null
+    val dropoff: String? = null,
+    val parseConfidence: Double = 0.0
 )
 
 data class ParsedDriverScreen(
@@ -58,7 +59,8 @@ data class ParsedDriverScreen(
     val durationMinutes: Double?,
     val sourceType: String = "MEDIA_PROJECTION_OCR",
     val pickup: String? = null,
-    val dropoff: String? = null
+    val dropoff: String? = null,
+    val parseConfidence: Double = 0.0
 )
 
 object DriverScreenTextParser {
@@ -117,6 +119,13 @@ object DriverScreenTextParser {
 
         val pickup = extractLabelledLocation(lines, pickupLabelPattern)
         val dropoff = extractLabelledLocation(lines, dropoffLabelPattern)
+        // Heuristic confidence describes screen classification and explicit field extraction.
+        // It is not a probability that a fare/address is factually correct.
+        val recognisedScreen = screenType != "DRIVER SCREEN"
+        val knownFieldCount = listOf(amount, distance, duration, pickup, dropoff).count { it != null }
+        val screenBase = if (recognisedScreen) 0.56 else 0.30
+        val sourceBonus = if (sourceType == "ACCESSIBILITY_UI") 0.08 else 0.0
+        val parseConfidence = (screenBase + knownFieldCount * 0.065 + sourceBonus).coerceIn(0.0, 0.92)
         return ParsedDriverScreen(
             platform = platform,
             screenType = screenType,
@@ -127,7 +136,8 @@ object DriverScreenTextParser {
             durationMinutes = duration,
             sourceType = sourceType,
             pickup = pickup,
-            dropoff = dropoff
+            dropoff = dropoff,
+            parseConfidence = parseConfidence
         )
     }
 
@@ -167,7 +177,7 @@ object DriverScreenTextParser {
 }
 
 class DriverAppCaptureStore(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "busybee_native_app_capture.db", null, 2) {
+    SQLiteOpenHelper(context.applicationContext, "busybee_native_app_capture.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -183,7 +193,8 @@ class DriverAppCaptureStore(context: Context) :
                 duration_minutes REAL,
                 source_type TEXT NOT NULL DEFAULT 'MEDIA_PROJECTION_OCR',
                 pickup TEXT,
-                dropoff TEXT
+                dropoff TEXT,
+                parse_confidence REAL NOT NULL DEFAULT 0.0
             )""".trimIndent()
         )
         db.execSQL("CREATE INDEX observations_time_idx ON observations(captured_at DESC)")
@@ -194,6 +205,9 @@ class DriverAppCaptureStore(context: Context) :
             db.execSQL("ALTER TABLE observations ADD COLUMN source_type TEXT NOT NULL DEFAULT 'MEDIA_PROJECTION_OCR'")
             db.execSQL("ALTER TABLE observations ADD COLUMN pickup TEXT")
             db.execSQL("ALTER TABLE observations ADD COLUMN dropoff TEXT")
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE observations ADD COLUMN parse_confidence REAL NOT NULL DEFAULT 0.0")
         }
     }
 
@@ -216,6 +230,7 @@ class DriverAppCaptureStore(context: Context) :
             put("source_type", observation.sourceType)
             if (observation.pickup == null) putNull("pickup") else put("pickup", observation.pickup)
             if (observation.dropoff == null) putNull("dropoff") else put("dropoff", observation.dropoff)
+            put("parse_confidence", observation.parseConfidence.coerceIn(0.0, 1.0))
             if (observation.detectedAmount == null) putNull("detected_amount") else put("detected_amount", observation.detectedAmount)
             if (observation.distanceKm == null) putNull("distance_km") else put("distance_km", observation.distanceKm)
             if (observation.durationMinutes == null) putNull("duration_minutes") else put("duration_minutes", observation.durationMinutes)
@@ -228,7 +243,7 @@ class DriverAppCaptureStore(context: Context) :
     fun recent(limit: Int = 30): List<NativeDriverObservation> {
         val result = mutableListOf<NativeDriverObservation>()
         readableDatabase.rawQuery(
-            """SELECT id,platform,screen_type,captured_at,visible_text,detected_amount,distance_km,duration_minutes,source_type,pickup,dropoff
+            """SELECT id,platform,screen_type,captured_at,visible_text,detected_amount,distance_km,duration_minutes,source_type,pickup,dropoff,parse_confidence
                FROM observations ORDER BY captured_at DESC,id DESC LIMIT ?""".trimIndent(),
             arrayOf(limit.coerceIn(1, 200).toString())
         ).use { cursor ->
@@ -245,7 +260,8 @@ class DriverAppCaptureStore(context: Context) :
                         durationMinutes = if (cursor.isNull(7)) null else cursor.getDouble(7),
                         sourceType = cursor.getString(8),
                         pickup = if (cursor.isNull(9)) null else cursor.getString(9),
-                        dropoff = if (cursor.isNull(10)) null else cursor.getString(10)
+                        dropoff = if (cursor.isNull(10)) null else cursor.getString(10),
+                        parseConfidence = cursor.getDouble(11)
                     )
                 )
             }
