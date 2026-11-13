@@ -42,7 +42,8 @@ class NativeDriverMirrorReviewTest {
             durationMinutes = 23.0,
             pickup = "Main Street 12, Kraków",
             dropoff = "Rynek Główny, Kraków",
-            sourceName = "Android live UI listener"
+            sourceName = "Android live UI listener",
+            parseConfidence = 0.84
         )
 
         assertTrue(id > 0)
@@ -52,6 +53,7 @@ class NativeDriverMirrorReviewTest {
         assertEquals("Main Street 12, Kraków", record.pickup)
         assertEquals("Rynek Główny, Kraków", record.dropoff)
         assertEquals("Android live UI listener", record.sourceName)
+        assertEquals(0.84, record.parseConfidence ?: 0.0, 0.001)
         assertEquals("driver-reviewed", record.status)
         assertEquals(34.0, store.summary().knownNet ?: 0.0, 0.001)
         assertTrue(store.evidencePreview().single().contains("TRIP COMPLETE"))
