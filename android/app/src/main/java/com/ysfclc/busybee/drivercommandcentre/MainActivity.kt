@@ -857,7 +857,7 @@ class MainActivity : AppCompatActivity() {
         add.addView(label("RANKED OFFERS",13f,WHITE,true),LinearLayout.LayoutParams(0,-2,1f))
         add.addView(action("＋ MANUAL",true){offerDialog()},LinearLayout.LayoutParams(dp(112),dp(38)))
         root.addView(add.apply{setPadding(dp(2),dp(17),dp(2),dp(8))})
-        root.addView(label("\${ranked.size} offers meet your current rules · ranked by estimated net PLN/hour",9f,MUTED,false).apply{setPadding(dp(2),0,0,dp(7))})
+        root.addView(label("${ranked.size} offers meet your current rules · ranked by estimated net PLN/hour",9f,MUTED,false).apply{setPadding(dp(2),0,0,dp(7))})
         if(ranked.isEmpty()) root.addView(card().apply{
             addView(label("No qualifying offers yet",14f,WHITE,true))
             addView(label("Start a native capture session or add an offer for correction. BusyBee does not insert demo offers.",9f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
@@ -921,7 +921,7 @@ class MainActivity : AppCompatActivity() {
         val hero=card().apply {
             addView(label("KNOWN NET · PLN TRIPS",9f,MINT,true))
             addView(label(summary.knownNet?.let{money(it)}?:"INCOMPLETE",28f,WHITE,true).apply{setPadding(0,dp(5),0,dp(2))})
-            addView(label("\${summary.trips} trips  ·  \${summary.offers} offers  ·  \${summary.records} records",10f,MUTED,false))
+            addView(label("${summary.trips} trips  ·  ${summary.offers} offers  ·  ${summary.records} records",10f,MUTED,false))
             addView(label("Gross, fees and bonuses must be known for every counted trip. Vehicle costs, taxes and missing adjustments are excluded.",9f,MUTED,false).apply{setPadding(0,dp(8),0,0)})
         }
         root.addView(hero)
@@ -931,7 +931,7 @@ class MainActivity : AppCompatActivity() {
         kpis.addView(metric("FEES",money(summary.fees)),LinearLayout.LayoutParams(0,dp(72),1f).apply{marginStart=dp(6)})
         kpis.addView(metric("BONUSES",money(summary.bonuses)),LinearLayout.LayoutParams(0,dp(72),1f).apply{marginStart=dp(6)})
         root.addView(kpis)
-        root.addView(label("PLATFORMS  ·  \${summary.platforms.joinToString().ifBlank{"No reviewed platforms yet"}}  ·  \${summary.imports} legacy imports",9f,MUTED,false).apply{setPadding(dp(3),dp(10),dp(3),dp(4))})
+        root.addView(label("PLATFORMS  ·  ${summary.platforms.joinToString().ifBlank{"No reviewed platforms yet"}}  ·  ${summary.imports} legacy imports",9f,MUTED,false).apply{setPadding(dp(3),dp(10),dp(3),dp(4))})
 
         val captureStore=DriverAppCaptureStore(this)
         val observations=captureStore.recent(20)
@@ -987,11 +987,11 @@ class MainActivity : AppCompatActivity() {
         root.addView(section("EARNINGS INTELLIGENCE","Only confirmed records · missing values stay unknown"))
         root.addView(card().apply {
             addView(label("SOURCE COVERAGE",10f,MINT,true))
-            addView(label("\${analytics.plnTripCount} PLN trips  ·  gross \${analytics.tripsWithGross}  ·  fees \${analytics.tripsWithFees}  ·  bonus \${analytics.tripsWithBonus}",10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(2))})
-            addView(label("Distance \${analytics.tripsWithDistance}  ·  duration \${analytics.tripsWithTime}",9f,MUTED,false))
+            addView(label("${analytics.plnTripCount} PLN trips  ·  gross ${analytics.tripsWithGross}  ·  fees ${analytics.tripsWithFees}  ·  bonus ${analytics.tripsWithBonus}",10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(2))})
+            addView(label("Distance ${analytics.tripsWithDistance}  ·  duration ${analytics.tripsWithTime}",9f,MUTED,false))
             addView(label("ESTIMATED NET AFTER VEHICLE COST",9f,MUTED,true).apply{setPadding(0,dp(10),0,dp(2))})
             addView(label(analytics.estimatedNetPln?.let{money(it)}?:"NOT ENOUGH COMPLETE DATA",21f,MINT,true))
-            addView(label("\${analytics.estimatedNetTrips} trips include gross, fees, bonus and distance. Excludes tax, unpaid waiting time and costs outside your per-km assumption.",9f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+            addView(label("${analytics.estimatedNetTrips} trips include gross, fees, bonus and distance. Excludes tax, unpaid waiting time and costs outside your per-km assumption.",9f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
         })
 
         if(analytics.platforms.isNotEmpty()) {
@@ -1005,7 +1005,7 @@ class MainActivity : AppCompatActivity() {
                     addView(label("Fees  "+money(platform.feesPln)+"  ·  bonuses  "+money(platform.bonusesPln),9f,MUTED,false))
                     addView(label("Known net  "+money(platform.knownNetBeforeVehiclePln),10f,WHITE,true).apply{setPadding(0,dp(7),0,dp(2))})
                     addView(label("After vehicle  "+money(platform.estimatedNetAfterVehiclePln),10f,MINT,true))
-                    addView(label("\${platform.completeNetTrips}/\${platform.tripCount} complete net  ·  \${platform.tripsWithDistance}/\${platform.tripCount} with distance",9f,AMBER,false).apply{setPadding(0,dp(6),0,0)})
+                    addView(label("${platform.completeNetTrips}/${platform.tripCount} complete net  ·  ${platform.tripsWithDistance}/${platform.tripCount} with distance",9f,AMBER,false).apply{setPadding(0,dp(6),0,0)})
                 })
             }
             root.addView(HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;addView(strip)})
@@ -1018,7 +1018,7 @@ class MainActivity : AppCompatActivity() {
                 strip.addView(card().apply {
                     layoutParams=LinearLayout.LayoutParams(dp(132),dp(94)).apply{marginEnd=dp(7)}
                     addView(label(String.format(Locale.US,"%02d:00",hour.hour),14f,WHITE,true))
-                    addView(label("\${hour.trips} trips",9f,MUTED,false).apply{setPadding(0,dp(4),0,dp(5))})
+                    addView(label("${hour.trips} trips",9f,MUTED,false).apply{setPadding(0,dp(4),0,dp(5))})
                     addView(label(money(hour.grossPln),10f,MINT,true))
                     addView(label("net "+money(hour.completeNetPln),9f,MUTED,false).apply{setPadding(0,dp(3),0,0)})
                 })
