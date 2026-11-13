@@ -1,3 +1,11 @@
+## 2026-11-13 — MapLibre renderer stability diagnostics
+
+- Keep the MapLibre screen visible beneath other tabs instead of toggling it to `GONE`, avoiding renderer surface visibility transitions during navigation.
+- Add a `DIAG` header control that copies a bounded local action/lifecycle breadcrumb history and the last uncaught JVM stack trace.
+- Diagnostics intentionally exclude route destinations, earnings, imported text and trip records.
+- Vercel Sandbox verification: Rust 4/4; Android 35/35; debug APK assembled and verified with APK Signature Scheme v2. APK: 48,879,532 bytes; SHA-256 `d93f077a2e1bef082918eb9d41b604493eb4c1751f95ac6ee29b6b778d5f2c3e`.
+- Physical-device validation remains pending; this is an instrumented candidate, not a claim that the device crash is resolved.
+
 ## 2026-11-13 — Map navigation crash fix and first BusyBee brand
 
 - Keep the MapLibre map screen attached to the Activity's screen host while other tabs are displayed; tab switches and the 3D toggle no longer detach/reparent the native map view.
