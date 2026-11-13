@@ -64,6 +64,12 @@ class MapSpatialDataTest {
     }
 
     @Test
+    fun cameraHeadingSmoothingTakesTheShortestPathAcrossNorth() {
+        assertEquals(0.0, NavigationCameraMath.smoothBearing(350.0, 10.0, 0.5), 0.0001)
+        assertEquals(0.0, NavigationCameraMath.smoothBearing(10.0, 350.0, 0.5), 0.0001)
+    }
+
+    @Test
     fun cameraTargetMovesForwardAlongBearing() {
         val origin = LatLng(50.0, 19.0)
         val north = NavigationCameraMath.aheadOf(origin, 0.0, 100.0)
