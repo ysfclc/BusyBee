@@ -32,11 +32,11 @@ class NavigationGuidanceTest {
     @Test
     fun announcementTextChangesByApproachStage() {
         assertEquals(
-            "In 310 metres, Turn left onto Długa",
+            "In 310 metres, turn left onto Długa",
             NavigationGuidance.announcement(310.0, "Turn left onto Długa", 1)
         )
         assertEquals(
-            "Now, Turn left onto Długa",
+            "Now, turn left onto Długa",
             NavigationGuidance.announcement(12.0, "Turn left onto Długa", 3)
         )
     }
