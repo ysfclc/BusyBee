@@ -2,20 +2,22 @@
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
-**Latest source commit:** `7460136494ed0fa7b11f5011b56d80401ba344ac`  
+**Latest source commit:** `7992df4863ac5c816f4cce9266e84d3843fb3d7b`  
 **Status:** implementation authored; build/test/device verification blocked and pending. PR #9 is draft and stacked on PR #8; neither is merged.
 
 Delivered in this increment:
 - Map remains a full-bleed MapLibre canvas with no persistent header or tab bar. Its floating route dock is compact by default: destination search only. Route estimates and navigation controls appear only when needed; START/STOP state follows navigation state.
-- Route search/loading feedback is shown in the dock instead of being hidden while the compact layout is active.
-- Driver Mirror is reorganised around one financial focal point, compact KPI row, native-capture review inbox, source coverage, horizontal platform/hour comparisons, and compact confirmed-activity rows. Existing calculations, unknown-value handling, source review actions, vehicle-cost assumption, and legacy import history are retained.
-- Offer Desk is reorganised around quick vehicle/rule controls and the user-started native driver-app capture path. Decision filters are edited in a dialog rather than occupying the default screen. Notifications are explicitly secondary; manual correction and ranked offer actions remain available.
-- Driver Hub now uses compact admin rows, one-tap completion/reopen actions, a distinct WhatsApp group selection area, and compact service contacts instead of a tall stack of separate item cards.
-- No new data source, provider API claim, private database access, automatic ride acceptance, or CSV-first workflow was introduced.
+- Map appearance now uses solar elevation at the driver's last permitted location for Bright (day), Fiord (dusk) and Dark (night) map styles, with a local-clock fallback before GPS. The view palette and system bars follow the same phase; MapLibre style reload preserves camera, driver marker and active route.
+- Driver-app capture now has a read-only AccessibilityService path, explicitly enabled in Android Settings after an in-app disclosure. It is package-scoped to the Uber and Bolt Driver package IDs, reads visible non-password/non-editable text only, and does not interact with the source apps. Notification capture is the second signal; MediaProjection/OCR remains the manual fallback.
+- Newly detected offer/trip/earnings observations and relevant notifications can issue generic BusyBee notifications deep-linking to Offers or Earnings. Alert permission, mute state and source state are visible in the UI.
+- The local observation parser now preserves explicit pickup/drop-off labels as well as amounts, distance, duration and source type. The review form keeps those fields editable; original visible text remains attached as evidence. Unknown fields stay null.
+- Driver Mirror remains reorganised around one financial focal point, compact KPI row, review inbox, source coverage, horizontal platform/hour comparisons and confirmed-activity rows. Offer Desk and Driver Hub retain purpose-built quick workflows; no CSV-first path was reintroduced.
+- Sources now reports actual listener/notification/location permission states and labels Overpass/weather as on-demand rather than live traffic. Polish GDDKiA/KPD DATEX II and Geoportal disruption sources are listed as candidates, not connected.
+- No provider API access is claimed; no private database access, background screen recording, ride actions, automatic acceptance/decline or fake live traffic is introduced.
 
 Verification boundary:
-- GitHub diff inspection confirms the intended map, Earnings and Offers code changes are present on the isolated branch.
-- No Rust/Android tests or APK build have been run for this branch. The existing Vercel Sandbox request returned HTTP 402 because the Hobby usage limit is exceeded until 2026-12-01; this was not a source build result.
+- GitHub source read-back confirms the observer, notification alert path, solar palettes, service manifest, Sources capability panel and pickup/drop-off persistence are present. Parser and review regression tests were added/extended.
+- No Rust/Android tests or APK build have been run for this branch. Vercel Sandbox returns HTTP 402 because the Hobby usage cap is exceeded until 2026-12-01; this is not a source build result.
 - This runtime has no `/testbed` checkout, Android SDK or Gradle executable. No physical-device validation is possible here.
 - Keep the branch as a draft candidate. Do not merge, distribute an APK, or call the redesign accepted until automated tests/build and target-phone checks pass. Sources still needs its own purpose-built layout pass; full visual acceptance remains unfinished.
 
