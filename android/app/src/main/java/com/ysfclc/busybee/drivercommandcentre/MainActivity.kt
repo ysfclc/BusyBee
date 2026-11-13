@@ -222,7 +222,19 @@ class MainActivity : AppCompatActivity() {
     private fun buildNavigation() {
         nav.removeAllViews()
         listOf("MAP","OFFERS","EARNINGS","DRIVER HUB","SOURCES").forEach { tab ->
-            val b=label(tab,9f,MUTED,true).apply{gravity=Gravity.CENTER;setPadding(dp(4),dp(12),dp(4),dp(12));setOnClickListener{safeUiAction("open $tab"){showTab(tab)}}}
+            val glyph=when(tab) {
+                "MAP" -> "⌖"
+                "OFFERS" -> "↗"
+                "EARNINGS" -> "▥"
+                "DRIVER HUB" -> "◉"
+                else -> "◇"
+            }
+            val b=label("$glyph\\n$tab",9f,MUTED,true).apply{
+                gravity=Gravity.CENTER
+                setLineSpacing(-dp(2).toFloat(),1f)
+                setPadding(dp(3),dp(7),dp(3),dp(7))
+                setOnClickListener{safeUiAction("open $tab"){showTab(tab)}}
+            }
             navButtons[tab]=b;nav.addView(b,LinearLayout.LayoutParams(0,-1,1f))
         }
     }
@@ -285,6 +297,8 @@ class MainActivity : AppCompatActivity() {
         brand.addView(label("BUSYBEE",13f,WHITE,true))
         mapStatus=label("● CONNECTING",9f,MINT,true).apply { setPadding(0,dp(2),0,0) }
         brand.addView(mapStatus)
+        weatherText=label(weatherSummary,9f,MUTED,false).apply { setPadding(0,dp(3),0,0); maxLines=1 }
+        brand.addView(weatherText)
         top.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
         top.addView(action("LAYERS",false){showMapLayersDialog()},LinearLayout.LayoutParams(dp(66),dp(38)))
         top.addView(action(if(tilted)"3D" else "2D",false){
@@ -341,7 +355,6 @@ class MainActivity : AppCompatActivity() {
             setMargins(dp(12),0,dp(12),dp(12))
         })
         mapSummary=label("Road intelligence loading",1f,MUTED,false)
-        weatherText=label(weatherSummary,1f,MUTED,false)
         return frame
     }
 
@@ -1236,12 +1249,41 @@ class MainActivity : AppCompatActivity() {
         setBackgroundColor(BG)
         contentLayout.setPadding(dp(14), dp(12), dp(14), dp(24))
     }
-    private fun section(title:String,subtitle:String)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(2),dp(13),dp(2),dp(9));addView(label(title,12f,WHITE,true));addView(label(subtitle,10f,MUTED,false).apply{setPadding(0,dp(3),0,0)})}
-    private fun card()=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(14),dp(13),dp(14),dp(13));background=rounded(CARD,17);layoutParams=LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)}}
+    private fun section(title:String,subtitle:String)=LinearLayout(this).apply{
+        orientation=LinearLayout.VERTICAL
+        setPadding(dp(2),dp(17),dp(2),dp(10))
+        addView(label(title,13f,WHITE,true))
+        addView(label(subtitle,11f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+    }
+    private fun card()=LinearLayout(this).apply{
+        orientation=LinearLayout.VERTICAL
+        setPadding(dp(16),dp(15),dp(16),dp(15))
+        background=GradientDrawable().apply{
+            setColor(CARD)
+            cornerRadius=dp(17).toFloat()
+            setStroke(dp(1),0xFF203743.toInt())
+        }
+        elevation=dp(2).toFloat()
+        layoutParams=LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(11)}
+    }
     private fun metric(title:String,value:String)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(9),dp(10),dp(7),dp(9));background=rounded(0xFF1A2D37.toInt(),12);addView(label(title,9f,MUTED,true));addView(label(value,12f,WHITE,true).apply{setPadding(0,dp(6),0,0)})}
     private fun label(value:String,size:Float,color:Int,bold:Boolean)=TextView(this).apply{text=value;textSize=size;setTextColor(color);if(bold)typeface=Typeface.DEFAULT_BOLD}
     private fun field(hintText:String,value:String)=EditText(this).apply{hint=hintText;setText(value);textSize=13f;setTextColor(WHITE);setHintTextColor(MUTED);setSingleLine(true);setPadding(dp(10),dp(9),dp(10),dp(9));background=rounded(0xFF1B303A.toInt(),10);layoutParams=LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(7)}}
-    private fun action(title:String,primary:Boolean,onClick:()->Unit)=TextView(this).apply{text=title;gravity=Gravity.CENTER;textSize=9f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.02f;setTextColor(if(primary)BG else WHITE);background=rounded(if(primary)MINT else 0xFF263B46.toInt(),11);setOnClickListener{safeUiAction(title){onClick()}}}
+    private fun action(title:String,primary:Boolean,onClick:()->Unit)=TextView(this).apply{
+        text=title
+        gravity=Gravity.CENTER
+        textSize=10f
+        typeface=Typeface.DEFAULT_BOLD
+        letterSpacing=.025f
+        setTextColor(if(primary)BG else WHITE)
+        background=GradientDrawable().apply{
+            setColor(if(primary)MINT else 0xFF213845.toInt())
+            cornerRadius=dp(11).toFloat()
+            if(!primary) setStroke(dp(1),0xFF2B4652.toInt())
+        }
+        minHeight=dp(42)
+        setOnClickListener{safeUiAction(title){onClick()}}
+    }
     private fun safeUiAction(actionName:String, action:()->Unit) {
         if(isFinishing || isDestroyed) return
         CrashDiagnostics.record(this,"tap:start:$actionName")
