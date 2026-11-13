@@ -75,7 +75,7 @@ class NativeDriverMirrorReviewTest {
     @Test(expected = IllegalArgumentException::class)
     fun rejectsUnsupportedPlatformInsteadOfMisattributingData() {
         store.saveReviewedNativeObservation(
-            platform = "Other",
+            platform = "?",
             recordType = "trip",
             capturedAt = 1_800_000_000_000L,
             visibleText = "trip complete",
