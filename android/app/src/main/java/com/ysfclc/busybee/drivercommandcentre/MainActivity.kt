@@ -236,12 +236,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateTimeBasedAppearance(location:Location?=lastLocation,force:Boolean=false) {
         val phase=SolarLighting.phase(location?.latitude,location?.longitude,System.currentTimeMillis())
-        if(!force && phase==daylightPhase) return
+        if(!force && phase==daylightPhase) {
+            if(map!=null && activeMapStyleUri!=palette.mapStyleUri) reloadMapStyle()
+            return
+        }
         daylightPhase=phase
         palette=BusyBeePalettes.forPhase(phase)
         applySystemBars()
         rootContainer?.setBackgroundColor(BG)
-        if(::appHeader.isInitialized) appHeader.setBackgroundColor(BG)
+        if(::appHeader.isInitialized && ::rootContainer.isInitialized) {
+            val oldIndex=rootContainer.indexOfChild(appHeader)
+            val oldParams=appHeader.layoutParams
+            if(oldIndex>=0) {
+                rootContainer.removeView(appHeader)
+                appHeader=buildHeader()
+                rootContainer.addView(appHeader,oldIndex,oldParams)
+            }
+        }
         if(::nav.isInitialized) nav.setBackgroundColor(PANEL)
         refreshActionPalettes()
         if(::screenHost.isInitialized) {
@@ -1601,11 +1612,22 @@ class MainActivity : AppCompatActivity() {
     private fun dateTime(ms:Long)=SimpleDateFormat("dd MMM · HH:mm",Locale.getDefault()).format(Date(ms))
     private fun parseDate(s:String):Long?=try{SimpleDateFormat("yyyy-MM-dd",Locale.US).apply{isLenient=false}.parse(s)?.time}catch(_:Exception){null}
 
+    override fun onNewIntent(intent:Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(DriverAlertManager.EXTRA_OPEN_TAB)?.let { requested ->
+            if(requested in setOf("OFFERS","EARNINGS","DRIVER HUB","SOURCES")) showTab(requested)
+        }
+    }
+
     override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(requestCode==LOCATION_REQUEST&&grantResults.any{it==PackageManager.PERMISSION_GRANTED})requestLocation()}
     override fun onStart(){CrashDiagnostics.record(this,"lifecycle:onStart");super.onStart();mapView.onStart()}
     override fun onResume(){
         CrashDiagnostics.record(this,"lifecycle:onResume")
         super.onResume()
+        updateTimeBasedAppearance()
+        appearanceHandler.removeCallbacks(appearanceTick)
+        appearanceHandler.postDelayed(appearanceTick,15*60*1000L)
         mapView.onResume()
         if(::locationManager.isInitialized) {
             // Apply only a fresh fix if a callback arrived after onPause() removed updates.
@@ -1620,12 +1642,13 @@ class MainActivity : AppCompatActivity() {
         activateMapAfterStyleIfResumed()
     }
 
-    override fun onPause(){CrashDiagnostics.record(this,"lifecycle:onPause");try{locationManager.removeUpdates(locationListener)}catch(_:Exception){};mapView.onPause();super.onPause()}
+    override fun onPause(){CrashDiagnostics.record(this,"lifecycle:onPause");appearanceHandler.removeCallbacks(appearanceTick);try{locationManager.removeUpdates(locationListener)}catch(_:Exception){};mapView.onPause();super.onPause()}
     override fun onStop(){CrashDiagnostics.record(this,"lifecycle:onStop");mapView.onStop();super.onStop()}
     override fun onLowMemory(){super.onLowMemory();mapView.onLowMemory()}
     override fun onSaveInstanceState(outState:Bundle){super.onSaveInstanceState(outState);mapView.onSaveInstanceState(outState)}
     override fun onDestroy(){
         CrashDiagnostics.record(this,"lifecycle:onDestroy")
+        appearanceHandler.removeCallbacks(appearanceTick)
         if(::locationManager.isInitialized) runCatching { locationManager.removeUpdates(locationListener) }
         textToSpeech?.stop()
         textToSpeech?.shutdown()
