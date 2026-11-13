@@ -83,3 +83,19 @@ These are source-level lifecycle gaps, not evidence that MapLibre or TTS caused 
 ### Verification infrastructure update — 2026-11-13
 
 A further workflow run for the latest location-lifecycle source commit, run 112 (43424684264), also failed before job steps were exposed. The job response has no step list and no job log URL. No Android compile or test command ran. The named Vercel Android sandbox remains stopped; no resume was attempted in this pass because its previous resume request had already returned HTTP 402 for the Hobby usage cap.
+
+
+## BB-007 — Map style completion while Activity is paused
+
+- **Severity:** Medium (lifecycle-safety risk; not a confirmed crash).
+- **Area:** MapLibre / Activity lifecycle.
+- **Evidence:** `MainActivity.kt` wraps `getMapAsync` and style-loaded callbacks with the Activity-alive dispatcher, but the style callback does not require `Lifecycle.State.RESUMED`. It mutates camera/driver marker/road annotations and map status and starts road-intelligence refresh. `onPause()` pauses MapView and removes location updates; a late style completion can still reach these mutations while the Activity remains alive but paused.
+- **Expected:** style readiness may be recorded at any lifecycle state, but MapView activation/mutations should be deferred until RESUMED.
+- **Actual source behavior:** callback only checks finishing/destroyed; paused Activity remains eligible.
+- **Reproduction:** not reproduced on device; callback timing race is inferred directly from the source path.
+- **Status:** open; do not call BB-002 root cause.
+- **Proposed narrow correction:** retain a pending style activation and execute it once on resume; add pure state tests. Defer implementation until build/test execution is available to validate it.
+
+## Build verification blocker — 2026-11-13
+
+GitHub Actions run #117 (`43424986985`) and its one retry both failed before any steps were allocated (retry job `131909911005`, empty step list). The Vercel Sandbox resume endpoint returned HTTP 402 because the Hobby usage limit is exceeded; stated reset: 2026-12-01 UTC. No APK exists for current PR #8 head `727a1289b8618c28ac15b4eca2d322d5be1c422e`. Historical APK artifacts are not evidence for this head.
