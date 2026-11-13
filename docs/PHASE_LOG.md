@@ -274,11 +274,12 @@ Delivered:
 - Preserved the MapLibre view lifetime and the map-first hide-header/hide-tab-bar behaviour from the parent branch.
 - Rebuilt Earnings hierarchy around a single known-net focal point, compact KPI row, native capture review inbox, coverage/economics, horizontal platform and start-hour comparisons, and compact recent activity. Kept original calculation semantics and evidence/review flows.
 - Rebuilt Offer Desk around native driver-app capture as the primary path, quick vehicle/rule controls, manual correction, ranked offers and clearly secondary notification evidence.
+- Reworked Driver Hub into compact admin, payment-history, group-watch and service-contact workflows. Existing item completion/reopen, document opening, selected-group tracking and group viewing controls remain available.
 - Kept all user-facing provider/API limitations explicit; no API connection or unsupported data access is claimed.
 
 Verification:
 - GitHub source diff inspected; branch is two commits ahead of PR #8 base at the first source checkpoint, with follow-up commits for Earnings and Offers UI.
 - Automated Rust/Android tests and APK assembly were **not run**. Vercel Sandbox API returned HTTP 402 (Hobby usage limit exceeded through 2026-12-01); this is an infrastructure blocker, not a passing or failing source test.
 - No local Android SDK/Gradle or `/testbed` checkout is available in this runtime. Physical-device verification remains outstanding.
-- Driver Hub and Sources still need their own purpose-built premium layout pass. This increment does not satisfy the complete UI redesign acceptance gate.
+- Sources still needs its own purpose-built premium layout pass. This increment does not satisfy the complete UI redesign acceptance gate.
 
