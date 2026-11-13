@@ -886,6 +886,114 @@ class MainActivity : AppCompatActivity() {
         return root
     }
 
+    private fun reviewNativeObservation(observation: NativeDriverObservation) {
+        val form=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(18),0,dp(18),0)
+        }
+        val types=arrayOf("offer","trip","payout","adjustment")
+        val type=Spinner(this).apply {
+            adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,types)
+            val defaultType=when(observation.screenType) {
+                "OFFER" -> "offer"
+                "TRIP" -> "trip"
+                "EARNINGS" -> "payout"
+                else -> "trip"
+            }
+            setSelection(types.indexOf(defaultType).coerceAtLeast(0))
+        }
+        val amount=field("Amount / gross (confirm or correct)",observation.detectedAmount?.toString().orEmpty())
+        val fees=field("Platform fees (blank = unknown)","")
+        val bonus=field("Bonus (blank = unknown)","")
+        val distance=field("Trip distance km",observation.distanceKm?.toString().orEmpty())
+        val duration=field("Trip duration minutes",observation.durationMinutes?.toString().orEmpty())
+        val currency=field("Currency code","PLN")
+        form.addView(label("RECORD TYPE",10f,MUTED,true))
+        form.addView(type)
+        listOf(amount,fees,bonus,distance,duration,currency).forEach { form.addView(it) }
+        form.addView(label("Original on-device OCR evidence",10f,MINT,true).apply { setPadding(0,dp(7),0,dp(4)) })
+        form.addView(label(observation.visibleText,10f,MUTED,false).apply { maxLines=8 })
+        val scroll=ScrollView(this).apply { addView(form) }
+        AlertDialog.Builder(this)
+            .setTitle("Review ${observation.platform} data")
+            .setView(scroll)
+            .setNegativeButton("Cancel",null)
+            .setNeutralButton("Discard") { _,_ ->
+                DriverAppCaptureStore(this).delete(observation.id)
+                showTab("EARNINGS")
+            }
+            .setPositiveButton("Confirm & save") { _,_ ->
+                fun parsed(edit:EditText, fieldName:String):Double? {
+                    val raw=edit.text.toString().trim()
+                    if(raw.isBlank()) return null
+                    val value=DriverCsv.number(raw)
+                    require(value!=null && value>=0.0) { "$fieldName must be a valid non-negative number" }
+                    return value
+                }
+                try {
+                    mirror.saveReviewedNativeObservation(
+                        platform=observation.platform,
+                        recordType=type.selectedItem.toString(),
+                        capturedAt=observation.capturedAt,
+                        visibleText=observation.visibleText,
+                        gross=parsed(amount,"Amount"),
+                        fees=parsed(fees,"Fees"),
+                        bonus=parsed(bonus,"Bonus"),
+                        distanceKm=parsed(distance,"Distance"),
+                        durationMinutes=parsed(duration,"Duration"),
+                        currency=currency.text.toString()
+                    )
+                    DriverAppCaptureStore(this).delete(observation.id)
+                    Toast.makeText(this,"Driver-reviewed record saved with original screen evidence.",Toast.LENGTH_LONG).show()
+                    showTab("EARNINGS")
+                } catch(error:Exception) {
+                    Toast.makeText(this,error.message ?: "Record could not be saved",Toast.LENGTH_LONG).show()
+                }
+            }
+            .show()
+    }
+
+    private fun openWhatsAppGroup(group: WhatsAppGroupWatch) {
+        if(!group.trackingEnabled) {
+            AlertDialog.Builder(this)
+                .setTitle(group.title)
+                .setMessage("Tracking is off. Enable this group first. BusyBee stores no message previews for groups that are off.")
+                .setPositiveButton("OK",null)
+                .show()
+            return
+        }
+        val messages=commands.whatsappGroupMessages(group.id,80)
+        val content=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(18),dp(8),dp(18),dp(8))
+        }
+        if(messages.isEmpty()) content.addView(label("No message previews have been exposed by Android notifications for this group yet.",11f,MUTED,false))
+        messages.asReversed().forEach { message ->
+            content.addView(label(message.sender+" · "+dateTime(message.messageAt),9f,MINT,true))
+            content.addView(label(message.body,11f,WHITE,false).apply { setPadding(0,dp(3),0,dp(9)) })
+            content.addView(divider())
+        }
+        AlertDialog.Builder(this)
+            .setTitle(group.title)
+            .setView(ScrollView(this).apply { addView(content) })
+            .setPositiveButton("Close",null)
+            .setNeutralButton("Stop tracking") { _,_ ->
+                commands.setWhatsAppGroupTracking(group.id,false)
+                showTab("DRIVER HUB")
+            }
+            .setNegativeButton("Delete group data") { _,_ ->
+                AlertDialog.Builder(this)
+                    .setTitle("Delete group data?")
+                    .setMessage("This removes saved message previews and the group's tracking choice from this device.")
+                    .setNegativeButton("Cancel",null)
+                    .setPositiveButton("Delete") { _,_ ->
+                        commands.deleteWhatsAppGroup(group.id)
+                        showTab("DRIVER HUB")
+                    }.show()
+            }
+            .show()
+    }
+
     private fun buildDriverHubScreen():View{
         val root=columnScroll()
         root.addView(section("DRIVER LIFE","Vehicle profile, documents, insurance, payments and selected driver-group intelligence."))
