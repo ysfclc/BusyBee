@@ -85,7 +85,7 @@ A read-only inspection of `MainActivity.kt` at `ea654235a127e189757dd2b912d6ed04
 
 The callbacks are posted with `runOnUiThread`; they do not all check `isFinishing`/`isDestroyed` before touching Activity-owned state or showing UI. `onDestroy()` calls `worker.shutdownNow()`, but already-posted main-thread callbacks are not withdrawn by executor shutdown. `displayRoute()` has its own liveness guard, but that does not cover the rest of each callback.
 
-**Assessment:** confirmed source-level lifecycle-safety gap; actual crash/reproduction and relation to BB-002 remain unknown. This is not a diagnosis of the reported IllegalStateException. No code patch is authorised until the exact device failure is captured. Next verification should deliberately interrupt each network operation while it is in flight and inspect the resulting DIAG/logcat evidence. A future fix must guard the complete callback body and include lifecycle regression coverage.
+**Assessment:** confirmed source-level lifecycle-safety gap; actual crash/reproduction and relation to BB-002 remain unknown. This is not a diagnosis of the reported IllegalStateException. Narrow preventive guards for confirmed callback-lifetime gaps are now committed and documented below; they do not authorize unrelated speculative fixes. Next verification should deliberately interrupt each network operation while it is in flight and inspect DIAG/logcat evidence.
 
 ## Lifecycle callback mitigation — implementation status (2026-11-13)
 
