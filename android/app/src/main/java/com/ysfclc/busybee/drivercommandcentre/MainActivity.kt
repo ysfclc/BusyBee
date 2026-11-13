@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ClipData
+import android.content.ComponentName
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,6 +17,9 @@ import android.location.LocationManager
 import android.net.Uri
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.view.Gravity
@@ -73,6 +77,32 @@ class MainActivity : AppCompatActivity() {
     private val mapStyleState=MapStyleState()
     private var lastLocation:Location?=null
     private var tilted=true
+    private var selectedTab="MAP"
+    private var daylightPhase=DaylightPhase.NIGHT
+    private var palette=BusyBeePalettes.forPhase(daylightPhase)
+    private var activeMapStyleUri=""
+    private var activeRouteOrigin:LatLng?=null
+    private val themedActions=java.util.WeakHashMap<TextView,Boolean>()
+    private var mapTopChrome:LinearLayout?=null
+    private var mapBottomChrome:LinearLayout?=null
+    private var mapDestinationField:EditText?=null
+    private var rootContainer:LinearLayout?=null
+    private val appearanceHandler=Handler(Looper.getMainLooper())
+    private val appearanceTick=object:Runnable {
+        override fun run() {
+            updateTimeBasedAppearance()
+            if(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                appearanceHandler.postDelayed(this,15*60*1000L)
+            }
+        }
+    }
+    private val BG get()=palette.background
+    private val PANEL get()=palette.panel
+    private val CARD get()=palette.card
+    private val WHITE get()=palette.primaryText
+    private val MUTED get()=palette.mutedText
+    private val MINT get()=palette.accent
+    private val AMBER get()=palette.warning
     private var roadEvents:List<RoadEvent> = emptyList()
     private val eventMarkers=mutableListOf<Marker>()
     private val reportMarkers=mutableListOf<Marker>()
@@ -110,6 +140,7 @@ class MainActivity : AppCompatActivity() {
             // A location callback can already be queued when onPause() removes updates.
             // Keep the fix, but do not mutate the paused MapLibre view.
             if(!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+            updateTimeBasedAppearance(location)
             updateDriverLocation(location)
         }
     }
@@ -153,11 +184,13 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+        updateTimeBasedAppearance(force=true)
         MapLibre.getInstance(this)
-        window.statusBarColor=BG;window.navigationBarColor=BG
+        applySystemBars()
         mapView=MapView(this);mapView.onCreate(savedInstanceState)
         val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setBackgroundColor(BG)}
         appHeader=buildHeader()
+        rootContainer=root
         root.addView(appHeader)
         content=FrameLayout(this);root.addView(content,LinearLayout.LayoutParams(-1,0,1f))
         nav=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;setPadding(dp(7),dp(7),dp(7),dp(9));setBackgroundColor(PANEL)}
@@ -167,11 +200,15 @@ class MainActivity : AppCompatActivity() {
         // Reparenting it on every tab change can tear down/recreate its GL surface.
         screenHost=TabScreenHost(content,buildMapScreen())
         showTab("MAP")
+        intent.getStringExtra(DriverAlertManager.EXTRA_OPEN_TAB)?.let { requested ->
+            if(requested in setOf("OFFERS","EARNINGS","DRIVER HUB","SOURCES")) showTab(requested)
+        }
         mapView.getMapAsync { instance ->
             uiCallbacks.post {
                 CrashDiagnostics.record(this,"map:ready")
                 map=instance
-                instance.setStyle(Style.Builder().fromUri(OPENFREE_MAP_STYLE)) {
+                activeMapStyleUri=palette.mapStyleUri
+                instance.setStyle(Style.Builder().fromUri(activeMapStyleUri)) {
                     uiCallbacks.post {
                         mapStyleState.markReady()
                         CrashDiagnostics.record(this,"map:style-loaded")
@@ -247,7 +284,9 @@ class MainActivity : AppCompatActivity() {
         val mapSelected = tab=="MAP"
         appHeader.visibility = if(mapSelected) View.GONE else View.VISIBLE
         nav.visibility = if(mapSelected) View.GONE else View.VISIBLE
-        navButtons.forEach{(key,b)->b.setTextColor(if(key==tab)MINT else MUTED);b.background=rounded(if(key==tab)0xFF1B343B.toInt() else Color.TRANSPARENT,11)}
+        selectedTab=tab
+        nav.setBackgroundColor(PANEL)
+        navButtons.forEach{(key,b)->b.setTextColor(if(key==tab)MINT else MUTED);b.background=rounded(if(key==tab)palette.selected else Color.TRANSPARENT,11)}
         if(mapSelected) {
             screenHost.showMap()
             return
@@ -499,6 +538,7 @@ class MainActivity : AppCompatActivity() {
         routePolyline?.let { map?.removeAnnotation(it) }
         routeMarkers.forEach { map?.removeAnnotation(it) };routeMarkers.clear()
         routePolyline=map?.addPolyline(PolylineOptions().addAll(plan.points).color(MINT).width(5f))
+        activeRouteOrigin=origin
         map?.addMarker(MarkerOptions().position(origin).title("Route starts here"))?.let{routeMarkers.add(it)}
         map?.addMarker(MarkerOptions().position(plan.destination).title("Destination").snippet(plan.destinationName))?.let{routeMarkers.add(it)}
         activeRoute=plan
@@ -1491,14 +1531,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object{
         private const val LOCATION_REQUEST=731
-        private const val BG=0xFF07131B.toInt()
-        private const val PANEL=0xFF0C1C26.toInt()
-        private const val CARD=0xFF10232E.toInt()
-        private const val WHITE=Color.WHITE
-        private const val MUTED=0xFF9AAEB8.toInt()
-        private const val MINT=0xFF8FE7C1.toInt()
-        private const val AMBER=0xFFFFC978.toInt()
+        private const val NOTIFICATION_REQUEST=732
         private val KRAKOW=LatLng(50.0647,19.9450)
-        private const val OPENFREE_MAP_STYLE="https://tiles.openfreemap.org/styles/liberty"
     }
 }
