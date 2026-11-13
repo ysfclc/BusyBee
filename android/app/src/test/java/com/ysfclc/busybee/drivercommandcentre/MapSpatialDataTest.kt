@@ -10,6 +10,18 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class MapSpatialDataTest {
     @Test
+    fun polishRoadLabelsPreferLocalNamesBeforeEnglishAliases() {
+        assertEquals(
+            listOf("name:pl", "name", "name:latin", "name_en"),
+            RoadNamePolicy.fields("pl")
+        )
+        assertEquals(
+            listOf("name", "name:latin", "name_en"),
+            RoadNamePolicy.fields("en")
+        )
+    }
+
+    @Test
     fun parsesNamedBuildingsAndAddressedBuildings() {
         val result = MapPlaceLookup.parse(
             """{"elements":[
