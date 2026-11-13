@@ -17,8 +17,12 @@ internal class ScrollableColumn(context: Context) : ScrollView(context) {
     }
 
     init {
+        // Call the three-argument superclass implementation directly. The
+        // two-argument ViewGroup overload delegates virtually to addView(child,
+        // index, params), which would re-enter our redirect override and recurse.
         super.addView(
             contentLayout,
+            -1,
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
         )
     }
