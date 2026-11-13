@@ -1,9 +1,28 @@
-# Current engineering checkpoint — 2026-11-13 (map + workspace UX increment)
+# Current engineering checkpoint — 2026-11-14 (map navigation and spatial detail correction)
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
-**Latest source commit:** `3cd5b3719d820c74be7048a902cfba215e835fd9`  
+**Latest source commit:** `2cbce0160329baa114f581408d66fe63a7b831f5`  
 **Status:** implementation authored; build/test/device verification blocked and pending. PR #9 is draft and stacked on PR #8; neither is merged.
+
+
+## Map usability correction — 2026-11-14
+
+The user explicitly rejected the prior map because it had no recognisable vehicle marker, no forward-driving camera, weak/white visual treatment and insufficient real-world detail. This increment addresses those concrete failures in the draft source:
+
+- Replaced MapLibre's generic default pin with a custom top-down vehicle marker. Foreground GPS updates move the marker; during navigation, the camera follows the GPS course, looks ahead of the vehicle, uses zoom 18.2 and a 58-degree forward pitch when 3D mode is enabled. The recenter control re-enables follow mode.
+- Uses OpenFreeMap Liberty for daytime mapping. Fiord and Dark remain the dusk/night styles. A 3D building extrusion layer is added to styles that do not already provide one; Liberty's existing extrusion is not duplicated.
+- The daylight palette now uses tinted green/stone surfaces rather than pure-white panels and cards.
+- Added on-demand OpenStreetMap/Overpass detail lookup for named/addressed buildings and mapped entrance/door nodes. Building labels appear from zoom 15.5; entrance markers appear from zoom 17. Mapped `entrance=staircase` is labelled as a stairwell; entrance references are shown as references. No missing stairwell letter or entrance is fabricated.
+- The map's top context line reports the counts of road observations, buildings and entrances. Markers are refreshed after camera movement, with redraw throttling so every GPS tick does not recreate all place labels.
+- Nominatim search now prefers Polish local names and uses the driver's location as a relevance bias without restricting valid intercity destinations. OSRM turn steps fall back to a road reference when a road name is absent.
+- Added regression tests for OSM building/address parsing, entrance semantics, navigation camera geometry, local search bias and road-reference fallback.
+
+**Scope boundary:** this is a forward-facing, GPS-driven MapLibre experience with 3D building context, not a proprietary Waze-like live-traffic engine or a photorealistic 3D road mesh. Road names, building names and entrance/stairwell detail depend on the underlying OpenStreetMap coverage and quality. Individual `klatka` letters appear only when mapped as an explicit name/reference; BusyBee must not guess them.
+
+**Verification boundary:** source changes and tests have been committed to the draft branch, but Android compilation, test execution, APK assembly and target-device driving behaviour remain unverified. The current GitHub Actions lookup returned no PR-triggered run for the latest source commit; the last recorded run failed before runner allocation. Vercel Sandbox remains blocked by the previously recorded Hobby usage cap. Do not call this increment built, tested or accepted until those checks actually run.
+
+---
 
 Delivered in this increment:
 - Map remains a full-bleed MapLibre canvas with no persistent header or tab bar. Its floating route dock is compact by default: destination search only. Route estimates and navigation controls appear only when needed; START/STOP state follows navigation state.
