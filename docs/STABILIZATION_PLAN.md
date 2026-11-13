@@ -153,3 +153,17 @@ This review does not identify the user's IllegalStateException root cause and do
 ### Latest runner check — 2026-11-13
 
 After the GPS lifecycle changes, GitHub Actions run 112 (43424684264) also completed as failure before any job steps were exposed. Its job response has steps=null and no job log URL; no compile or test command ran. The Vercel Android sandbox remains stopped after the previously reported HTTP 402 Hobby usage-cap rejection. The current lifecycle changes therefore remain source-readback-only and uncompiled.
+
+
+## Latest verification and build attempt — 2026-11-13
+
+- PR #8 head remains `727a1289b8618c28ac15b4eca2d322d5be1c422e`, open, draft and unmerged.
+- GitHub Actions run #117 (`43424986985`) failed before job steps were allocated. A single retry was accepted, queued, then failed again; the retry job returned an empty step list. No Gradle command, unit test, APK assembly or signing step ran.
+- The Vercel Android build sandbox remains stopped. A fresh resume attempt returned HTTP 402 `payment_required`: the Vercel Hobby usage limit is exceeded, with reset stated as `2026-12-01T00:00:00Z`. No plan or billing changes were made.
+- **APK status:** no APK was produced from PR #8's current head. The historical APK referenced in the earlier PR description belongs to an older source commit and must not be represented as this build.
+
+## Additional lifecycle boundary found during follow-up review
+
+The MapLibre style-loaded callback is protected against a finishing/destroyed Activity by `LifecycleSafeUiDispatcher`, but the dispatcher deliberately does not reject a merely paused Activity. The callback then sets camera position, updates the driver marker, renders road annotations, updates map status and starts road-intelligence refresh. A style completion arriving after `onPause()` can therefore still mutate the paused MapView. This is a source-confirmed lifecycle boundary, not a reproduced crash and not a diagnosis of BB-002.
+
+The next narrow stabilization change should separate “style is ready” from “activate the map against a RESUMED Activity”: retain a pending activation when style completion arrives while paused, and apply it once in `onResume()`. Add focused state tests and do not expand into map design or navigation behavior. Because the current source has not compiled in this environment, avoid stacking further unverified code changes until a runner is available.
