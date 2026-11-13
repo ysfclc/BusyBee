@@ -106,7 +106,7 @@ internal object MapPlaceLookup {
                 output += MapPlaceFeature("way/$id", MapPlaceKind.BUILDING, LatLng(latitude, longitude), label, detail)
             } else if (type == "node" && (tags.has("entrance") || tags.has("door"))) {
                 val entrance = tags.optString("entrance").ifBlank { tags.optString("door") }
-                val name = tags.optString("name").trim()
+                val name = tags.optString("name:pl").trim().ifBlank { tags.optString("name").trim() }.ifBlank { tags.optString("official_name").trim() }
                 val reference = tags.optString("ref").trim()
                 val label = when {
                     name.isNotBlank() -> name
