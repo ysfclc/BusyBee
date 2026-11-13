@@ -956,7 +956,7 @@ class MainActivity : AppCompatActivity() {
         sourceRow(live,"Overpass API","Mapped construction and hazard observations","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Open-Meteo","Current weather context","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Android location","Driver position after permission","DEVICE PERMISSION")
-        sourceRow(live,"Uber / Bolt / FreeNow / iTaxi / Cabify / Lyft","Visible notifications from supported ride apps after opt-in","USER AUTHORIZATION REQUIRED")
+        sourceRow(live,"Uber Driver / Bolt Driver","Exact verified driver-app package allowlist; Android notification access must be explicitly enabled","USER AUTHORIZATION REQUIRED")
         sourceRow(live,"User exports","Statement and history CSV import","LOCAL IMPORT");root.addView(live)
         val gated=card();gated.addView(label("CONNECTOR CATALOGUE · NOT CONNECTED",11f,AMBER,true))
         listOf(
