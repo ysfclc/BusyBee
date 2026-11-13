@@ -162,10 +162,10 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
     }
     fun updateOfferStatus(id:Long,status:String) { writableDatabase.execSQL("UPDATE offers SET status=? WHERE id=?", arrayOf(status,id)) }
 
-    @Synchronized fun captureNotice(platform:String,title:String,body:String,at:Long=System.currentTimeMillis()) {
+    @Synchronized fun captureNotice(platform:String,title:String,body:String,at:Long=System.currentTimeMillis()):Boolean {
         val fingerprint=NotificationFingerprint.create(platform,title,body,at)
         val v=ContentValues().apply { put("fingerprint",fingerprint);put("platform",platform);put("title",title);put("body",body);put("captured_at",at) }
-        writableDatabase.insertWithOnConflict("notices",null,v,SQLiteDatabase.CONFLICT_IGNORE)
+        return writableDatabase.insertWithOnConflict("notices",null,v,SQLiteDatabase.CONFLICT_IGNORE) != -1L
     }
     fun notices(limit:Int=30):List<CapturedNotice> {
         val out=mutableListOf<CapturedNotice>()
