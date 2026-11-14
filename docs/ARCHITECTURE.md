@@ -184,3 +184,24 @@ The current Android implementation is a first foreground navigation vertical sli
 - Public OSRM durations are not live-traffic ETAs. Its standard driving profile does not enforce van/truck dimensions, weights, restricted-access streets, low-emission zone eligibility or vehicle class.
 - `VehicleProfile` is private local SQLite configuration for category, fuel, consumption, energy price and maintenance per kilometre. It calculates a cost/km used by Offer Desk scoring, with an explicit generic fallback until both consumption and price are configured. Vehicle categories do not change the routing profile yet.
 - Nominatim/OSRM are replaceable adapters, subject to availability/rate limits and attribution/usage policies. They are not treated as authoritative, contractual or high-availability services.
+
+## 11. Android activity and network observation runtime
+
+BusyBee may host native activity and network observation inside its existing Android client; a separate monitoring app or custom Android distribution is not required for the initial implementation.
+
+The proposed subsystem has independent observation adapters:
+
+- **Activity Observer:** `UsageStatsManager` / `UsageEvents` for user-granted app activity history and foreground transitions.
+- **Network Observer:** an explicitly enabled, app-scoped `VpnService` for selected driver-app network flows. `VpnService.Builder.addAllowedApplication` can keep unrelated apps outside the tunnel. Correct packet forwarding, IPv4/IPv6, TCP/UDP, DNS, QUIC, socket protection, lifecycle recovery and single-active-VPN conflicts are mandatory engineering concerns.
+- **Existing UI Observer:** the package-scoped, read-only AccessibilityService remains a separate source of visible UI evidence.
+- **Existing Notification Observer:** notification content remains a partial, independently permissioned signal.
+- **Deep diagnostic research:** local TLS proxy inspection and runtime instrumentation may expose decrypted request/response data in compatible, controlled test environments. This is app-version- and networking-stack-specific, not a universal Android API or a guaranteed production capability.
+
+Do not conflate network-flow metadata with HTTP/API payloads. A VPN can observe connection metadata but does not inherently decrypt HTTPS. App-process instrumentation can sometimes observe plaintext at a networking boundary, but it may be brittle, affected by app integrity controls and updates, and must not be treated as permission to replay private provider endpoints.
+
+The Rust domain layer should receive typed, provenance-preserving observations; it should not own Android VPN or process-instrumentation APIs. Each event records its observation depth and distinguishes raw evidence from inferred business meaning. A network connection is not an offer, trip acceptance or payment.
+
+The action coordinator separates BusyBee-owned actions, documented provider API operations with granted credentials, and user-confirmed handoffs to source apps. Reverse-engineered private endpoint replay, credential capture, private database access and automatic ride acceptance/decline remain outside the product contract.
+
+Research, limitations, test gates and source references are maintained in [BUSYBEE_ACTIVITY_NETWORK_RUNTIME.md](BUSYBEE_ACTIVITY_NETWORK_RUNTIME.md). This section records architecture direction only; it does not authorise implementation or alter the current draft PR scope.
+
