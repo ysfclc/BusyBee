@@ -178,7 +178,7 @@ jobs:
           cp "$source_apk" dist/BusyBee.apk
           apk_sha256="$(sha256sum dist/BusyBee.apk | awk '{print $1}')"
           apk_size="$(wc -c < dist/BusyBee.apk | tr -d ' ')"
-          printf '%s  %s\\n' "$apk_sha256" "BusyBee.apk" > dist/SHA256SUMS
+          printf '%s  %s\n' "$apk_sha256" "BusyBee.apk" > dist/SHA256SUMS
           export BUILD_VARIANT="$variant" PACKAGE_NAME="$package_name" VERSION_NAME="$version_name"
           export SOURCE_SHA SOURCE_REF APK_SHA256="$apk_sha256" APK_SIZE="$apk_size"
           export BUILD_NUMBER="$GITHUB_RUN_NUMBER" RUN_ID="$GITHUB_RUN_ID"
@@ -203,7 +203,7 @@ jobs:
           }
           with open(sys.argv[1], "w", encoding="utf-8") as output:
               json.dump(data, output, indent=2)
-              output.write("\\n")
+              output.write("\n")
           PY
           echo "variant=$variant" >> "$GITHUB_OUTPUT"
           echo "package=$package_name" >> "$GITHUB_OUTPUT"
