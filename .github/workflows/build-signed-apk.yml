@@ -182,7 +182,8 @@ jobs:
           export BUILD_VARIANT="$variant" PACKAGE_NAME="$package_name" VERSION_NAME="$version_name"
           export SOURCE_SHA SOURCE_REF APK_SHA256="$apk_sha256" APK_SIZE="$apk_size"
           export BUILD_NUMBER="$GITHUB_RUN_NUMBER" RUN_ID="$GITHUB_RUN_ID"
-          export BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          export BUILD_TIMESTAMP
           python3 - dist/build-info.json <<'PY'
           import json, os, sys
           data = {
@@ -205,10 +206,12 @@ jobs:
               json.dump(data, output, indent=2)
               output.write("\n")
           PY
-          echo "variant=$variant" >> "$GITHUB_OUTPUT"
-          echo "package=$package_name" >> "$GITHUB_OUTPUT"
-          echo "version=$version_name" >> "$GITHUB_OUTPUT"
-          echo "sha256=$apk_sha256" >> "$GITHUB_OUTPUT"
+          {
+            echo "variant=$variant"
+            echo "package=$package_name"
+            echo "version=$version_name"
+            echo "sha256=$apk_sha256"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Publish APK as a GitHub Release asset
         if: github.event_name != 'pull_request'
@@ -266,7 +269,7 @@ jobs:
               echo "- Install: separate .debug app; does not update the release package."
             fi
             if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              echo "- Download: pull-request artifact `busybee-pr-${{ github.event.pull_request.number }}-${{ github.run_number }}`"
+              echo "- Download: pull-request artifact busybee-pr-${{ github.event.pull_request.number }}-${{ github.run_number }}"
             else
               echo "- Download: ${{ steps.publish.outputs.url }}"
             fi
