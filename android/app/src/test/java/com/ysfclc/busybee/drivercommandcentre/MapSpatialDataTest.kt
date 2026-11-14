@@ -83,12 +83,12 @@ class MapSpatialDataTest {
     @Test
     fun overpassQueryRequestsBuildingAddressesAndEntrances() {
         val query = MapPlaceLookup.query(50.061, 19.937)
-        assertTrue(query.contains("[\\"building\\"][\\"name\\"]"))
-        assertTrue(query.contains("[\\"building\\"][\\"name:pl\\"]"))
-        assertTrue(query.contains("[\\"building\\"][\\"official_name\\"]"))
+        assertTrue(query.contains("""["building"]["name"]"""))
+        assertTrue(query.contains("""["building"]["name:pl"]"""))
+        assertTrue(query.contains("""["building"]["official_name"]"""))
         assertTrue(query.contains("relation(around:"))
-        assertTrue(query.contains("[\\"addr:housenumber\\"]"))
-        assertTrue(query.contains("[\\"entrance\\"]"))
+        assertTrue(query.contains("""["addr:housenumber"]"""))
+        assertTrue(query.contains("""["entrance"]"""))
         assertTrue(query.contains("out center tags"))
     }
 }
