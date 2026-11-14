@@ -31,8 +31,9 @@ import java.util.Locale
 /**
  * A user-started, Android system-approved bridge for reading visible Uber/Bolt
  * Driver screens. Frames are OCR'd locally; screenshots are never persisted or
- * uploaded. Only the extracted text and confidence-neutral hints are retained
- * for user review. Nothing is committed to earnings until the driver confirms it.
+ * uploaded. Extracted text and a rule-based parser-confidence hint are retained
+ * for review; that hint is not a factual accuracy probability. Nothing enters earnings
+ * until the driver confirms the values.
  */
 data class NativeDriverObservation(
     val id: Long = 0,
@@ -42,7 +43,11 @@ data class NativeDriverObservation(
     val visibleText: String,
     val detectedAmount: Double?,
     val distanceKm: Double?,
-    val durationMinutes: Double?
+    val durationMinutes: Double?,
+    val sourceType: String = "MEDIA_PROJECTION_OCR",
+    val pickup: String? = null,
+    val dropoff: String? = null,
+    val parseConfidence: Double = 0.0
 )
 
 data class ParsedDriverScreen(
@@ -52,7 +57,11 @@ data class ParsedDriverScreen(
     val visibleText: String,
     val detectedAmount: Double?,
     val distanceKm: Double?,
-    val durationMinutes: Double?
+    val durationMinutes: Double?,
+    val sourceType: String = "MEDIA_PROJECTION_OCR",
+    val pickup: String? = null,
+    val dropoff: String? = null,
+    val parseConfidence: Double = 0.0
 )
 
 object DriverScreenTextParser {
@@ -62,13 +71,27 @@ object DriverScreenTextParser {
     )
     private val distancePattern = Regex("""([0-9]+(?:[,.][0-9]+)?)\s*(?:km|kilomet(?:er|re)s?)""", RegexOption.IGNORE_CASE)
     private val durationPattern = Regex("""([0-9]+)\s*(?:min|minutes?)""", RegexOption.IGNORE_CASE)
+    private val pickupLabelPattern = Regex(
+        """^(?:pickup(?:\s+(?:address|location))?|pick[\s-]?up|miejsce\s+odbioru|odbiór)(?:\s*[:：\-–]\s*|\s+)?(.*)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val dropoffLabelPattern = Regex(
+        """^(?:drop[\s-]?off(?:\s+(?:address|location))?|destination(?:\s+address)?|miejsce\s+docelowe|cel\s+podróży)(?:\s*[:：\-–]\s*|\s+)?(.*)$""",
+        RegexOption.IGNORE_CASE
+    )
 
-    fun parse(platform: String, text: String, capturedAt: Long): ParsedDriverScreen? {
-        val visibleText = text.lineSequence()
+    fun parse(
+        platform: String,
+        text: String,
+        capturedAt: Long,
+        sourceType: String = "MEDIA_PROJECTION_OCR"
+    ): ParsedDriverScreen? {
+        val lines = text.lineSequence()
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .joinToString("\n")
-            .take(5000)
+            .take(160)
+            .toList()
+        val visibleText = lines.joinToString("\n").take(5000)
         if (visibleText.length < 12) return null
 
         val lower = visibleText.lowercase(Locale.ROOT)
@@ -94,6 +117,16 @@ object DriverScreenTextParser {
             listOf("trip complete", "ride complete", "completed trip", "trip details", "zakończono przejazd", "przejazd zakończony", "ukończono kurs").any(lower::contains) -> "TRIP"
             else -> "DRIVER SCREEN"
         }
+
+        val pickup = extractLabelledLocation(lines, pickupLabelPattern)
+        val dropoff = extractLabelledLocation(lines, dropoffLabelPattern)
+        // Heuristic confidence describes screen classification and explicit field extraction.
+        // It is not a probability that a fare/address is factually correct.
+        val recognisedScreen = screenType != "DRIVER SCREEN"
+        val knownFieldCount = listOf(amount, distance, duration, pickup, dropoff).count { it != null }
+        val screenBase = if (recognisedScreen) 0.56 else 0.30
+        val sourceBonus = if (sourceType == "ACCESSIBILITY_UI") 0.08 else 0.0
+        val parseConfidence = (screenBase + knownFieldCount * 0.065 + sourceBonus).coerceIn(0.0, 0.92)
         return ParsedDriverScreen(
             platform = platform,
             screenType = screenType,
@@ -101,13 +134,51 @@ object DriverScreenTextParser {
             visibleText = visibleText,
             detectedAmount = amount,
             distanceKm = distance,
-            durationMinutes = duration
+            durationMinutes = duration,
+            sourceType = sourceType,
+            pickup = pickup,
+            dropoff = dropoff,
+            parseConfidence = parseConfidence
         )
+    }
+
+    private fun isMetricOrControlLine(value: String): Boolean {
+        val lower = value.lowercase(Locale.ROOT)
+        if (moneyPattern.containsMatchIn(value) || distancePattern.containsMatchIn(value) || durationPattern.containsMatchIn(value)) return true
+        return Regex(
+            """^(?:fare|price|earnings?|total|fees?|bonus|distance|duration|time|trip|ride|offer|accept|navigate|cancel|complete|completed|details|payment|payout|zarobki|opłata|przychód|wypłata|odległość|czas|premia|prowizja)\b""",
+            RegexOption.IGNORE_CASE
+        ).containsMatchIn(lower)
+    }
+
+    private fun extractLabelledLocation(lines: List<String>, pattern: Regex): String? {
+        for (index in lines.indices) {
+            val match = pattern.find(lines[index]) ?: continue
+            var value = match.groupValues.getOrNull(1).orEmpty().trim()
+            if (value.isBlank()) {
+                value = lines.drop(index + 1).firstOrNull { candidate ->
+                    val normalized = candidate.trim()
+                    normalized.isNotBlank() &&
+                        !pickupLabelPattern.containsMatchIn(normalized) &&
+                        !dropoffLabelPattern.containsMatchIn(normalized) &&
+                        !isMetricOrControlLine(normalized)
+                }.orEmpty()
+            }
+            val cleaned = value
+                .replace(Regex("\\s+"), " ")
+                .trim(' ', ':', '-', '–', '—', '·')
+                .take(180)
+            if (cleaned.length < 3) continue
+            if (Regex("""^(?:in\s+)?[0-9]+(?:[,.][0-9]+)?\s*(?:m|min|mins|minutes?|km)$""", RegexOption.IGNORE_CASE).matches(cleaned)) continue
+            if (cleaned.lowercase(Locale.ROOT) in setOf("accept","navigate","cancel","complete","dropoff","pickup","destination")) continue
+            return cleaned
+        }
+        return null
     }
 }
 
 class DriverAppCaptureStore(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "busybee_native_app_capture.db", null, 1) {
+    SQLiteOpenHelper(context.applicationContext, "busybee_native_app_capture.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -120,13 +191,26 @@ class DriverAppCaptureStore(context: Context) :
                 visible_text TEXT NOT NULL,
                 detected_amount REAL,
                 distance_km REAL,
-                duration_minutes REAL
+                duration_minutes REAL,
+                source_type TEXT NOT NULL DEFAULT 'MEDIA_PROJECTION_OCR',
+                pickup TEXT,
+                dropoff TEXT,
+                parse_confidence REAL NOT NULL DEFAULT 0.0
             )""".trimIndent()
         )
         db.execSQL("CREATE INDEX observations_time_idx ON observations(captured_at DESC)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE observations ADD COLUMN source_type TEXT NOT NULL DEFAULT 'MEDIA_PROJECTION_OCR'")
+            db.execSQL("ALTER TABLE observations ADD COLUMN pickup TEXT")
+            db.execSQL("ALTER TABLE observations ADD COLUMN dropoff TEXT")
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE observations ADD COLUMN parse_confidence REAL NOT NULL DEFAULT 0.0")
+        }
+    }
 
     @Synchronized
     fun save(observation: ParsedDriverScreen): Long {
@@ -144,6 +228,10 @@ class DriverAppCaptureStore(context: Context) :
             put("screen_type", observation.screenType)
             put("captured_at", observation.capturedAt)
             put("visible_text", observation.visibleText)
+            put("source_type", observation.sourceType)
+            if (observation.pickup == null) putNull("pickup") else put("pickup", observation.pickup)
+            if (observation.dropoff == null) putNull("dropoff") else put("dropoff", observation.dropoff)
+            put("parse_confidence", observation.parseConfidence.coerceIn(0.0, 1.0))
             if (observation.detectedAmount == null) putNull("detected_amount") else put("detected_amount", observation.detectedAmount)
             if (observation.distanceKm == null) putNull("distance_km") else put("distance_km", observation.distanceKm)
             if (observation.durationMinutes == null) putNull("duration_minutes") else put("duration_minutes", observation.durationMinutes)
@@ -156,7 +244,7 @@ class DriverAppCaptureStore(context: Context) :
     fun recent(limit: Int = 30): List<NativeDriverObservation> {
         val result = mutableListOf<NativeDriverObservation>()
         readableDatabase.rawQuery(
-            """SELECT id,platform,screen_type,captured_at,visible_text,detected_amount,distance_km,duration_minutes
+            """SELECT id,platform,screen_type,captured_at,visible_text,detected_amount,distance_km,duration_minutes,source_type,pickup,dropoff,parse_confidence
                FROM observations ORDER BY captured_at DESC,id DESC LIMIT ?""".trimIndent(),
             arrayOf(limit.coerceIn(1, 200).toString())
         ).use { cursor ->
@@ -170,7 +258,11 @@ class DriverAppCaptureStore(context: Context) :
                         visibleText = cursor.getString(4),
                         detectedAmount = if (cursor.isNull(5)) null else cursor.getDouble(5),
                         distanceKm = if (cursor.isNull(6)) null else cursor.getDouble(6),
-                        durationMinutes = if (cursor.isNull(7)) null else cursor.getDouble(7)
+                        durationMinutes = if (cursor.isNull(7)) null else cursor.getDouble(7),
+                        sourceType = cursor.getString(8),
+                        pickup = if (cursor.isNull(9)) null else cursor.getString(9),
+                        dropoff = if (cursor.isNull(10)) null else cursor.getString(10),
+                        parseConfidence = cursor.getDouble(11)
                     )
                 )
             }

@@ -21,6 +21,31 @@ class RoutePlannerTest {
         assertEquals(50.0614, results[0].location.latitude, 0.00001)
     }
 
+    @Test fun destinationSearchPrefersPolishNamesAndBiasesTowardTheDriverArea() {
+        val url = RoutePlanner.destinationSearchUrl("ulica Długa 8", LatLng(50.061, 19.937))
+        assertTrue(url.contains("accept-language=pl"))
+        assertTrue(url.contains("countrycodes=pl"))
+        assertTrue(url.contains("viewbox="))
+        assertTrue(!url.contains("bounded=1"))
+    }
+
+    @Test fun routeInstructionsFallBackToRoadReferenceWhenNameIsMissing() {
+        val json = """{
+          "code":"Ok",
+          "routes":[{
+            "distance":1000,"duration":180,
+            "geometry":{"coordinates":[[19.93,50.06],[19.935,50.061],[19.94,50.062]]},
+            "legs":[{"steps":[
+              {"distance":400,"duration":70,"name":"","ref":"DK7","maneuver":{"type":"depart","location":[19.93,50.06]}},
+              {"distance":600,"duration":110,"name":"","ref":"DW780","maneuver":{"type":"turn","modifier":"left","location":[19.935,50.061]}}
+            ]}]
+          }]
+        }"""
+        val route = RoutePlanner.parseRouteResponse(json, LatLng(50.062, 19.94), "Test").first()
+        assertEquals("DW780", route.steps[1].roadName)
+        assertTrue(route.steps[1].instruction.contains("DW780"))
+    }
+
     @Test fun routeResponseRetainsManeuversAndCalculatesProgress() {
         val json = """{
           "code":"Ok",

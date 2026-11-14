@@ -7,6 +7,35 @@ The opening capability table and rollout order below are historical planning con
 - WhatsApp is selected-group tracking; exported chat import is not the desired workflow.
 - The map is the full-screen default workspace, with floating controls and context-sensitive overlays. The premium redesign must replace generic stacked-card layouts across every tab; the current visual work does not yet meet that bar.
 
+## Native Android listening and realistic map checkpoint — 2026-11-13
+
+The current feature branch now changes the primary integration model from repeated screen capture to an explicit, read-only Android observer:
+
+- `DriverAppAccessibilityService` is restricted in its Android service configuration and runtime package allowlist to Uber Driver (`com.ubercab.driver`) and Bolt Driver (`ee.mtakso.driver`). It listens for visible window/content/text/scroll events, reads visible non-password, non-editable node text only, applies local parser/deduplication and saves a review observation.
+- It does not click, gesture, type, accept/decline, record audio, save screenshots, inspect other apps, or access private app databases. The driver receives an in-app disclosure before Android Accessibility Settings is opened. The user can disable it in system settings. App screens that expose no accessibility text remain unsupported.
+- Ride-app notifications are an additional event signal. New relevant notifications and newly stored live UI observations can trigger a generic BusyBee notification linking to Offers or Earnings. Raw route/address/passenger/earnings values are not put in lock-screen notification text.
+- MediaProjection with on-device OCR remains a manual per-session fallback for screens whose visible content is not exposed to accessibility.
+- Day, dusk and night palettes use the sun's elevation at the last permitted location. If location is unavailable, local clock is used until a fix arrives. The map switches between OpenFreeMap Liberty, Fiord and Dark styles while preserving camera/route state. The daylight native palette uses tinted green/stone surfaces rather than pure-white panels.
+- The Sources workspace reports actual permissions and connection status rather than describing an unenabled capability as connected.
+
+## Map usability correction — 2026-11-14
+
+The draft branch now contains the following corrective implementation:
+
+- A custom top-down vehicle marker replaces the generic map pin. Foreground GPS updates move it; navigation camera-follow uses smoothed GPS course/bearing, a look-ahead target, zoom 18.2 and 58-degree pitch in 3D mode. A deliberate map gesture pauses follow until the locate control re-enters follow mode. Turn instructions are announced in 450 m / 120 m / 35 m approach bands, and the active step advances only after the vehicle passes the maneuver.
+- OpenFreeMap Liberty is the daytime basemap; Fiord and Dark remain dusk/night. A MapLibre fill-extrusion building layer is installed for styles that do not already have one. This is 3D building context and a forward-facing perspective, not a photorealistic 3D road mesh.
+- OpenStreetMap/Overpass supplies named/addressed building ways and multipolygon relations, house-number addresses and mapped entrance/door nodes on demand around the map centre. Labels are zoom-gated to avoid clutter. Named building/address labels and amber entrance/Klatka text pills are visible on the map. Entrance nodes can expose a mapped stairwell type, reference, level or door; individual stairwell letters are shown only when the source actually contains them.
+- Nominatim destination search prefers Polish names and uses a nearby viewbox as a ranking bias, but does not hard-bound results, so destinations in other Polish cities remain searchable. OSRM maneuver instructions use a road reference when the road-name field is absent.
+- The OpenFreeMap styles' default road-label expression may prefer `name_en` over the local OSM `name`. BusyBee overrides the road-name text field for Liberty, Fiord and Dark to prefer `name:pl` on Polish locales, then local `name`, followed by Latin/English fallbacks. This corrects avoidable English-alias substitutions; it cannot correct an inaccurate or missing OSM source tag.
+- A compact map context line shows counts of mapped road observations, buildings and entrances. Place marker redraws are throttled by zoom changes and forced only when new place data or a new style arrives.
+
+**Data-quality boundary:** basemap street labels and building/entrance data remain dependent on OpenStreetMap/OpenFreeMap coverage. An unlabelled entrance is not evidence that a stairwell does not exist; a missing letter must not be guessed. OSRM names/references are still OSM-derived and may themselves be incomplete or incorrect. No live traffic feed is implied.
+
+**Verification:** parser and camera-math regression tests were added. No Android build, test run, APK or target-device navigation test has yet verified this source increment.
+
+**Important verification boundary:** this is source code on a draft branch. It has not been built, tested on the target phone, or reviewed by Google Play. Accessibility-based reading is not an official Uber/Bolt API, cannot see hidden/private data, and may not work on custom/secure driver-app screens. If distributing through Google Play, the Accessibility API disclosure/declaration requirements must be reviewed; approval must not be assumed.
+
+
 # BusyBee — Integrations, Map and Driver UX Roadmap
 
 **Status:** requested product direction; planning only. This document does not claim that the integrations, live-traffic map or redesigned interface exist today.
@@ -28,7 +57,7 @@ BusyBee should become the driver's command centre: a single place to understand 
 ## Integration principles
 
 1. **Use official APIs first.** Any account connection must use documented provider APIs, explicit user authorisation, least-privilege scopes, secure token storage and a revocation path.
-2. **Do not reverse-engineer private app databases or bypass platform protections.** Accessibility automation, screen scraping and hidden endpoints are not acceptable substitutes for partner access.
+2. **Do not reverse-engineer private app databases or bypass platform protections.** A narrowly scoped, explicitly enabled, read-only Android Accessibility observer may read only visible UI text from the selected driver-app packages. It must not automate controls, inspect other apps, or be presented as provider API access. This approach is permission- and policy-sensitive, must be declared honestly, and cannot guarantee complete coverage.
 3. **Keep the driver in control.** Until a provider explicitly authorises ride actions, BusyBee may capture a notification, explain the offer economics and open the relevant driver app. The driver accepts or declines inside that app.
 4. **Make data provenance visible.** Every imported or synchronised record needs platform, source type, source timestamp, ingestion timestamp, completeness and correction history.
 5. **Preserve evidence.** Raw provider exports and original notification evidence must remain distinguishable from parsed/normalised values. Corrections should be auditable, not destructive.
@@ -47,19 +76,20 @@ Introduce a provider-neutral integration layer only after the current app passes
 
 ### Provider rollout order
 
-1. **Android notification adapter:** harden existing opt-in capture, package allowlist, parsing confidence, duplicate handling, user review and privacy controls.
-2. **CSV/share adapters:** support real Uber/Bolt exports through documented schemas, preview and reconciliation rather than claiming live sync.
-3. **Official partner APIs:** investigate access requirements separately for each provider. Build only when credentials, permissions and permitted use are confirmed.
-4. **Other driver tools:** add calendar/reminder, navigation handoff, document and fleet/service integrations only where a supported interface exists.
+1. **Read-only Android live UI observer:** verify exact package IDs on the target phone, check event coverage on offer/trip/earnings screens, measure missed/custom/secure surfaces, keep an explicit consent/revocation path and add review/evidence regression tests.
+2. **Notification adapter:** retain Android notifications as a second signal; classify/deduplicate relevant events and send user-controlled generic BusyBee alerts with deep links.
+3. **MediaProjection fallback:** keep one-session app-window capture with on-device OCR only for screens whose UI text is not exposed to accessibility; no screenshots saved/uploaded.
+4. **Official partner APIs:** investigate access requirements separately for each provider. Build only when driver-level credentials, permissions and permitted use are confirmed.
+5. **Optional file/share adapters:** retain real provider exports as secondary backfill/reconciliation, never required for normal use.
 
 ## Map target
 
 Keep MapLibre as the rendering foundation unless a measured technical or licensing reason requires a change. The map should have:
 
-- A polished, legible vector base style with clear road hierarchy, labels, POIs and night-mode contrast.
+- A polished, legible vector base style with clear road hierarchy, labels, POIs and solar-aware day/dusk/night map themes. Use the driver's last permitted location for solar elevation; local-clock fallback before a location fix.
 - Stable 2D/3D camera controls, a clear driver marker, heading-aware navigation camera and reliable recenter behaviour.
 - A route overview and navigation mode with clear next manoeuvre, distance, remaining route and arrival state.
-- Distinct, source-labelled layers for roadworks, hazards, driver reports, weather and (only when licensed and actually available) traffic.
+- Distinct, source-labelled layers for roadworks, hazards, driver reports, weather and (only when licensed and actually available) traffic. Public Polish road-event sources worth integrating include GDDKiA/KPD DATEX II and the GDDKiA Geoportal disruption service; do not label them connected until an app-usable endpoint, access terms, freshness and geometry have been verified.
 - Freshness timestamps, confidence/coverage states and explicit unavailable states for every external feed.
 - Vehicle-aware routing only when the routing provider supports the relevant dimensions, restrictions and profile.
 - Correct attribution and compliance with each map, tile, routing and traffic provider's licence and caching terms.
@@ -84,7 +114,7 @@ The present screen construction is largely programmatic native TextViews and Lin
 - Restore a functioning build runner.
 - Compile current PR head and run Android unit tests.
 - Produce and verify a signed APK from the exact tested commit.
-- Install and exercise on the target device: launch, tab switching, map lifecycle, GPS, route planning, notification capture, CSV import and repeated navigation actions.
+- Install and exercise on the target device: launch, tab switching, map lifecycle, GPS, route planning, day/dusk/night style transition, notification capture, explicit Accessibility enable/disable, Uber/Bolt UI text observations, review alerts, manual visual fallback and repeated navigation actions.
 - Capture and diagnose the original action failure from DIAG/logcat; do not infer that it is fixed from source inspection alone.
 
 ### Gate 1 — Integration foundation

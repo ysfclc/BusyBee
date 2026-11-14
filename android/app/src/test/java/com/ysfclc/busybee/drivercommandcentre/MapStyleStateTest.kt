@@ -35,6 +35,19 @@ class MapStyleStateTest {
     }
 
     @Test
+    fun styleReloadMarksMapUnavailableUntilTheNewStyleLoads() {
+        val state = MapStyleState()
+        state.markReady()
+        assertTrue(state.isReady)
+
+        state.markLoading()
+        assertFalse(state.isReady)
+
+        state.markReady()
+        assertTrue(state.isReady)
+    }
+
+    @Test
     fun activationCanOnlyBeClaimedOnce() {
         val state = MapStyleState()
         state.markReady()

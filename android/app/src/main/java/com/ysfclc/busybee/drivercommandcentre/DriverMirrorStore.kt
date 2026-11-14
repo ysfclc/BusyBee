@@ -23,7 +23,8 @@ data class DriverRecord(
     val status: String?,
     val raw: String,
     val sourceName: String,
-    val durationMinutes: Double? = null
+    val durationMinutes: Double? = null,
+    val parseConfidence: Double? = null
 )
 
 data class DriverFinancialRow(
@@ -159,7 +160,7 @@ object DriverCsv {
 }
 
 class DriverMirrorStore(context: Context) :
-    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 2) {
+    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
@@ -195,6 +196,7 @@ class DriverMirrorStore(context: Context) :
                 dropoff TEXT,
                 distance_km REAL,
                 duration_minutes REAL,
+                parse_confidence REAL,
                 gross REAL,
                 fees REAL,
                 bonus REAL,
@@ -211,6 +213,7 @@ class DriverMirrorStore(context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) db.execSQL("ALTER TABLE records ADD COLUMN duration_minutes REAL")
+        if (oldVersion < 3) db.execSQL("ALTER TABLE records ADD COLUMN parse_confidence REAL")
         // Never destroy user evidence on upgrade.
     }
 
@@ -284,7 +287,11 @@ class DriverMirrorStore(context: Context) :
         bonus: Double?,
         distanceKm: Double?,
         durationMinutes: Double?,
-        currency: String = "PLN"
+        currency: String = "PLN",
+        pickup: String? = null,
+        dropoff: String? = null,
+        sourceName: String = "Android screen capture",
+        parseConfidence: Double? = null
     ): Long {
         val safePlatform = platform.trim().take(60)
         require(safePlatform.matches(Regex("[\\p{L}0-9 ._-]{2,60}"))) { "Enter a valid driver platform name" }
@@ -296,19 +303,27 @@ class DriverMirrorStore(context: Context) :
         listOf(gross, fees, bonus, distanceKm, durationMinutes).filterNotNull().forEach {
             require(it.isFinite() && it >= 0.0) { "Reviewed values must be valid non-negative numbers" }
         }
+        require(parseConfidence == null || (parseConfidence.isFinite() && parseConfidence in 0.0..1.0)) {
+            "Parser confidence must be between 0 and 1"
+        }
         val safeCurrency = currency.trim().uppercase(Locale.ROOT).ifBlank { "PLN" }
         require(safeCurrency.matches(Regex("[A-Z]{3}"))) { "Use a three-letter currency code" }
         val raw = visibleText.take(5000)
+        val safePickup = pickup?.trim()?.take(180)?.takeIf { it.isNotBlank() }
+        val safeDropoff = dropoff?.trim()?.take(180)?.takeIf { it.isNotBlank() }
+        val safeSourceName = sourceName.trim().takeIf {
+            it in setOf("Android live UI listener", "Android screen capture", "Android MediaProjection OCR")
+        } ?: "Android screen capture"
         val occurredAt = java.time.Instant.ofEpochMilli(capturedAt).toString()
         val fingerprint = sha256(
-            listOf(safePlatform, type, occurredAt, raw, gross, fees, bonus, distanceKm, safeCurrency).joinToString("|")
+            listOf(safePlatform, type, occurredAt, raw, gross, fees, bonus, distanceKm, safeCurrency, safePickup, safeDropoff, safeSourceName, parseConfidence).joinToString("|")
         )
         val db = writableDatabase
         db.beginTransaction()
         try {
             val importedAt = System.currentTimeMillis()
             val importId = db.insertOrThrow("imports", null, ContentValues().apply {
-                put("source_name", "Android screen capture")
+                put("source_name", safeSourceName)
                 put("imported_at", importedAt)
                 put("row_count", 1)
                 put("inserted_count", 0)
@@ -318,7 +333,7 @@ class DriverMirrorStore(context: Context) :
                 put("row_number", 1)
                 put("fingerprint", fingerprint)
                 put("raw", raw)
-                put("source_name", "Android screen capture")
+                put("source_name", safeSourceName)
             })
             val recordId = db.insertOrThrow("records", null, ContentValues().apply {
                 put("fingerprint", fingerprint)
@@ -327,17 +342,18 @@ class DriverMirrorStore(context: Context) :
                 put("record_type", type)
                 putNull("external_id")
                 put("occurred_at", occurredAt)
-                putNull("pickup")
-                putNull("dropoff")
+                if (safePickup == null) putNull("pickup") else put("pickup", safePickup)
+                if (safeDropoff == null) putNull("dropoff") else put("dropoff", safeDropoff)
                 if (distanceKm == null) putNull("distance_km") else put("distance_km", distanceKm)
                 if (durationMinutes == null) putNull("duration_minutes") else put("duration_minutes", durationMinutes)
+                if (parseConfidence == null) putNull("parse_confidence") else put("parse_confidence", parseConfidence)
                 if (gross == null) putNull("gross") else put("gross", gross)
                 if (fees == null) putNull("fees") else put("fees", fees)
                 if (bonus == null) putNull("bonus") else put("bonus", bonus)
                 put("currency", safeCurrency)
                 put("status", "driver-reviewed")
                 put("raw", raw)
-                put("source_name", "Android screen capture")
+                put("source_name", safeSourceName)
             })
             db.execSQL("UPDATE imports SET inserted_count=1 WHERE id=?", arrayOf(importId))
             db.setTransactionSuccessful()
@@ -387,7 +403,7 @@ class DriverMirrorStore(context: Context) :
     fun recent(limit: Int = 30): List<DriverRecord> {
         val records = mutableListOf<DriverRecord>()
         readableDatabase.rawQuery(
-            "SELECT id,platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,duration_minutes,gross,fees,bonus,currency,status,raw,source_name FROM records ORDER BY COALESCE(occurred_at,'') DESC,id DESC LIMIT ?",
+            "SELECT id,platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,duration_minutes,gross,fees,bonus,currency,status,raw,source_name,parse_confidence FROM records ORDER BY COALESCE(occurred_at,'') DESC,id DESC LIMIT ?",
             arrayOf(limit.toString())
         ).use { c ->
             while (c.moveToNext()) records.add(DriverRecord(
@@ -398,7 +414,8 @@ class DriverMirrorStore(context: Context) :
                 if (c.isNull(10)) null else c.getDouble(10),
                 if (c.isNull(11)) null else c.getDouble(11),
                 c.getString(12), c.getString(13), c.getString(14), c.getString(15),
-                if (c.isNull(8)) null else c.getDouble(8)
+                if (c.isNull(8)) null else c.getDouble(8),
+                if (c.isNull(16)) null else c.getDouble(16)
             ))
         }
         return records

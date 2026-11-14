@@ -1,3 +1,49 @@
+# Current engineering checkpoint — 2026-11-14 (map navigation and spatial detail correction)
+
+**Active branch:** `feat/map-first-route-dock-2026-11-13`  
+**Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
+**Latest source commit:** `e8ae4a23ef412e318b534d18076d8d8f5b5b48bb`  
+**Status:** implementation authored; build/test/device verification blocked and pending. PR #9 is draft and stacked on PR #8; neither is merged.
+
+
+## Map usability correction — 2026-11-14
+
+The user explicitly rejected the prior map because it had no recognisable vehicle marker, no forward-driving camera, weak/white visual treatment and insufficient real-world detail. This increment addresses those concrete failures in the draft source:
+
+- Replaced MapLibre's generic default pin with a custom top-down vehicle marker. Foreground GPS updates move the marker; during navigation, the camera follows the GPS course, looks ahead of the vehicle, uses zoom 18.2 and a 58-degree forward pitch when 3D mode is enabled. The recenter control re-enables follow mode. GPS heading is smoothed across the 0/360-degree boundary to reduce camera snapping; a deliberate map gesture suspends follow until recenter is tapped.
+- Uses OpenFreeMap Liberty for daytime mapping. Fiord and Dark remain the dusk/night styles. A 3D building extrusion layer is added to styles that do not already provide one; Liberty's existing extrusion is not duplicated.
+- The daylight palette now uses tinted green/stone surfaces rather than pure-white panels and cards.
+- Added on-demand OpenStreetMap/Overpass detail lookup for named/addressed building ways and multipolygon relations, plus mapped entrance/door nodes. Building labels appear from zoom 15.5; entrance markers appear from zoom 17. Mapped `entrance=staircase` is labelled as a stairwell; entrance references are shown as references. No missing stairwell letter or entrance is fabricated. Entrance labels are rendered as visible amber text pills (for example `Klatka A` when the OSM node explicitly has `entrance=staircase` and `ref=A`), not anonymous dots.
+- The map's top context line reports the counts of road observations, buildings and entrances. Markers are refreshed after camera movement, with redraw throttling so every GPS tick does not recreate all place labels. When the driver manually pans, place lookup follows the visible camera centre rather than continuing to fetch around the off-screen GPS position.
+- Fixed turn progression: navigation now announces at approach bands (450 m, 120 m and 35 m) and advances the active maneuver only after the vehicle passes it. This prevents every upcoming turn from being spoken in rapid succession and keeps a near turn from being skipped when navigation starts.
+- Nominatim search now prefers Polish local names and uses the driver's location as a relevance bias without restricting valid intercity destinations. OSRM turn steps fall back to a road reference when a road name is absent.
+- Corrected the actual basemap label precedence: OpenFreeMap's road-label expressions can prefer `name_en` over the local `name`. BusyBee now overrides the road-name text fields across Liberty, Fiord and Dark to prefer `name:pl` (on Polish locales), then the local OSM `name`, then Latin/English fallbacks. Road labels now have explicit OSM attribution in the map context line.
+- Added regression tests for OSM building/address parsing, entrance semantics, navigation camera geometry, local search bias and road-reference fallback.
+
+**Scope boundary:** this is a forward-facing, GPS-driven MapLibre experience with 3D building context, not a proprietary Waze-like live-traffic engine or a photorealistic 3D road mesh. Road names, building names and entrance/stairwell detail depend on the underlying OpenStreetMap coverage and quality. Individual `klatka` letters appear only when mapped as an explicit name/reference; BusyBee must not guess them.
+
+**Verification boundary:** source changes and regression tests have been committed to the draft branch, but Android compilation, test execution, APK assembly and target-device driving behaviour remain unverified. GitHub Actions run 298 (`43527209054`) was created for the current source revision (`e8ae4a23...`) but both the initial attempt and retry failed before runner/job-step allocation (`steps: null`, no job logs). No Gradle or test command ran. Earlier runs 292 and 258 also failed/cancelled before allocation. The Vercel status on the current commit reports `build-rate-limit` failure, not a source build result. These are infrastructure failures, not evidence that the code builds or fails to compile. Do not call this increment built, tested or accepted until those checks actually run.
+
+---
+
+Delivered in this increment:
+- Map remains a full-bleed MapLibre canvas with no persistent header or tab bar. Its floating route dock is compact by default: destination search only. Route estimates and navigation controls appear only when needed; START/STOP state follows navigation state.
+- Map appearance now uses solar elevation at the driver's last permitted location for Liberty (day), Fiord (dusk) and Dark (night) map styles, with a local-clock fallback before GPS. The view palette and system bars follow the same phase; MapLibre style reload preserves camera, driver marker and active route.
+- Driver-app capture now has a read-only AccessibilityService path, explicitly enabled in Android Settings after an in-app disclosure. It is package-scoped to the Uber and Bolt Driver package IDs, reads visible non-password/non-editable text only, and does not interact with the source apps. Notification capture is the second signal; MediaProjection/OCR remains the manual fallback.
+- Newly detected offer/trip/earnings observations and relevant notifications can issue generic BusyBee notifications deep-linking to Offers or Earnings. Alert permission, mute state and source state are visible in the UI.
+- The local observation parser now preserves explicit pickup/drop-off labels as well as amounts, distance, duration and source type. The review form keeps those fields editable; original visible text remains attached as evidence. Unknown fields stay null.
+- Driver Mirror remains reorganised around one financial focal point, compact KPI row, review inbox, source coverage, horizontal platform/hour comparisons and confirmed-activity rows. Offer Desk and Driver Hub retain purpose-built quick workflows; no CSV-first path was reintroduced.
+- Sources now reports actual listener/notification/location permission states and labels Overpass/weather as on-demand rather than live traffic. Polish GDDKiA/KPD DATEX II and Geoportal disruption sources are listed as candidates, not connected.
+- No provider API access is claimed; no private database access, background screen recording, ride actions, automatic acceptance/decline or fake live traffic is introduced.
+
+Verification boundary:
+- GitHub source read-back confirms the observer, notification alert path, solar palettes, service manifest, Sources capability panel, pickup/drop-off persistence and parser-confidence persistence are present. Regression tests cover explicit route labels, ETA rejection, parser confidence and SQLite observation persistence. A source review caught and corrected one mismatched manual-OCR confidence expectation before handoff; tests still have not executed.
+- No Rust/Android tests or APK build have been run for this branch. GitHub Actions run 234 (`43522861659`) completed as failure before runner/job-step allocation (`steps: null`, no job logs); no Gradle/test command ran. Vercel Sandbox returns HTTP 402 because the Hobby usage cap is exceeded until 2026-12-01; this is not a source build result.
+- This runtime has no `/testbed` checkout, Android SDK or Gradle executable. No physical-device validation is possible here.
+- Keep the branch as a draft candidate. Do not merge, distribute an APK, or call the redesign accepted until automated tests/build and target-phone checks pass. Sources still needs its own purpose-built layout pass; full visual acceptance remains unfinished.
+
+---
+
 # Current acceptance correction — 2026-11-13
 
 The user has confirmed that the previous general click/action bugs are gone, but explicitly rejected the delivered app as not matching the agreed product. The old STOP-WORK freeze and earlier capability snapshot below are historical; they are superseded for product direction by [PRODUCT_CONTRACT.md](PRODUCT_CONTRACT.md).
@@ -25,14 +71,14 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 | Area | State | Notes |
 |---|---|---|
 | Product charter / architecture | ✅ baseline | Product direction, source register and ADR-001–008 are committed |
-| Android application shell | 🔴 BLOCKED — user reports repeated action failures and IllegalStateException on target device | Previous Robolectric tests do not reproduce the reported device failure. Exact failing action/stack trace not yet supplied; no stability claim. Freeze feature work until runtime blocker is resolved |
-| Spatial map / routing | 🔴 UNVERIFIED — user reports incorrect map and routing | Candidate search, OSRM alternatives and foreground GPS guidance exist in source, but physical-device correctness, location accuracy, route selection and guidance have not been validated; OSRM is not live traffic |
-| Driver Data Mirror import | 🟡 partial | CSV rejects duplicate/empty headers, missing required values and extra cells; omitted trailing optional fields stay unknown; provider-specific exports and statement reconciliation are unvalidated |
+| Android application shell | 🟡 General click/action failures user-confirmed resolved; device stability not re-accepted | Keep DIAG available. No current DIAG stack or reproducible crash sequence has been supplied for this checkpoint; do not infer that every device/runtime issue is fixed. |
+| Spatial map / routing | 🟡 Map-first workspace implemented; route/device correctness unverified | Full-bleed map and compact contextual dock are in the current UX branch. Physical-device location accuracy, route selection and foreground guidance still need validation; OSRM is not live traffic. |
+| Driver Data Mirror | 🟡 Native capture/review path implemented; provider/device acceptance pending | User-started Android app-window capture with local OCR and driver review is primary. CSV remains optional historical backfill/reconciliation; provider-specific API/export validation remains open. |
 | Mirror evidence / deduplication | 🟡 partial; tests verified | Store-level Robolectric tests pass for duplicate suppression, raw evidence retention, import counts and rollback; provider correction and migration behaviour remain open |
 | Driver economics | 🟡 partial | Platform and start-hour groupings; no validated hourly wage, weekday/zone or dead-mileage analysis |
 | Headline earnings R-DM-005 | 🟡 implemented; unit tests verified | Trip-only PLN gross/fees/bonus totals and completeness logic; 5 financial-summary tests pass in the Vercel Sandbox build |
-| Offer Desk | 🟡 partial | Manual entry and opt-in notification capture/ranking; saved vehicle running cost now feeds cost/km scoring; no direct Uber/Bolt partner API or auto-acceptance |
-| Driver Hub | 🟡 partial | Documents, reminders, recurrence, expense/contact and WhatsApp TXT import/search plus persistent vehicle category/fuel/consumption/cost profile |
+| Offer Desk | 🟡 Native-first workflow implemented; device acceptance pending | User-started driver-app capture, local review, manual correction and offer ranking; notifications are secondary. No direct Uber/Bolt partner API or auto-acceptance is claimed. |
+| Driver Hub | 🟡 Selected-group and driver-admin workflows implemented; device acceptance pending | Vehicle profile, documents, reminders, payment history, expenses, service contacts and user-selected WhatsApp group tracking. Visibility is limited to Android-exposed notifications; no chat-export-first workflow. |
 | Source catalogue | 🟡 partial | Honest access/status catalogue; broad connector framework and live feed-health are not complete |
 | Rust domain core | 🟡 partial | Road-event model, TTL logic and JNI version bridge; canonical fusion engine is not implemented |
 | CI / APK | 🟡 Vercel Sandbox build verified; ZIP-first download route retained | Build from source commit `cc1ce1d6ebc735818fe13ab27939388ac0a26ea1`: Rust 4/4 and Android 46/46 (0 failures/errors/skips); debug APK `0.1.1794540100-debug` assembled and v2 signature verified. APK SHA-256 `e40357d1b9634cbf5feb046cf755bda5ea55beed5b144db986608dcfb4ac59c5`; ZIP SHA-256 `73feb8b2979598e393348fef483b118e20c11633c48c3b8f832988c10b0c8522`. Public ZIP full download + range resume + embedded APK byte identity verified. Sandbox URL is temporary; stable Vercel deployment remains pending |
@@ -40,13 +86,13 @@ BusyBee is the product brand for Driver Command Centre, an Android-native driver
 
 ## 3. Stabilization status (2026-11-13)
 
-**STOP-WORK directive active.** No feature development, scope expansion, speculative fixes, PR merges or release claims until the current app reaches a verified working baseline. PR #3–#8 remain open/unmerged; PR #8 is the current diagnostic source branch, not a stable release.
+**Historical stabilization snapshot — superseded 2026-11-13.** The user later confirmed that the general click/action failures were gone and explicitly authorised continued product work. The remaining acceptance gates are tracked below and in the current checkpoint at the top of this file. The historical defect table is retained as evidence, not as a claim that those issues are still open. PR #3–#8 remain open/unmerged; PR #8 is the current diagnostic source branch, not a stable release.
 
 Known user-reported defects (reproduction detail is incomplete; do not mark reproduced):
 
 | ID | Severity | Area | Reproduction evidence | Expected | Actual | Status |
 |---|---|---|---|---|---|---|
-| BB-001 | Critical | General actions | Tap controls; user reports repeated failures (exact control sequence not supplied) | Action completes or reports a recoverable, actionable validation/network error | Generic action failure: “Couldn't complete that action, please try again later” | Open — capture DIAG action + stack |
+| BB-001 | Critical | General actions | Historical report of generic action failures; user later confirmed the general click/action failures were gone | Action completes or reports a recoverable, actionable validation/network error | No current reproduction supplied | User-confirmed resolved; keep regression coverage and DIAG |
 | BB-002 | Critical | Runtime stability | User reports IllegalStateException; exact screen/action sequence not supplied | No runtime state exception during normal use | IllegalStateException shown | Open — root cause unknown |
 | BB-003 | High | Map | Open map and use normal map controls; exact location/gesture not supplied | Correct location, stable rendering and responsive controls | User reports map is wrong | Open — device repro required |
 | BB-004 | High | Routing | Select destination and request route; exact endpoints not supplied | Correct destination and viable route | User reports routing is wrong | Open — record endpoints and compare route geometry |
@@ -75,6 +121,7 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 - Vercel APK delivery — branch `feat/vercel-apk-builder-2026-11-12`, draft PR #5 (https://github.com/ysfclc/BusyBee/pull/5), based on PR #4. Dedicated Vercel Hobby project `busybee-apk` is linked to `ysfclc/BusyBee`; a Vercel Sandbox build succeeded at commit `d45aa55491757d4f1155c7d9ce441aa97254187b`. Debug APK SHA-256 `77f74c552077ce5e17b06f3bb829e90c4de2b42426ee8eaa7ca3ebfb46d66f06`, 48,877,022 bytes. The standard static deployment remains blocked by the Vercel daily deployment-creation limit; a temporary Sandbox route is serving the APK.
 
 - MapLibre device-crash investigation — branch `fix/capture-device-crash-2026-11-13`, draft PR #7 (https://github.com/ysfclc/BusyBee/pull/7), stacked on PR #6. MapLibre remains visible under secondary tabs rather than switching to `GONE`; a DIAG control exports the last 48 action/lifecycle breadcrumbs and any uncaught JVM stack trace without recording trip content. Vercel Sandbox verification: Rust 4/4, Android 35/35, APK assembly and v2 debug signature passed. Physical-device confirmation remains open.
+- Map-first and driver workspace UX — branch `feat/map-first-route-dock-2026-11-13`, draft PR #9 (https://github.com/ysfclc/BusyBee/pull/9), stacked on PR #8. Adds a compact contextual map dock, redesigned Earnings and Offers workspaces, and compact Driver Hub workflows; README and state/phase ledgers aligned. Source is not yet build/test/device verified because Vercel Sandbox is blocked by HTTP 402 and no local Android SDK/Gradle checkout is present.
 
 ## 6. Known gaps & stubs
 
@@ -265,3 +312,29 @@ Known user-reported defects (reproduction detail is incomplete; do not mark repr
 
 - **Changed:** Added manifest `<queries>` entries for the exact Uber Driver and Bolt Driver packages so Android 11+ package visibility does not hide them from BusyBee's launch-intent lookup.
 - **Verified:** Manifest source read-back only. No APK build, merged-manifest inspection or physical-device handoff test is available.
+
+
+## 2026-11-14 — Android validation host blocked
+
+- Rechecked GitHub Actions after the docs-only commit: workflow run #303 (43527858180) failed before runner allocation; job 132237961320 had no steps or logs. No Android command ran.
+- Found the existing persistent Vercel sandbox busybee-android-build in the linked busybee-apk project. Resume was attempted; Vercel returned HTTP 402 payment_required because the team's Hobby usage limit is exceeded until 2026-12-01 00:00 UTC. No plan or billing changes were made.
+- Local execution environment has no /testbed checkout, Gradle executable or Android SDK. There is no available build runner in this session.
+- Evidence is recorded in docs/CI_RETRY_CHECKPOINT_2026-11-14.md. PR #9 remains draft/unmerged. Android compile, tests, APK/signature/hash and target-device validation remain outstanding. Resume by restoring an authorised build runner, then test the exact PR head; do not infer success from source inspection.
+
+
+## 2026-11-14 — Free private APK build route documented
+
+- Added `docs/FREE_APK_BUILD.md` to the current PR branch. It documents using a private GitHub Codespace on `feat/map-first-route-dock-2026-11-13` to run the already-existing `scripts/vercel-build-apk.sh`.
+- The script prepares Java 17, Android SDK/API 35, Build Tools 35.0.0, NDK 27.2.12479018, Rust stable/cargo-ndk and Gradle 8.9; runs Rust tests, Android unit tests and the native Android library build; then assembles the debug or release APK and creates a ZIP plus build metadata with SHA-256.
+- This avoids the Vercel build sandbox and the currently failing GitHub-hosted runner allocation, while keeping the repository private. Personal GitHub Free Codespaces quota is finite; use the documented budget precautions and stop the Codespace after use.
+- **Verification boundary:** documentation was written and read back from GitHub. No Codespace was created, no build command was run, no APK exists from this route yet, and no build/test/device acceptance is claimed. PR #9 remains draft and unmerged.
+
+## 2026-11-14 — Activity & Network Runtime research recorded
+
+- **Done:** Added `docs/BUSYBEE_ACTIVITY_NETWORK_RUNTIME.md` with research findings for native Android activity tracking, app-scoped `VpnService` flow observation, HTTPS/TLS inspection options, runtime instrumentation as a controlled diagnostic avenue, PCAPdroid as an architecture reference, provider API boundaries, privacy requirements and measurable investigation gates.
+- **Architecture:** Updated `docs/ARCHITECTURE.md` to record the proposed in-app Activity & Network Runtime. Updated `docs/PRODUCT_CONTRACT.md` to distinguish activity metadata, network-flow metadata, decrypted diagnostic payloads and provider-authorised API operations. README links to the research and explicitly states these capabilities are not implemented yet.
+- **Key findings:** `UsageStatsManager` is a user-granted, query-based activity history, not a guaranteed live touch feed. App-scoped `VpnService` can observe selected app network flows without root if BusyBee implements correct packet forwarding; it does not itself decrypt HTTPS. PCAPdroid demonstrates no-root VPN capture and conditional TLS inspection. Deeper plaintext observation is app-version/network-stack-specific and remains controlled research, not a promised capability.
+- **Safety boundary:** No credential/token capture or retention, private endpoint replay/mutation, private app database access, covert monitoring or automatic ride acceptance/decline is authorised. Observed private endpoints are not supported provider APIs.
+- **State:** Documentation-only changes. No Kotlin/Rust source, manifest, dependencies, permissions, database schema, UI, APK or provider integration changed. No root setup, app patching, build, tests or device capture performed.
+- **Git:** Changes are on `feat/map-first-route-dock-2026-11-13`, still within draft PR #9. PR #9 remains open, draft and unmerged. This research does not authorise implementation; the user will plan the next phase separately.
+

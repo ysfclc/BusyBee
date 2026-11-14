@@ -21,13 +21,17 @@ The register is deliberately status-based. A source is promoted to **connected**
 
 | Source | Potential capabilities | Access path | Initial status | Constraints to verify |
 |---|---|---|---|---|
-| OpenStreetMap | Road/building/POI geometry and tags | Extracts, Overpass or approved tile services | Candidate — assess | ODbL attribution and derivative database obligations; tile usage policy |
+| OpenStreetMap / OpenFreeMap | Road labels, building geometry, names, house numbers and mapped entrances | OpenFreeMap vector basemap; on-demand Overpass lookup for named/addressed buildings and entrance/door nodes | Basemap active; building/entrance overlay implemented in draft source; build/device verification pending | ODbL attribution and derivative database obligations; tile/Overpass usage policy; local tag coverage is incomplete and no missing stairwell label may be inferred |
 | Kraków MSIP | Municipal GIS, roads, infrastructure and potential 3D assets | Open datasets, WFS/ArcGIS services | Candidate — assess | Dataset-specific licence, update cadence, service terms |
 | ZDMK Kraków | Roadworks and traffic restrictions | Published notices/data channels | Candidate — assess | Machine-readable feed/API availability not yet verified |
 | ZTP Kraków | GTFS and real-time public transport information | GTFS / GTFS-Realtime feeds | Candidate — assess | Feed schema, update cadence, attribution and availability |
-| GDDKiA | National-road traffic, roadworks and incidents | Public information/services | Candidate — assess | Geographic scope and machine-readable access |
-| Polish National Access Point (NAP) | DATEX II road events and roadworks | Registration/certificates and published services | Access-dependent | Registration, certificate, terms and coverage |
+| GDDKiA / Geoportal disruption layer | Current national-road maintenance works, accidents and other disruptions; road number, start/end, chainage/extent and update time | Official Geoportal viewer layer published 2026-10-28 from KPD data | Official viewer confirmed; not connected to BusyBee | The exact reusable WMS/service endpoint and app reuse/attribution terms are not yet verified. Viewer presence is not permission to scrape/embed the website. |
+| Polish National Access Point (KPD / NAP) | Current national-road disruptions in DATEX II XML / WGS84 | DATEX II 3.4/3.5/3.7; Push on Occurrence preferred; Client Snapshot Pull for recovery/snapshot | Public service catalogue; authenticated recipient integration not connected | Register as a data recipient, obtain/maintain required client certificate, inspect WSDL/schema and test coverage/freshness. This feed describes GDDKiA-managed national roads, not every municipal street. |
 | Geoportal / national spatial services | Spatial reference and infrastructure datasets | WMS/WFS/other services | Candidate — assess | Dataset-level licence and update frequency |
+
+### Building and entrance detail
+
+BusyBee's map detail overlay reads mapped building-way and multipolygon-relation names, `addr:street`, `addr:housenumber`, and entrance/door nodes from OpenStreetMap via Overpass. It can show `entrance=staircase` as a stairwell and preserve explicit `ref`, `level`, `door`, and access tags. It cannot reliably identify every apartment-block entrance or individual `klatka A/B`: those labels must exist in the source data. Where a building has no name, a mapped street/house number is used instead; unnamed and unaddressed buildings are not assigned invented names.
 
 ## 3. Environmental and contextual feeds
 
@@ -48,8 +52,10 @@ The register is deliberately status-based. A source is promoted to **connected**
 | Motion sensors | Acceleration, orientation and movement patterns | Android sensor APIs | Available after permission | Treat inferred potholes/harsh events as observations |
 | Camera | Road signs, lane markings, hazards and scene context | CameraX/user-visible capture | Future experiment | No continuous covert recording; minimise and protect footage |
 | Vehicle OBD-II | Vehicle diagnostics and selected telemetry | Supported adapter/Bluetooth | Optional experiment | Device/vehicle compatibility varies |
-| App notifications | User-visible trip/offer/earnings information exposed in notifications | Notification listener with explicit opt-in | Capability-limited | Not access to private app databases or arbitrary screen content |
-| Guided screen capture/import | Visible trip/offer details | User-initiated capture or file import | Candidate — assess | User control, platform terms and Play policy review |
+| Android driver-app live UI listener | Visible offer/trip/earnings text exposed by the active driver-app accessibility tree | User-enabled, read-only AccessibilityService with exact package allowlist (\`com.ubercab.driver\`, \`ee.mtakso.driver\`) | Implemented in source; build/device verification pending | Visible text only; custom/secure surfaces may be unreadable; no private databases, unrelated apps, editing fields or ride actions; prominent disclosure, revocation and Google Play declaration/review required where applicable |
+| App notifications | User-visible trip/offer/earnings information exposed in Android notifications | NotificationListenerService with explicit OS permission | Implemented as secondary event signal; live-device test pending | Notifications can be absent, grouped, delayed or redacted; not private app data |
+| Manual visual capture | Visible trip/offer details that the app does not expose to accessibility | User-started Android MediaProjection session; app-window selection; on-device OCR | Implemented as manual fallback; build/device verification pending | Per-session Android consent, no screenshot persistence/upload; not the normal listening workflow |
+| Historical import | Existing provider statements and old trip history | Android document picker / CSV import | Optional backfill/reconciliation | Not required for normal use; real provider schemas and corrections still need validation |
 | Driver reports | Road hazards, closures and local observations | In-app report flow | Planned first-party source | Timestamp, location, confidence, abuse controls and expiry |
 | WhatsApp/community submissions | Reports shared by participating drivers | Explicit submission/import | Candidate — assess | No scraping private groups; consent and minimisation required |
 
@@ -59,7 +65,7 @@ Priority is based on access feasibility, usefulness and cost—not provider pres
 
 1. **Baseline geography and local public feeds:** OSM, Kraków MSIP, ZTP, and verifiable municipal/national feeds.
 2. **Commercial parallel benchmark:** trial TomTom, HERE and Mapbox in the same Kraków routes and compare coverage, latency, ETA variance, incident quality and cost. Evaluate Google Navigation SDK as a distinct navigation experience.
-3. **National road feeds:** complete NAP/GDDKiA access assessment and registration requirements.
+3. **National road feeds:** apply for GDDKiA/KPD recipient registration and client-certificate access; inspect the DATEX II 3.4 WSDL and Snapshot Pull / Push on Occurrence test flow. Treat the official Geoportal disruption layer as a reference viewer until a reusable service endpoint and terms are confirmed.
 4. **First-party observations:** driver report flow and opt-in Android location.
 5. **Partner-only feeds:** pursue Waze for Cities if eligibility and value justify the application.
 6. **Additional contextual sources:** weather, air quality, events and parking after the ingestion pipeline is proven.

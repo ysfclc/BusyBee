@@ -1,3 +1,31 @@
+## 2026-11-14 — Map navigation and real-world detail correction
+
+**Status:** source committed on draft PR #9; Android build, tests and device verification pending.
+
+**Source revision:** `e8ae4a23ef412e318b534d18076d8d8f5b5b48bb`  
+**Branch:** `feat/map-first-route-dock-2026-11-13`  
+**PR:** [#9 — compact map dock and purpose-built driver workspaces](https://github.com/ysfclc/BusyBee/pull/9) (draft, unmerged)
+
+Delivered in source:
+- Replaced the generic map pin with a custom top-down car marker; foreground GPS moves it.
+- Navigation camera follows smoothed GPS heading, targets ahead of the vehicle, and uses zoom 18.2 / 58° pitch in 3D mode. Manual pan suspends follow; recenter resumes it.
+- Daytime basemap switched to OpenFreeMap Liberty; dusk/night remain Fiord/Dark. Runtime 3D building extrusion is added to styles that do not already provide it.
+- Replaced pure-white daytime UI surfaces with a tinted green/stone palette.
+- Fixed local street-name precedence: the default OpenFreeMap style can prefer `name_en` over local OSM `name`; BusyBee now prefers `name:pl` (on Polish locales), then local `name`, then Latin/English fallbacks across the three styles.
+- Nominatim destination search prefers Polish names and biases to the driver's area without hard-bounding intercity destinations. OSRM maneuver steps fall back to road references when names are missing.
+- Added on-demand Overpass detail lookup for named/addressed building ways and multipolygon relations, plus entrance/door nodes. Building names/addresses and amber entrance/Klatka labels render at zoom-gated levels. A label such as `Klatka A` is shown only when OSM explicitly maps a staircase entrance and its reference.
+- Added map context counts with OSM attribution and throttled marker redraws. Place lookups follow the visible camera centre after a manual pan instead of fetching around an off-screen GPS fix.
+
+Regression tests added for local road-name policy, OSM building/entrance/relation parsing, no fabricated stairwell letters, camera look-ahead, heading wrap smoothing, Polish geocoding bias and road-reference fallback. Added staged turn-announcement tests for 450 m / 120 m / 35 m prompts; the active maneuver advances only after the vehicle passes it, preventing repeated or premature turn announcements.
+
+**Scope boundary:** this is GPS-driven forward-perspective navigation with 3D building context. It is not a proprietary Waze-like live-traffic engine or photorealistic 3D road mesh. Map labels, building names and stairwell/entrance coverage depend on OSM data quality.
+
+**Verification:** GitHub Actions run #298 (`43527209054`) was created for source revision `e8ae4a23...`; both its initial attempt and retry failed before runner/job-step allocation (`steps: null`, no job logs), so no Gradle/test command ran. Earlier runs #292 and #258 failed/cancelled at the same infrastructure stage. Vercel reports a build-rate-limit failure. Android compilation, unit-test execution, APK/signature/hash, emulator and Redmi driving checks remain unverified.
+
+Do not merge PR #9 until the source builds, tests run, a signed APK is produced, and the map is verified on the target device.
+
+---
+
 # Phase Log
 
 ## 2026-11-05 — Phase 1: product and architecture lock
@@ -262,3 +290,25 @@ Build evidence: deployment dpl_D6JRWWpjiHuzmE4kaETzneeKP5xq reached READY for co
 ### Verification blocker update — 2026-11-13
 
 Latest source checkpoint: a1471cd3d1905064b47a5eb21dfa61005579ff5b. The Vercel build that included the new tests stopped after Gradle started Android unit tests and produced no further logs; it was cancelled rather than reported as passed. The next deployment request was rejected by the Vercel Hobby daily deployment API limit (HTTP 402). GitHub Actions PR run 43507100722 failed before runner assignment (runner_id 0), with no downloadable job logs. Therefore no passing test count or latest-source APK is claimed. The previous READY APK is an earlier code snapshot only.
+
+
+
+## 2026-11-13 — Map-first dock and Driver workspace UX increment
+
+**Branch:** `feat/map-first-route-dock-2026-11-13` (stacked on PR #8 head; draft candidate only)
+
+Delivered:
+- Reduced persistent map chrome to a compact destination dock over the full-bleed map. Route status and START/STOP/external-navigation controls now appear contextually after route planning or while navigating.
+- Preserved the MapLibre view lifetime and the map-first hide-header/hide-tab-bar behaviour from the parent branch.
+- Rebuilt Earnings hierarchy around a single known-net focal point, compact KPI row, native capture review inbox, coverage/economics, horizontal platform and start-hour comparisons, and compact recent activity. Kept original calculation semantics and evidence/review flows.
+- Rebuilt Offer Desk around native driver-app capture as the primary path, quick vehicle/rule controls, manual correction, ranked offers and clearly secondary notification evidence.
+- Reworked Driver Hub into compact admin, payment-history, group-watch and service-contact workflows. Existing item completion/reopen, document opening, selected-group tracking and group viewing controls remain available.
+- Updated README product-surface descriptions to reflect native-first capture, optional CSV backfill, selected WhatsApp groups and the remaining Sources redesign gate.
+- Kept all user-facing provider/API limitations explicit; no API connection or unsupported data access is claimed.
+
+Verification:
+- GitHub source diff inspected; branch is two commits ahead of PR #8 base at the first source checkpoint, with follow-up commits for Earnings and Offers UI.
+- Automated Rust/Android tests and APK assembly were **not run**. Vercel Sandbox API returned HTTP 402 (Hobby usage limit exceeded through 2026-12-01); this is an infrastructure blocker, not a passing or failing source test.
+- No local Android SDK/Gradle or `/testbed` checkout is available in this runtime. Physical-device verification remains outstanding.
+- Sources still needs its own purpose-built premium layout pass. This increment does not satisfy the complete UI redesign acceptance gate.
+

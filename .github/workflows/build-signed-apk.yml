@@ -27,8 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Check out source
+      - name: Check out exact source revision
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Validate workflow
         uses: actions/setup-go@v6
@@ -137,14 +139,79 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
 
-      - name: Verify signed APK signature
-        if: steps.signing-check.outputs.ready == 'true'
+      - name: Verify assembled APK signature
         shell: bash
+        env:
+          RELEASE_READY: ${{ steps.signing-check.outputs.ready }}
         run: |
           set -euo pipefail
-          APK="android/app/build/outputs/apk/release/app-release.apk"
+          if [[ "$RELEASE_READY" == "true" ]]; then
+            APK="android/app/build/outputs/apk/release/app-release.apk"
+          else
+            APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          fi
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+
+      - name: Generate APK provenance and checksum
+        id: provenance
+        shell: bash
+        env:
+          RELEASE_READY: ${{ steps.signing-check.outputs.ready }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOURCE_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          if [[ "$RELEASE_READY" == "true" ]]; then
+            source_apk="android/app/build/outputs/apk/release/app-release.apk"
+            variant="release"
+            package_name="com.ysfclc.busybee.drivercommandcentre"
+            version_name="0.1.${GITHUB_RUN_NUMBER}"
+          else
+            source_apk="android/app/build/outputs/apk/debug/app-debug.apk"
+            variant="debug"
+            package_name="com.ysfclc.busybee.drivercommandcentre.debug"
+            version_name="0.1.${GITHUB_RUN_NUMBER}-debug"
+          fi
+          test -s "$source_apk"
+          cp "$source_apk" dist/BusyBee.apk
+          apk_sha256="$(sha256sum dist/BusyBee.apk | awk '{print $1}')"
+          apk_size="$(wc -c < dist/BusyBee.apk | tr -d ' ')"
+          printf '%s  %s\n' "$apk_sha256" "BusyBee.apk" > dist/SHA256SUMS
+          export BUILD_VARIANT="$variant" PACKAGE_NAME="$package_name" VERSION_NAME="$version_name"
+          export SOURCE_SHA SOURCE_REF APK_SHA256="$apk_sha256" APK_SIZE="$apk_size"
+          export BUILD_NUMBER="$GITHUB_RUN_NUMBER" RUN_ID="$GITHUB_RUN_ID"
+          BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          export BUILD_TIMESTAMP
+          python3 - dist/build-info.json <<'PY'
+          import json, os, sys
+          data = {
+              "product": "BusyBee Driver Command Centre",
+              "variant": os.environ["BUILD_VARIANT"],
+              "packageName": os.environ["PACKAGE_NAME"],
+              "versionCode": int(os.environ["BUILD_NUMBER"]),
+              "versionName": os.environ["VERSION_NAME"],
+              "sourceCommit": os.environ["SOURCE_SHA"],
+              "sourceRef": os.environ["SOURCE_REF"],
+              "workflowRunId": os.environ["RUN_ID"],
+              "builtAt": os.environ["BUILD_TIMESTAMP"],
+              "apk": {
+                  "file": "BusyBee.apk",
+                  "sha256": os.environ["APK_SHA256"],
+                  "sizeBytes": int(os.environ["APK_SIZE"]),
+              },
+          }
+          with open(sys.argv[1], "w", encoding="utf-8") as output:
+              json.dump(data, output, indent=2)
+              output.write("\n")
+          PY
+          {
+            echo "variant=$variant"
+            echo "package=$package_name"
+            echo "version=$version_name"
+            echo "sha256=$apk_sha256"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Publish APK as a GitHub Release asset
         if: github.event_name != 'pull_request'
@@ -166,29 +233,44 @@ jobs:
           fi
           test -s "$apk"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" "$apk" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$tag" dist/BusyBee.apk dist/build-info.json dist/SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$tag" "$apk" --repo "$GITHUB_REPOSITORY" \
+            gh release create "$tag" dist/BusyBee.apk dist/build-info.json dist/SHA256SUMS --repo "$GITHUB_REPOSITORY" \
               --title "$title" --notes "$notes" --prerelease
           fi
           echo "url=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq .url)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload pull-request APK and provenance
+        id: pr-artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: busybee-pr-${{ github.event.pull_request.number }}-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Build summary
         shell: bash
         run: |
           {
+            echo "## BusyBee APK build completed"
+            echo "- Variant: ${{ steps.provenance.outputs.variant }}"
+            echo "- Package: ${{ steps.provenance.outputs.package }}"
+            echo "- Version: ${{ steps.provenance.outputs.version }}"
+            echo "- Source commit: ${{ github.event.pull_request.head.sha || github.sha }}"
+            echo "- SHA-256: ${{ steps.provenance.outputs.sha256 }}"
+            echo "- Signature: verified with apksigner"
             if [[ "${{ steps.signing-check.outputs.ready }}" == "true" ]]; then
-              echo "## Signed APK ready"
-              echo "- Package: com.ysfclc.busybee.drivercommandcentre"
-              echo "- Version: 0.1.${{ github.run_number }}"
-              echo "- Signing: verified with apksigner"
-              echo "- Download: ${{ steps.publish.outputs.url }}"
-              echo "- Updates: same package ID and signing certificate preserve app data."
+              echo "- Signing: persistent release keystore"
+              echo "- Updates: compatible with existing release installs using the same key."
             else
-              echo "## Debug APK built — release signing still required"
-              echo "- Debug package uses a separate .debug application ID."
-              echo "- Configure the persistent release keystore using docs/ANDROID_SIGNING.md."
-              echo "- A debug APK cannot update or preserve data from the signed release package."
+              echo "- Signing: CI debug key"
+              echo "- Install: separate .debug app; does not update the release package."
+            fi
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              echo "- Download: pull-request artifact busybee-pr-${{ github.event.pull_request.number }}-${{ github.run_number }}"
+            else
               echo "- Download: ${{ steps.publish.outputs.url }}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
