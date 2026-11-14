@@ -34,6 +34,27 @@ Relevant offer, trip and earnings changes should trigger a local BusyBee notific
 
 API access constraints are real product states: Uber Driver API access may require approval and is not presumed available; Bolt Fleet API is not a universal individual-driver API. Investigate and document actual driver-level access separately for each platform. Accessibility-based reading is a separate, user-enabled Android capability and must not be labelled as an official provider API connection. For Google Play distribution, prepare the applicable Accessibility API declaration and review requirements; do not assume approval.
 
+
+## 2.1 Native activity and network observation — research direction
+
+BusyBee may add an internal Android Activity & Network Runtime; this does not require a separate application or custom Android OS.
+
+Potential native capabilities include:
+
+1. **UsageStatsManager:** user-granted app/activity usage history and foreground transitions. This is a queryable, short-retention history, not a guaranteed live callback or a record of every touch.
+2. **App-scoped VpnService:** an explicitly enabled local VPN can route only selected driver-app packages through BusyBee using `VpnService.Builder.addAllowedApplication`. This can support connection metadata capture (protocol, endpoints, timing, byte counts and available DNS/TLS metadata). It requires a real packet-forwarding implementation and must preserve ride-app connectivity. Android allows only one active VPN per user/profile.
+3. **Deeper diagnostics:** local TLS inspection or controlled runtime instrumentation may expose decrypted request/response data for compatible app versions and networking stacks. HTTPS payload visibility is not guaranteed; certificate trust, pinning, QUIC, native networking and app-integrity controls can limit or prevent inspection.
+
+**Observation depth must be labelled honestly.** A network flow is not an HTTP request; a decrypted request is not automatically a valid provider integration; and observing a private endpoint does not authorise BusyBee to invoke or replay it.
+
+Deeper request/response research is limited to controlled, owner-authorised diagnostics. BusyBee must not capture or retain bearer tokens, cookies, refresh tokens, passenger personal data or other secrets; replay or mutate reverse-engineered private provider requests; access private app databases; or use instrumentation to automate ride acceptance/decline. The existing read-only Accessibility boundary remains in force.
+
+The proposed event sources are `ANDROID_USAGE_EVENT`, `ANDROID_VPN_FLOW`, `ANDROID_DNS_OBSERVATION`, `ANDROID_TLS_METADATA` and, only where permitted and validated, `ANDROID_TLS_DECRYPTED_DIAGNOSTIC`. All observations require source provenance, timestamps, app/package identity, observation depth and confidence. Correlation must distinguish raw evidence from inferred offers, trips or earnings.
+
+Actions remain divided into BusyBee-owned operations, documented provider API operations for which access is granted, and user-confirmed handoffs to the original app. No private endpoint becomes an action interface merely because it was observed.
+
+This is a research and architecture direction, not an implementation commitment or change to the current PR scope. See [BusyBee Activity & Network Runtime research](BUSYBEE_ACTIVITY_NETWORK_RUNTIME.md) for technical options, constraints, references and acceptance gates.
+
 ## 3. Earnings and trip data — no CSV-first workflow
 
 CSV upload is **not required** for normal use and must not be the primary or default onboarding path. The core workflow is:
