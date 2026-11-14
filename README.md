@@ -11,6 +11,7 @@ The product vision is one map that aggregates all accessible and legally usable 
 - [Product charter](docs/PRODUCT_CHARTER.md)
 - [BusyBee brand system](docs/BRAND.md)
 - [System architecture](docs/ARCHITECTURE.md)
+- [Activity & Network Runtime research](docs/BUSYBEE_ACTIVITY_NETWORK_RUNTIME.md)
 - [Source register](docs/SOURCE_REGISTER.md)
 - [Delivery roadmap](docs/ROADMAP.md)
 - [Architecture decisions](docs/DECISIONS.md)
@@ -50,7 +51,7 @@ The current build replaces the POI-only experiment with five driver-facing surfa
 - **Driver Hub:** vehicle profile, documents, reminders, recurring insurance/payment schedules, completion history, expenses, service contacts and driver-selected WhatsApp group monitoring. Group visibility is limited to notification content exposed by Android; no private chat database or chat-export import is used.
 - **Sources:** honest connected / permission-required / not-connected source catalogue.
 
-The primary live observer is a read-only Android AccessibilityService enabled by the driver in Android Settings after an in-app disclosure. It only observes visible UI text from the configured Uber Driver and Bolt Driver packages; it does not tap controls, accept/decline rides, inspect other apps, read private databases, record audio or save screenshots. It may miss custom/secure app surfaces and is not an official provider API connection. New relevant observations and ride-app notifications can trigger generic BusyBee notifications that deep-link to review. Manual MediaProjection/OCR is retained only as a fallback. The app does not claim direct Uber/Bolt API access or automatic ride actions. Road feed coverage is not equivalent to live traffic speed; source health and gaps remain visible. Day/dusk/night themes follow solar position at the last permitted location with a local-clock fallback. Sources documents the current permission and connection state; live traffic connectors remain unconnected.
+The current live observer is a read-only Android AccessibilityService enabled by the driver in Android Settings after an in-app disclosure. Native UsageStatsManager activity tracking and app-scoped VpnService network-flow observation are documented as a future internal BusyBee runtime investigation, not implemented or connected yet. It only observes visible UI text from the configured Uber Driver and Bolt Driver packages; it does not tap controls, accept/decline rides, inspect other apps, read private databases, record audio or save screenshots. It may miss custom/secure app surfaces and is not an official provider API connection. New relevant observations and ride-app notifications can trigger generic BusyBee notifications that deep-link to review. Manual MediaProjection/OCR is retained only as a fallback. The app does not claim direct Uber/Bolt API access or automatic ride actions. Road feed coverage is not equivalent to live traffic speed; source health and gaps remain visible. Day/dusk/night themes follow solar position at the last permitted location with a local-clock fallback. Sources documents the current permission and connection state; live traffic connectors remain unconnected.
 
 
 ### Spatial rendering
