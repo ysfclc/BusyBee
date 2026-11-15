@@ -212,3 +212,26 @@ Detailed design: [Native Provider Bridge](NATIVE_PROVIDER_BRIDGE.md).
 
 Verification boundary:
 - This checkpoint is design only. No Android app code, database schema, provider integration or APK was changed. The next implementation issue tracks the Provider Bridge contract and unified timeline.
+
+
+## 2026-11-15 — Native Provider Bridge core contract
+
+**Status:** first implementation slice committed on `feat/native-provider-bridge-core`; review/CI pending.
+
+Implemented:
+- Added provider-neutral Kotlin domain types for Uber, Bolt and future providers.
+- Added capability reports and explicit connection states; a synthetic fixture can only report `PARTIAL`, never a verified provider connection.
+- Added typed offer, trip and earnings payloads with provider identity, adapter identity/version, acquisition method, event/receive/expiry times, correlation/external IDs, completeness, evidence retention/redaction and dedupe key.
+- Added adapter registry keyed by adapter identity, allowing multiple acquisition methods for one provider.
+- Added repository ingestion boundary and in-memory implementation with provider-scoped idempotency and chronological ordering.
+- Added deterministic synthetic adapter and unit tests for idempotency, ordering, partial fields, stale/expired events, multi-source registration and honest synthetic connection state.
+
+Safety/correctness details:
+- A late-arriving event whose expiry is already in the past remains ingestible and is marked stale; expiry is not treated as a reason to erase evidence.
+- Missing fields remain null and are represented in completeness metadata.
+- No third SQLite database was introduced. Existing DriverMirrorStore and DriverCommandStore schemas/data remain unchanged.
+- No Uber/Bolt live adapter or provider access is claimed.
+
+Verification boundary:
+- Source and test files are committed to the feature branch. Android CI/build verification is pending PR creation.
+- This is the domain/API foundation only; existing offers, notices and imported records are not yet routed through the new repository or shown in a unified timeline.
