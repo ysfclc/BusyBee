@@ -12,11 +12,12 @@ class ProviderBridgeTest {
         received: Long = 110L,
         expires: Long? = null,
         present: Set<String> = setOf("fare"),
-        provider: ProviderId = ProviderId.UBER
+        provider: ProviderId = ProviderId.UBER,
+        sourceAdapter: AdapterIdentity = adapter
     ) = ProviderEvent(
         eventId = key,
         provider = provider,
-        adapter = adapter,
+        adapter = sourceAdapter,
         type = ProviderEventType.OFFER,
         sourceMethod = SourceMethod.OWNED_TEST_FIXTURE,
         occurredAtEpochMs = occurred,
@@ -32,7 +33,7 @@ class ProviderBridgeTest {
         val repo = InMemoryProviderEventRepository()
         val ingestor = ProviderEventIngestor(repo)
         val first = ingestor.ingest(listOf(event("same")))
-        val second = ingestor.ingest(listOf(event("same")))
+        val second = ingestor.ingest(listOf(event("same", sourceAdapter = AdapterIdentity("notification.uber", "1"))))
         assertEquals(1, first.accepted)
         assertEquals(1, second.duplicates)
         assertEquals(1, repo.events().size)
