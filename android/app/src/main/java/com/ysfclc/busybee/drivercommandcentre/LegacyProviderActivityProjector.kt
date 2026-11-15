@@ -12,10 +12,10 @@ import java.util.Locale
  */
 class LegacyProviderActivityProjector(
     private val commands: DriverCommandStore,
-    private val mirror: DriverMirrorStore
+    private val mirror: DriverMirrorStore,
+    private val repository: ProviderEventRepository = SqliteProviderEventRepository(mirror)
 ) {
     fun project(limitPerSource: Int = 200): List<ProviderEvent> {
-        val repository = InMemoryProviderEventRepository()
         val ingestor = ProviderEventIngestor(repository)
         val now = System.currentTimeMillis()
         val events = buildList {
@@ -59,7 +59,7 @@ class LegacyProviderActivityProjector(
         val fingerprint = sha256(raw.ifBlank { "$platform|$pickup|$destination|$fare|$bonus|$capturedAt" })
         val key = if (sourceMethod == SourceMethod.ANDROID_NOTIFICATION && raw.isNotBlank()) {
             "notification-offer:${sha256("$platform|$raw")}"
-        } else "offer:$id"
+        } else "offer:$id:${status.lowercase()}"
         return ProviderEvent(
             eventId = "command-offer:$id",
             provider = provider,
