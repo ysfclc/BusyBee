@@ -280,3 +280,33 @@ Next:
 - Verify migration and repository behaviour on Android, including persistence across process restart and preservation of a pre-existing version-1 database.
 - Add durable conflict/reconciliation records and persisted adapter health only after the storage acceptance tests pass.
 - Continue owned-app plaintext-boundary validation separately from production provider access.
+
+## 2026-11-15 — Owned Android plaintext-observer harness (implementation checkpoint)
+
+**Status:** source implemented on `feat/native-provider-bridge-core`; Android CI and controlled emulator execution pending. No provider app or provider account was touched.
+
+Delivered:
+- Added an isolated Android application project under `research/plaintext-observer/android`; it has a separate application ID and does not add dependencies or runtime permissions to BusyBee.
+- Added explicit app-owned plaintext boundaries: outbound JSON after serialisation and immediately before HTTPS transport; inbound response body after TLS decryption and before JSON parsing/state handling.
+- Added a deterministic local Python HTTPS fixture that returns a synthetic offer-observed → offer-updated → offer-expired lifecycle.
+- Added an ephemeral local CA/server-certificate generator. Private keys and certificates are ignored by Git; only the user-installed local CA is used by the test app's dedicated network-security config.
+- Added a Frida script that hooks only the two methods in the owned POC package and emits allowlisted fields. Secret/token/cookie/password-like fields are never printed; raw payloads and headers are omitted.
+- Added a reproducible runbook covering build, local HTTPS, adb reverse, test CA installation, Frida attachment, expected evidence and cleanup.
+- Extended Android validation CI to test and assemble the separate POC app whenever its source changes.
+
+What this demonstrates, once executed:
+- The application has plaintext available before handing its request body to TLS transport.
+- The application receives plaintext after the TLS stack decrypts the response body.
+- The observer can capture those two deliberately exposed app-owned boundaries without packet interception.
+
+What is not yet proven:
+- The Gradle build and emulator execution for this new project have not yet completed.
+- Frida hook attachment and the full outbound/inbound lifecycle have not yet been observed in a running emulator.
+- This is not a generic TLS/OkHttp hook and says nothing about Uber/Bolt internal method names, libraries, protections, terms or compatibility.
+- No provider app, credentials, live trip data, request replay or provider-side action is involved.
+
+Next verification:
+1. Pass Android CI for both BusyBee and the isolated POC app.
+2. Execute the runbook in a controlled emulator and retain redacted console evidence for all six boundary events.
+3. Add malformed, duplicate, delayed and out-of-order fixture cases plus instrumentation-overhead comparison.
+4. Keep Uber and Bolt access/terms/capability assessments separate; do not move to provider instrumentation absent a documented, permitted path.
