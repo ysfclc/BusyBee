@@ -12,6 +12,7 @@ The product vision is one map that aggregates all accessible and legally usable 
 - [Delivery roadmap](docs/ROADMAP.md)
 - [Architecture decisions](docs/DECISIONS.md)
 - [Phase log](docs/PHASE_LOG.md)
+- [Platform Activity Integration research and design](docs/PLATFORM_ACTIVITY_INTEGRATION.md)
 - [Phase 2 executable foundation](docs/PHASE_2_FOUNDATION.md)
 - [Android release signing](docs/ANDROID_SIGNING.md)
 - [Control repository setup](SETUP.md)
@@ -31,7 +32,7 @@ BusyBee is a phase-import control repository. Each `incoming/<name>.zip` is a co
 - Domain core: Rust
 - Provider strategy: multi-source aggregator; no exclusive map vendor
 - Current state: the Android app now opens into a local-first Driver Data Mirror with CSV import, a private SQLite source ledger, raw-row evidence, duplicate protection, platform activity and cautious financial totals. It does not claim direct Uber/Bolt API access. The old map/POI screen has been removed from this milestone; road intelligence returns after the mirror and driver economics are proven. See [CSV import contract](docs/DRIVER_MIRROR_IMPORT.md).
-
+- Provider activity research: in-process plaintext observation before TLS encryption / after TLS decryption is now a documented research requirement. It is not implemented or proven against production Uber/Bolt. See [research and design](docs/PLATFORM_ACTIVITY_INTEGRATION.md).
 
 ## Current Android product surfaces
 
@@ -44,7 +45,6 @@ The current build replaces the POI-only experiment with five driver-facing surfa
 - **Sources:** honest connected / permission-required / not-connected source catalogue.
 
 The offer workflow does not claim direct Uber/Bolt partner API access or auto-acceptance. It surfaces captured information and hands the driver back to the source app for the final decision. Road feed coverage is not equivalent to live traffic speed; source health and gaps remain visible.
-
 
 ### Spatial rendering
 
