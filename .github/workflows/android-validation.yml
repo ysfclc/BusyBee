@@ -72,6 +72,10 @@ jobs:
           validate-wrappers: false
           gradle-version: "8.9"
 
+      - name: Make Gradle entrypoint executable
+        working-directory: android
+        run: chmod +x ./gradlew
+
       - name: Run Android unit tests
         working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest
