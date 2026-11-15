@@ -173,3 +173,42 @@ Detailed record: [Platform Activity Integration — Research and Design](PLATFOR
 Verification boundary:
 - This commit is documentation/architecture only. No provider APK was modified, no third-party app was instrumented, no device root or access-control bypass was attempted, and no BusyBee APK was built for this change.
 - The owned test harness is the next implementation task; no plaintext-capture acceptance test has passed yet.
+
+
+## 2026-11-15 — Native Provider Bridge product design
+
+**Status:** design baseline committed to branch `design/native-provider-bridge`; implementation not started.
+
+User outcome clarified:
+- The driver wants to see their Uber/Bolt driver-app data inside BusyBee through a native-feeling, API-like integration.
+- This is a product outcome, not a request to make an instrumentation console or expose raw network payloads.
+- BusyBee must present one unified view of offers, offer outcomes, active/completed trips, trip details, fare components, payouts and history wherever the source actually exposes those fields.
+
+Repository inspection:
+- DriverMirrorStore.kt holds CSV-imported trip/earnings records and raw import evidence in busybee_driver_mirror.db.
+- DriverCommandStore.kt holds offers and captured notification records in a separate busybee_command_centre.db.
+- PlatformNotificationListener.kt extracts visible notification title/body for recognised ride-platform packages.
+- MainActivity.kt has Offers, Earnings and Sources surfaces, but no typed provider adapter registry, capability discovery, unified event stream or verified connection-health model.
+- Thus the current app has useful partial inputs, but not a first-class provider integration. Its two data stores are not yet reconciled.
+
+Design decisions:
+- Add a first-class internal Provider Bridge API with one typed adapter contract per provider.
+- Normalise every input into provider-neutral offer/trip/earnings events; UI and analytics never parse provider-specific notification text, JSON or CSV directly.
+- Add capability discovery (offers, offer lifecycle, active/completed trips, route/distance/duration, fare breakdown, payouts, session and history) and explicit states for available, partial, permission-required, approval-required, unsupported, blocked and unknown.
+- Connected Apps UX shows source method, last event/sync, capability coverage and health. Detecting an installed app or granting notification access does not equal a verified API connection.
+- Driver Mirror becomes the unified timeline and overview. Every event shows provider, source method, event/receive time, freshness and evidence/field completeness.
+- Keep provider acquisition separate from canonical API and UI. Official documented access first; user-owned exports for authoritative history; Android-native notification/share signals as partial live inputs; plaintext instrumentation remains a separate feasibility track.
+- Do not fabricate fields, call gross profit, replay requests, bypass app protections or claim provider API access without proof.
+- Reconcile existing offer/notice and import stores with non-destructive versioned migrations; no third disconnected store.
+
+Next implementation slices:
+1. Typed Provider Bridge domain contract, adapter registry, capability and health models.
+2. Unified event repository/ledger and non-destructive reconciliation of existing stores.
+3. Connected Apps UX and Driver Mirror activity timeline using current notification/import data.
+4. Validate provider-specific source access and add only supported live adapters.
+5. Reconcile trips and earnings against user-owned statements and build verified driver economics.
+
+Detailed design: [Native Provider Bridge](NATIVE_PROVIDER_BRIDGE.md).
+
+Verification boundary:
+- This checkpoint is design only. No Android app code, database schema, provider integration or APK was changed. The next implementation issue tracks the Provider Bridge contract and unified timeline.

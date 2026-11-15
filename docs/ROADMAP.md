@@ -31,7 +31,7 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 
 ## Phase 3 — Driver Data Mirror (first real product capability)
 
-**Status:** first usable vertical slice implemented. Real provider-export validation, statement reconciliation and completeness review with the driver's own data remain open. Provider activity integration research is now explicitly tracked; no direct Uber/Bolt API or in-process integration is claimed.
+**Status:** first usable vertical slice implemented. Real provider-export validation, statement reconciliation and completeness review remain open. Native Provider Bridge is now the accepted architecture direction; provider-specific live access is not yet proven.
 
 **Goal:** make BusyBee understand the driver's actual work, across platforms, under the driver's control.
 
@@ -41,13 +41,16 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 - Canonical records for platforms, sessions, offers, trips, route/time, gross earnings, fees, bonuses, adjustments and vehicle costs.
 - Reconciliation and duplicate detection without silently inventing missing values.
 - Driver profile and vehicle cost model; private data stays private by default.
-- **Provider activity research track:** investigate in-process plaintext observation at the outbound/pre-TLS and inbound/post-decryption boundary, without confusing it with VPN packet capture or UI scraping. Validate the concept in an owned test app before assessing provider-specific compatibility.
+- **Native Provider Bridge:** one typed internal API and provider adapter contract for Uber, Bolt and future sources; capability discovery, per-source health, canonical event ingestion and a unified driver activity timeline.
+- **Unified local activity ledger:** reconcile existing offers/notices and imported records without data loss or duplicate counting.
+- **Provider activity research track:** investigate in-process plaintext observation at outbound pre-TLS and inbound post-decryption boundaries as one separate acquisition feasibility study, not as the canonical API. Validate only in an owned test app before assessing provider-specific compatibility.
 - Adapter contract for every input method, including acquisition method, permission, provenance, event time, receive time, completeness, confidence, health and retention classification.
 
 **Exit gate**
 - Import/capture a representative set of real user records from at least one platform and show the original evidence beside the normalised records.
 - Cross-check totals against the source statement.
 - Clearly show unknowns, gaps, duplicate candidates and confidence; never treat missing values as zero.
+- Provider Bridge contract and unified timeline expose current notification/import data with source, freshness and capability coverage.
 - Owned test harness demonstrates outbound and inbound plaintext observation, redaction and explicit unsupported-state handling before any provider-specific instrumentation feasibility claim.
 - No production Uber/Bolt integration is labelled connected until its access path, terms, compatibility, data coverage and real-device behaviour are independently verified.
 
