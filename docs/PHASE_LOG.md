@@ -256,3 +256,27 @@ Remaining work:
 
 Verification:
 - Dedicated Android validation workflow was added and is executing for this PR. No test/build result is claimed until the run completes.
+
+## 2026-11-15 — Durable Provider Bridge event ledger
+
+**Status:** implemented on `feat/native-provider-bridge-core`; CI verification pending.
+
+Delivered:
+- Added a versioned `provider_events` table to the existing `busybee_driver_mirror.db`; no third database was created.
+- Added an additive SQLiteOpenHelper migration from schema version 1 to 2. Existing imports, raw evidence and records are neither rewritten nor deleted.
+- Added a durable `SqliteProviderEventRepository` implementing the same ProviderEventRepository contract used by the in-memory test repository.
+- Added a versioned binary event codec (Base64 storage envelope) covering every typed payload, nullable fields, provider/adapter/source metadata, completeness, evidence and dedupe identity. Unknown format versions and malformed payloads fail rather than being silently accepted.
+- Changed the legacy projector to ingest into the durable repository and read the unified timeline from it. Existing source stores remain authoritative; projection is repeatable and idempotent.
+- Offer lifecycle dedupe keys now include status, so a pending offer and its later accepted/rejected/expired/cancelled state can coexist as distinct observations rather than the first state hiding later changes.
+- Added codec round-trip tests for offer, trip, earnings and observation payloads, plus an unsupported-version test.
+
+Data-safety boundaries:
+- The migration is additive and transactional under Android's SQLiteOpenHelper upgrade flow.
+- The event ledger stores the canonical normalised event envelope; original import evidence remains in the existing raw_evidence table and notification/offer evidence remains in the command-centre store.
+- No existing financial totals or source rows are rewritten, merged or deleted. Durable event persistence is not yet a claim that source records have been fully reconciled or conflict-resolved.
+- No provider API or plaintext observation path is implemented or claimed.
+
+Next:
+- Verify migration and repository behaviour on Android, including persistence across process restart and preservation of a pre-existing version-1 database.
+- Add durable conflict/reconciliation records and persisted adapter health only after the storage acceptance tests pass.
+- Continue owned-app plaintext-boundary validation separately from production provider access.
