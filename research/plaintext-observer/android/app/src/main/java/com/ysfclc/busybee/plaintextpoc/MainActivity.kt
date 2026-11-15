@@ -40,7 +40,7 @@ class MainActivity : Activity() {
             addView(endpoint, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             addView(run)
             addView(ScrollView(this@MainActivity).apply { addView(output) },
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         }
         setContentView(root)
     }
