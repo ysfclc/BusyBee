@@ -7,8 +7,8 @@ import java.time.OffsetDateTime
 import java.util.Locale
 
 /**
- * Read-only projection of the two pre-bridge stores into one timeline.
- * It deliberately does not migrate, rewrite or delete legacy rows.
+ * Projects the two pre-bridge stores into the canonical event ledger.
+ * Source stores are read-only here; only the separate ProviderEventRepository is written.
  */
 class LegacyProviderActivityProjector(
     private val commands: DriverCommandStore,
