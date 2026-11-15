@@ -496,10 +496,13 @@ class MainActivity : AppCompatActivity() {
                 is ProviderEventPayload.Observation -> listOfNotNull(payload.title, payload.detail).joinToString(" · ")
             }
             val missing = event.completeness.missingFields
-            val occurred = event.occurredAtEpochMs?.let { dateTime(it) } ?: "Time not supplied"
+            val occurred = event.occurredAtEpochMs?.let { dateTime(it) } ?: "Event time not supplied"
+            val received = dateTime(event.receivedAtEpochMs)
+            val freshness = if (event.expiresAtEpochMs != null && event.expiresAtEpochMs < System.currentTimeMillis()) "EXPIRED" else "RECEIVED"
             root.addView(card().apply {
                 addView(label(providerName + " · " + event.type.name.replace('_', ' '), 10f, MINT, true))
-                addView(label(occurred + " · " + event.sourceMethod.name.replace('_', ' ') + " · " +
+                addView(label(occurred + " · " + freshness + " " + received + " · " +
+                    event.sourceMethod.name.replace('_', ' ') + " · " +
                     event.completeness.presentFields.size + "/" + event.completeness.expectedFields.size + " fields", 9f, MUTED, false)
                     .apply { setPadding(0, dp(4), 0, dp(5)) })
                 addView(label(detail.take(240), 11f, WHITE, false))
