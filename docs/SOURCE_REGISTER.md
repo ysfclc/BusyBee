@@ -123,3 +123,17 @@ These checks establish that the sources exist and what access path is documented
 | [GUGiK Geoportal GDDKiA disruption layer announcement](https://www.gov.pl/web/gugik/nowa-usluga-utrudnienia-drogowe-gddkia-dostepna-w-serwisie-wwwgeoportalgovpl) | A Geoportal service was announced on 28 October 2026, based on KPD data, showing maintenance works, accidents and other disruptions with dates, road identifiers and update information. | Public map viewer confirmed; direct feature-service endpoint and reuse terms not yet verified. | Inspect the published service metadata before treating it as an ingestible API. |
 
 **Connector rule:** a browser-visible map or public web page is not automatically a reusable API. A source becomes connected only after its actual endpoint, licence, geographic coverage, refresh behaviour and failure mode have been tested. Never mark a candidate as live merely because a human can view it in a browser.
+
+
+## 9. Provider-app process observation research
+
+| Source / method | Potential capability | Initial status | Constraints / next step |
+|---|---|---|---|
+| In-process plaintext observation in an authorised test process | Observe outbound application data before TLS encryption and inbound response data after TLS decryption | Research requirement; not a production provider connector | First prove in an owned Android test app and local HTTPS service. Do not imply that a third-party production app is compatible or authorised. |
+| Frida dynamic instrumentation | Inspect application-owned methods in a controlled test process | POC candidate | Use only against the owned test app in an emulator/test environment. Runtime/library-specific; not a generic injection path from BusyBee into another stock app. |
+| Frida Gadget embedded in an application | Load instrumentation within the process that includes the Gadget | Controlled-test candidate only | Embedding requires modifying/re-signing the target package. Only use in an app we own; no third-party provider APK repackaging is a production dependency. |
+| Root-based process injection | Potentially inspect an unmodified process in a controlled device | Not selected for daily-device architecture | Root changes the device security model and may be detected; no root or bootloader changes are authorised by this project checkpoint. |
+
+**Important:** these are instrumentation mechanisms, not Uber/Bolt data sources or provider APIs. Current Uber/Bolt app compatibility, permissions, terms, field coverage and stability are unverified. VPN packet metadata, notifications and screen/OCR capture remain separate capabilities and must not be represented as equivalent to process-level plaintext observation.
+
+See [Platform Activity Integration](PLATFORM_ACTIVITY_INTEGRATION.md) and [Plaintext Observer POC design](PLAINTEXT_OBSERVER_POC.md).

@@ -30,7 +30,6 @@ Exit criteria:
 - CI produces an APK.
 - The app launches on a real Android device and renders the pilot map.
 
-
 ## 2026-11-05 — Phase 2: executable foundation (implementation checkpoint)
 
 **Status:** source merged to main; CI validation passed; device and release-signing gates pending.
@@ -51,7 +50,6 @@ Signing dependency:
 Scope boundary:
 - This is the executable map/core foundation only. Multi-source connectors and live road intelligence begin in Phase 3.
 
-
 ### CI verification — 2026-11-05
 
 - Workflow run: 42107024805 (success).
@@ -62,7 +60,6 @@ Scope boundary:
 - Debug APK: assembled and uploaded as artifact BusyBee-Driver-Command-Centre-debug-9 (19,710,964 bytes; expires 2026-11-12).
 - Release APK: not built because persistent Android signing secrets were absent at build time.
 - Real-device install/launch: not yet verified.
-
 
 ## 2026-11-05 — Phase 3: Driver Data Mirror (first vertical slice)
 
@@ -87,7 +84,6 @@ Verification:
 - Source and tests are committed to `main`.
 - Automated build status and device install/launch have not yet been confirmed in this checkpoint.
 
-
 ## 2026-11-05 — Driver Command Centre product build
 
 **Status:** route-planning build at commit 39bf6fadd6ddcf7443295377da75809a753bf01f passed Android unit tests and APK assembly; recurring-payment and source coverage additions are now in the next checkpoint.
@@ -105,7 +101,6 @@ Boundaries:
 - Route planning uses public low-volume OSM geocoding/routing services; turn-by-turn guidance is handed to an installed navigation app.
 - Current map event data is mapped road observations, not a real-time traffic-speed service.
 - Personal data stays on-device; chat exports and notification capture are opt-in.
-
 
 ## 2026-11-05 — Spatial map upgrade
 
@@ -133,3 +128,48 @@ Verification:
 Implemented route alternatives in the map: the route planner requests up to three OSRM candidates, ranks fastest first with distance as a tie-breaker, removes duplicate metric pairs, and lets the driver select an alternative in-app. The selected route remains explicitly labelled as an OSRM estimate, not live-traffic guidance. Added unit tests for ordering, deduplication and candidate limits.
 
 Workflow run 46 succeeded end-to-end: actionlint, Rust tests, Android unit tests, debug APK assembly and GitHub Release asset publication all passed. Download: https://github.com/ysfclc/BusyBee/releases/tag/build-46. The APK is debug-only because persistent release-signing secrets are still not configured.
+
+## 2026-11-15 — Uber/Bolt provider activity integration stress test and design baseline
+
+**Status:** research/design recorded on `docs/provider-activity-integration-design`; no production integration or app code changed.
+
+User requirement clarified:
+- BusyBee should investigate observing ride-hailing activity inside the provider app process at the plaintext boundary: outbound request data before TLS encryption and inbound response data after TLS decryption.
+- This is materially different from VPN packet capture, notification access, screen capture, OCR or Android usage statistics.
+- Desired downstream capability is a unified, provider-neutral offer/trip activity stream feeding the Driver Data Mirror and Offer Desk.
+
+Repository baseline confirmed:
+- Phase 3 already contains a local-first Driver Data Mirror, CSV evidence ledger, notification/manual Offer Desk inputs and source-provenance direction.
+- Existing app/repo documentation does not claim a direct Uber/Bolt API or in-process integration.
+- No existing implementation was changed during this design pass.
+
+Technical findings:
+- In-process plaintext observation is technically plausible in controlled/authorised instrumentation environments.
+- Frida Server generally relies on privileged/root access for injection into an unmodified target process; Frida Gadget is loaded by the target app and the Gadget route requires a modified/re-signed target APK.
+- Re-signing a third-party app can invalidate its original signature and may break integrity/attestation, updates, pinning, login or other functionality. Current Uber/Bolt compatibility is unverified.
+- A BusyBee APK cannot simply inject Gadget into untouched Uber/Bolt processes on stock Android.
+- VPN packet observation does not ordinarily reveal HTTPS plaintext.
+- Android notifications and user-visible capture are separate, limited adapters, not substitutes for the requested process-level observation.
+- No evidence currently establishes that current production Uber/Bolt builds can be instrumented reliably, permissibly and without compromising their operation on the driver's daily phone.
+
+Decisions:
+- Preserve plaintext-boundary observation as an explicit research requirement; do not silently downgrade the goal to OCR or VPN metadata.
+- First validate outbound and inbound plaintext observation in an owned Android test app and local test endpoint.
+- Then assess documented/provider-permitted Uber and Bolt input paths independently.
+- Keep production adapters source-neutral and decouple the domain model from Frida, TLS internals, provider networking libraries and UI structure.
+- Separate observation from action. Initial flow is observe → normalise → explain → hand back to the official provider app. No request replay or unsupported auto-accept.
+- Do not make root, APK repackaging, bypassing anti-tamper/authentication/pinning, or modified provider apps a production dependency.
+- Require provenance, event/receive timestamps, field completeness, redaction, stale-event handling, deduplication, conflict visibility and explicit source-health states.
+
+Next design/engineering sequence:
+1. Design the owned Android plaintext-observation test harness and synthetic offer lifecycle.
+2. Define and test the provider-neutral adapter/evidence envelope against the current Rust/SQLite domain.
+3. Complete separate Uber and Bolt access/terms/capability assessments.
+4. Validate real user-owned export samples and reconciliation.
+5. Only then decide whether any provider-specific live adapter is supportable.
+
+Detailed record: [Platform Activity Integration — Research and Design](PLATFORM_ACTIVITY_INTEGRATION.md). The next experiment is specified in [Plaintext Observer Proof of Concept — Design](PLAINTEXT_OBSERVER_POC.md): owned Android app, local HTTPS fixture, outbound/inbound observation, synthetic lifecycle, redaction and instrumentation-health tests.
+
+Verification boundary:
+- This commit is documentation/architecture only. No provider APK was modified, no third-party app was instrumented, no device root or access-control bypass was attempted, and no BusyBee APK was built for this change.
+- The owned test harness is the next implementation task; no plaintext-capture acceptance test has passed yet.
