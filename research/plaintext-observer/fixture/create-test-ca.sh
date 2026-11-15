@@ -5,7 +5,10 @@ mkdir -p "$OUT_DIR"
 umask 077
 openssl genrsa -out "$OUT_DIR/test-ca.key" 3072
 openssl req -x509 -new -nodes -key "$OUT_DIR/test-ca.key" -sha256 -days 30 \
-  -subj "/CN=BusyBee Owned POC Test CA" -out "$OUT_DIR/test-ca.crt"
+  -subj "/CN=BusyBee Owned POC Test CA" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -out "$OUT_DIR/test-ca.crt"
 openssl genrsa -out "$OUT_DIR/localhost.key" 2048
 openssl req -new -key "$OUT_DIR/localhost.key" -subj "/CN=localhost" \
   -out "$OUT_DIR/localhost.csr"
