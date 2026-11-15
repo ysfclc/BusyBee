@@ -41,15 +41,20 @@ class LegacyProviderActivityProjector(
             "cancelled", "canceled" -> ProviderEventType.OFFER_CANCELLED
             else -> ProviderEventType.OFFER
         }
+        val fareMoney = fare.takeIf { it.isFinite() }?.let { Money(it, "PLN") }
+        val bonusMoney = bonus.takeIf { it.isFinite() }?.let { Money(it, "PLN") }
+        val pickupDistance = pickupKm.takeIf { it.isFinite() }
+        val tripDistance = tripKm.takeIf { it.isFinite() }
+        val duration = durationMin.takeIf { it.isFinite() }
         val expected = setOf("pickup", "destination", "fare", "bonus", "pickupDistanceKm", "tripDistanceKm", "durationMinutes")
         val present = buildSet {
             if (pickup.isNotBlank()) add("pickup")
             if (destination.isNotBlank()) add("destination")
-            add("fare")
-            add("bonus")
-            add("pickupDistanceKm")
-            add("tripDistanceKm")
-            add("durationMinutes")
+            if (fareMoney != null) add("fare")
+            if (bonusMoney != null) add("bonus")
+            if (pickupDistance != null) add("pickupDistanceKm")
+            if (tripDistance != null) add("tripDistanceKm")
+            if (duration != null) add("durationMinutes")
         }
         val fingerprint = sha256(raw.ifBlank { "$platform|$pickup|$destination|$fare|$bonus|$capturedAt" })
         val key = if (sourceMethod == SourceMethod.ANDROID_NOTIFICATION && raw.isNotBlank()) {
@@ -64,8 +69,8 @@ class LegacyProviderActivityProjector(
             occurredAtEpochMs = capturedAt,
             receivedAtEpochMs = now,
             payload = ProviderEventPayload.Offer(
-                pickup, destination, Money(fare, "PLN"), Money(bonus, "PLN"),
-                pickupKm, tripKm, durationMin
+                pickup, destination, fareMoney, bonusMoney,
+                pickupDistance, tripDistance, duration
             ),
             completeness = FieldCompleteness(expected, present, if (present.containsAll(expected)) 1.0 else null),
             evidence = EvidenceReference(fingerprint, "command-offer:$id", EvidenceRetention.LIMITED, redacted = raw.isBlank()),
