@@ -52,7 +52,7 @@ class ProviderBridgeTest {
 
     @Test fun staleAndExpiredEventsAreDetected() {
         assertTrue(event("old", occurred = 10, received = 10).isStale(1000, 100))
-        assertTrue(event("expired", occurred = 950, received = 950, expires = 980).isStale(1000, 100))
+        assertTrue(event("expired", occurred = 950, received = 990, expires = 980).isStale(1000, 100))
         assertFalse(event("fresh", occurred = 950, received = 950).isStale(1000, 100))
     }
 
