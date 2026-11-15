@@ -57,3 +57,26 @@
 **Decision:** Any lawfully available police-related information is contextual awareness only, with source and timestamp. No enforcement-evasion routing or checkpoint avoidance.
 
 **Reason:** The map should represent road conditions and safety context, not facilitate evasion.
+
+## ADR-009 — Provider activity enters through source adapters; observation and action remain separate
+
+**Status:** Accepted as an architecture boundary; provider-specific feasibility remains under investigation — 2026-11-15.
+
+**Decision:**
+- Keep provider activity acquisition behind independent adapters and feed the existing local-first Driver Data Mirror.
+- Preserve the user's explicit research requirement: investigate plaintext request observation before TLS encryption and response observation after TLS decryption, inside an authorised application process.
+- Do not conflate this with VPN packet metadata, notifications, screen capture or OCR. Each is a different source capability with different completeness.
+- First validate the plaintext-observation concept in an owned Android test application. Then assess documented/provider-permitted access paths separately for Uber and Bolt.
+- Do not make root, modified/re-signed third-party APKs, bypassing provider protections, or request replay a production dependency.
+- Keep observation, normalisation, offer ranking and provider-side actions as separate capabilities. Initial product flow is observe → normalise → explain → hand back to the official app.
+
+**Reason:** The plaintext boundary is technically observable in controlled instrumentation environments, but compatibility, permission, stability and data rights for current production ride-hailing apps are unproven. A source-neutral adapter boundary allows the product to progress without pretending that a research technique is a supported provider API.
+
+**Consequences:**
+- The canonical domain model must not depend on Frida, TLS internals, OkHttp, notification APIs or provider UI layout.
+- Every observation carries source method, event/receive timestamps, field completeness, provenance and retention classification.
+- Secrets and unrelated payload fields must be redacted before persistence.
+- Unsupported versions, stale offers, missed events and conflicting evidence must be visible.
+- Provider-side actions remain in the official app unless a documented integration and separate security/product decision explicitly authorise them.
+
+**Design record:** [Platform Activity Integration — Research and Design](PLATFORM_ACTIVITY_INTEGRATION.md).
