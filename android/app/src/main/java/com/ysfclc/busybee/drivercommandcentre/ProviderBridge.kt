@@ -37,7 +37,7 @@ enum class SourceMethod {
 
 enum class ProviderEventType {
     OFFER, OFFER_ACCEPTED, OFFER_REJECTED, OFFER_EXPIRED, OFFER_CANCELLED,
-    TRIP_STARTED, TRIP_COMPLETED, TRIP_CANCELLED, EARNINGS_ADJUSTMENT, PAYOUT
+    TRIP_STARTED, TRIP_COMPLETED, TRIP_CANCELLED, EARNINGS_ADJUSTMENT, PAYOUT, SOURCE_OBSERVATION
 }
 
 sealed class ProviderEventPayload {
@@ -65,6 +65,11 @@ sealed class ProviderEventPayload {
         val amount: Money,
         val category: String? = null,
         val description: String? = null
+    ) : ProviderEventPayload()
+
+    data class Observation(
+        val title: String,
+        val detail: String? = null
     ) : ProviderEventPayload()
 }
 
