@@ -463,6 +463,50 @@ class MainActivity : AppCompatActivity() {
         root.addView(section("IMPORT HISTORY & ORIGINAL EVIDENCE","Every import is retained with its raw rows and source filename."))
         mirror.importHistory().forEach { entry -> root.addView(label("• "+entry,10f,MUTED,false).apply{setPadding(dp(5),dp(3),0,dp(3))}) }
         mirror.evidencePreview(5).forEach { evidence -> root.addView(card().apply { addView(label(evidence,9f,MUTED,false)) }) }
+        root.addView(section("UNIFIED DRIVER ACTIVITY","Offers, notifications and imported history projected through one Provider Bridge contract."))
+        val unifiedActivity = LegacyProviderActivityProjector(commands, mirror).project(100)
+        if (unifiedActivity.isEmpty()) {
+            root.addView(card().apply {
+                addView(label("No provider activity yet.", 13f, WHITE, true))
+                addView(label("Enable notification access, add an offer or import a provider statement. This timeline never inserts demo records.", 10f, MUTED, false))
+            })
+        }
+        unifiedActivity.forEach { event ->
+            val providerName = when (event.provider) {
+                ProviderId.UBER -> "UBER"
+                ProviderId.BOLT -> "BOLT"
+                ProviderId.OTHER -> "OTHER"
+            }
+            val detail = when (val payload = event.payload) {
+                is ProviderEventPayload.Offer -> listOfNotNull(
+                    payload.pickup?.takeIf { it.isNotBlank() },
+                    payload.destination?.takeIf { it.isNotBlank() },
+                    payload.fare?.let { "Fare ${money(it.amount)} ${it.currency}" },
+                    payload.bonus?.let { "Bonus ${money(it.amount)} ${it.currency}" },
+                    payload.tripDistanceKm?.let { "${it} km" }
+                ).joinToString(" · ").ifBlank { "Offer details incomplete" }
+                is ProviderEventPayload.Trip -> listOfNotNull(
+                    payload.pickup, payload.destination,
+                    payload.distanceKm?.let { "${it} km" },
+                    payload.gross?.let { "Gross ${money(it.amount)} ${it.currency}" },
+                    payload.fees?.let { "Fees ${money(it.amount)} ${it.currency}" },
+                    payload.bonus?.let { "Bonus ${money(it.amount)} ${it.currency}" }
+                ).joinToString(" · ").ifBlank { "Trip details incomplete" }
+                is ProviderEventPayload.Earnings -> "${payload.category ?: "Earnings"} · ${money(payload.amount.amount)} ${payload.amount.currency}"
+                is ProviderEventPayload.Observation -> listOfNotNull(payload.title, payload.detail).joinToString(" · ")
+            }
+            val missing = event.completeness.missingFields
+            val occurred = event.occurredAtEpochMs?.let { dateTime(it) } ?: "Time not supplied"
+            root.addView(card().apply {
+                addView(label(providerName + " · " + event.type.name.replace('_', ' '), 10f, MINT, true))
+                addView(label(occurred + " · " + event.sourceMethod.name.replace('_', ' ') + " · " +
+                    event.completeness.presentFields.size + "/" + event.completeness.expectedFields.size + " fields", 9f, MUTED, false)
+                    .apply { setPadding(0, dp(4), 0, dp(5)) })
+                addView(label(detail.take(240), 11f, WHITE, false))
+                if (missing.isNotEmpty()) addView(label("NOT PROVIDED: " + missing.joinToString(), 9f, AMBER, false)
+                    .apply { setPadding(0, dp(5), 0, 0) })
+            })
+        }
         root.addView(section("RECENT MIRRORED ACTIVITY","Source-backed records; missing fields remain unknown."))
         mirror.recent(30).forEach{r->root.addView(card().apply{
             addView(label(r.platform+" · "+r.type.uppercase(),11f,MINT,true))
@@ -565,6 +609,34 @@ class MainActivity : AppCompatActivity() {
     private fun buildSourcesScreen():View{
         val root=columnScroll()
         root.addView(section("INTELLIGENCE NETWORK","Independent source status. Candidate does not mean connected."))
+        root.addView(section("CONNECTED APPS","Provider activity inside BusyBee. These are partial source connections, not private provider APIs."))
+        val providerCard = card()
+        providerCard.addView(label("UBER DRIVER · BOLT DRIVER", 11f, MINT, true))
+        val capturedNotices = commands.notices(500)
+        val importedRecords = mirror.recent(500)
+        listOf(ProviderId.UBER to "Uber Driver", ProviderId.BOLT to "Bolt Driver").forEach { pair ->
+            val provider = pair.first
+            val name = pair.second
+            val noticeCount = capturedNotices.count { it.platform.contains(name.substringBefore(' '), true) }
+            val recordCount = importedRecords.count {
+                if (provider == ProviderId.UBER) it.platform.contains("uber", true) else it.platform.contains("bolt", true)
+            }
+            providerCard.addView(label(name, 13f, WHITE, true).apply { setPadding(0, dp(9), 0, dp(2)) })
+            providerCard.addView(label(
+                (if (notificationAccessEnabled()) "NOTIFICATION PERMISSION ON · PARTIAL SIGNAL" else "NOTIFICATION PERMISSION OFF") +
+                    " · " + noticeCount + " notices · " + recordCount + " imported records",
+                9f, if (notificationAccessEnabled()) MINT else AMBER, true
+            ))
+            providerCard.addView(label(
+                "No verified provider API connection. Imported history and visible notifications are separate, limited sources. Accept and decline rides in the official app.",
+                10f, MUTED, false
+            ).apply { setPadding(0, dp(3), 0, dp(5)) })
+        }
+        providerCard.addView(action("MANAGE ANDROID NOTIFICATION ACCESS", false) {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }, LinearLayout.LayoutParams(-1, dp(38)).apply { topMargin = dp(7) })
+        root.addView(providerCard)
+
         val live=card();live.addView(label("AVAILABLE IN THIS BUILD",11f,MINT,true))
         sourceRow(live,"OpenFreeMap / OpenStreetMap","Vector streets, labels and 3D building extrusions","LIVE · OSM attribution")
         sourceRow(live,"Overpass API","Mapped construction and hazard observations","LIVE WHEN ENDPOINT RESPONDS")
