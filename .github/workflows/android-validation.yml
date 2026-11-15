@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - "android/**"
+      - "research/plaintext-observer/**"
       - "rust/**"
       - ".github/workflows/android-validation.yml"
 
