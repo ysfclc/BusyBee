@@ -212,3 +212,101 @@ Detailed design: [Native Provider Bridge](NATIVE_PROVIDER_BRIDGE.md).
 
 Verification boundary:
 - This checkpoint is design only. No Android app code, database schema, provider integration or APK was changed. The next implementation issue tracks the Provider Bridge contract and unified timeline.
+
+
+## 2026-11-15 — Native Provider Bridge core contract
+
+**Status:** first implementation slice committed on `feat/native-provider-bridge-core`; review/CI pending.
+
+Implemented:
+- Added provider-neutral Kotlin domain types for Uber, Bolt and future providers.
+- Added capability reports and explicit connection states; a synthetic fixture can only report `PARTIAL`, never a verified provider connection.
+- Added typed offer, trip and earnings payloads with provider identity, adapter identity/version, acquisition method, event/receive/expiry times, correlation/external IDs, completeness, evidence retention/redaction and dedupe key.
+- Added adapter registry keyed by adapter identity, allowing multiple acquisition methods for one provider.
+- Added repository ingestion boundary and in-memory implementation with provider-scoped idempotency and chronological ordering.
+- Added deterministic synthetic adapter and unit tests for idempotency across adapter sources, provider-scoped keys, ordering, partial fields, stale/late-expired events, multi-source registration and honest synthetic connection state.
+
+Safety/correctness details:
+- A late-arriving event whose expiry is already in the past remains ingestible and is marked stale; expiry is not treated as a reason to erase evidence.
+- Missing fields remain null and are represented in completeness metadata.
+- No third SQLite database was introduced. Existing DriverMirrorStore and DriverCommandStore schemas/data remain unchanged.
+- No Uber/Bolt live adapter or provider access is claimed.
+
+Verification boundary:
+- Source and test files are committed to the feature branch. A dedicated Android validation workflow has been added; its execution result is pending.
+- This is the domain/API foundation only; existing offers, notices and imported records are not yet routed through the new repository or shown in a unified timeline.
+
+
+## 2026-11-15 — First unified Driver Mirror projection
+
+**Status:** implemented on the same feature branch; Android validation workflow running.
+
+- Added a read-only projector that adapts existing offers, captured notifications and imported Driver Mirror rows into the canonical ProviderEvent envelope.
+- Existing SQLite databases remain the source of truth. The projector performs no schema change, migration, deletion or rewrite; it creates an in-memory unified query from the two existing stores.
+- Added a Connected Apps section for Uber Driver and Bolt Driver that distinguishes notification permission and observed/imported record counts from a verified provider API connection.
+- Added a unified Driver Mirror activity list with provider, event type, event time, receive time, source method, field completeness and missing-field disclosure.
+- Imported currency values are only represented as Money when they are valid three-letter currency codes; malformed/unknown currency does not crash the timeline or get silently converted.
+- Non-finite legacy offer values are omitted from typed amounts and marked missing rather than crashing projection.
+- Provider-side acceptance/decline actions remain in the official driver apps.
+
+Remaining work:
+- Durable cross-source reconciliation and conflict/evidence handling.
+- Persisted source capability/health and last-sync tracking.
+- Real provider access validation and real-device acceptance.
+
+Verification:
+- Dedicated Android validation workflow was added and is executing for this PR. No test/build result is claimed until the run completes.
+
+## 2026-11-15 — Durable Provider Bridge event ledger
+
+**Status:** implemented on `feat/native-provider-bridge-core`; CI verification pending.
+
+Delivered:
+- Added a versioned `provider_events` table to the existing `busybee_driver_mirror.db`; no third database was created.
+- Added an additive SQLiteOpenHelper migration from schema version 1 to 2. Existing imports, raw evidence and records are neither rewritten nor deleted.
+- Added a durable `SqliteProviderEventRepository` implementing the same ProviderEventRepository contract used by the in-memory test repository.
+- Added a versioned binary event codec (Base64 storage envelope) covering every typed payload, nullable fields, provider/adapter/source metadata, completeness, evidence and dedupe identity. Unknown format versions and malformed payloads fail rather than being silently accepted.
+- Changed the legacy projector to ingest into the durable repository and read the unified timeline from it. Existing source stores remain authoritative; projection is repeatable and idempotent.
+- Offer lifecycle dedupe keys now include status, so a pending offer and its later accepted/rejected/expired/cancelled state can coexist as distinct observations rather than the first state hiding later changes.
+- Added codec round-trip tests for offer, trip, earnings and observation payloads, plus an unsupported-version test.
+
+Data-safety boundaries:
+- The migration is additive and transactional under Android's SQLiteOpenHelper upgrade flow.
+- The event ledger stores the canonical normalised event envelope; original import evidence remains in the existing raw_evidence table and notification/offer evidence remains in the command-centre store.
+- No existing financial totals or source rows are rewritten, merged or deleted. Durable event persistence is not yet a claim that source records have been fully reconciled or conflict-resolved.
+- No provider API or plaintext observation path is implemented or claimed.
+
+Next:
+- Verify migration and repository behaviour on Android, including persistence across process restart and preservation of a pre-existing version-1 database.
+- Add durable conflict/reconciliation records and persisted adapter health only after the storage acceptance tests pass.
+- Continue owned-app plaintext-boundary validation separately from production provider access.
+
+## 2026-11-15 — Owned Android plaintext-observer harness (implementation checkpoint)
+
+**Status:** source implemented on `feat/native-provider-bridge-core`; Android CI and controlled emulator execution pending. No provider app or provider account was touched.
+
+Delivered:
+- Added an isolated Android application project under `research/plaintext-observer/android`; it has a separate application ID and does not add dependencies or runtime permissions to BusyBee.
+- Added explicit app-owned plaintext boundaries: outbound JSON after serialisation and immediately before HTTPS transport; inbound response body after TLS decryption and before JSON parsing/state handling.
+- Added a deterministic local Python HTTPS fixture that returns a synthetic offer-observed → offer-updated → offer-expired lifecycle.
+- Added an ephemeral local CA/server-certificate generator. Private keys and certificates are ignored by Git; only the user-installed local CA is used by the test app's dedicated network-security config.
+- Added a Frida script that hooks only the two methods in the owned POC package and emits allowlisted fields. Secret/token/cookie/password-like fields are never printed; raw payloads and headers are omitted.
+- Added a reproducible runbook covering build, local HTTPS, adb reverse, test CA installation, Frida attachment, expected evidence and cleanup.
+- Extended Android validation CI to test and assemble the separate POC app whenever its source changes.
+
+What this demonstrates, once executed:
+- The application has plaintext available before handing its request body to TLS transport.
+- The application receives plaintext after the TLS stack decrypts the response body.
+- The observer can capture those two deliberately exposed app-owned boundaries without packet interception.
+
+What is not yet proven:
+- The Gradle build and emulator execution for this new project have not yet completed.
+- Frida hook attachment and the full outbound/inbound lifecycle have not yet been observed in a running emulator.
+- This is not a generic TLS/OkHttp hook and says nothing about Uber/Bolt internal method names, libraries, protections, terms or compatibility.
+- No provider app, credentials, live trip data, request replay or provider-side action is involved.
+
+Next verification:
+1. Pass Android CI for both BusyBee and the isolated POC app.
+2. Execute the runbook in a controlled emulator and retain redacted console evidence for all six boundary events.
+3. Add malformed, duplicate, delayed and out-of-order fixture cases plus instrumentation-overhead comparison.
+4. Keep Uber and Bolt access/terms/capability assessments separate; do not move to provider instrumentation absent a documented, permitted path.

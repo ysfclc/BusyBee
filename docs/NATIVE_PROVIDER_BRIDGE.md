@@ -1,7 +1,7 @@
 # Native Provider Bridge — Product and Architecture Design
 
 **Date:** 2026-11-15  
-**Status:** design baseline; implementation not started  
+**Status:** typed bridge, durable first-pass ledger and isolated owned-app plaintext POC source implemented on `feat/native-provider-bridge-core`; CI and emulator verification pending  
 **Product outcome:** see the driver's Uber/Bolt activity inside BusyBee through one native, structured integration surface.
 
 Related: Product Charter, System Architecture, Platform Activity Integration, Driver Mirror Import, Plaintext Observer POC.
@@ -177,8 +177,9 @@ Current implementation, confirmed on main:
 - DriverCommandStore.kt stores offers and notification records in a separate busybee_command_centre.db.
 - PlatformNotificationListener.kt extracts visible notification title/body for recognised ride-platform packages.
 - MainActivity.kt has Offers, Earnings and Sources surfaces; Sources currently describes notification access and manual/import paths.
-- There is no DriverProviderAdapter, unified provider event bus, capability registry or connection-health model.
-- The two SQLite stores mean offer observations and imported trip/earnings records are not yet reconciled into one canonical event ledger.
+- The Kotlin Provider Bridge contract, adapter registry, capability/connection states and canonical ProviderEvent model are implemented.
+- A read-only projector normalises existing offers, notices and imported records; the durable canonical event ledger lives in the existing Driver Mirror database.
+- The original command-centre and import/evidence stores remain intact. Durable projection is repeatable, but full source conflict resolution and statement reconciliation are not yet implemented.
 
 The next implementation must close this model split deliberately. Do not add a third disconnected store or make the UI query raw notification text.
 
@@ -186,23 +187,28 @@ The next implementation must close this model split deliberately. Do not add a t
 
 ### Slice 1 — Provider Bridge domain contract
 
-- Add provider identity, capability, connection state, source method and canonical event types.
-- Add adapter registry and event ingestion boundary.
-- Add idempotency, correlation, source timestamps, field completeness and health reporting.
-- Add tests for event ordering, duplicate observations, partial payloads and stale events.
-- Keep the adapter contract independent from the chosen acquisition technique.
+**Status: implemented in the feature branch; CI and review pending.**
 
-**Exit:** synthetic adapter emits offer/trip/earning events and the Driver Mirror can query them through one repository.
+- Provider identity, capability, connection state, source method and canonical event types.
+- Adapter registry, ingestion boundary, idempotency, correlation, timestamps, completeness and evidence metadata.
+- Tests for ordering, duplicates, partial payloads, stale events and adapter registration.
 
 ### Slice 2 — Unified local ledger
 
-- Migrate or bridge existing offers, notices, records and raw_evidence without losing user data.
-- Use versioned, transactional migrations; no destructive database recreation.
-- Preserve source evidence and deduplicate across different acquisition methods.
-- Reconcile offer observations with trip and statement records.
-- Keep private driver data local by default.
+**Status: first durable ledger implemented; full reconciliation remains open.**
 
-**Exit:** old imports and notifications appear in one timeline and analytics without double counting.
+- Added the canonical event table to the existing Driver Mirror SQLite database using an additive version-1-to-2 migration.
+- Added a versioned codec and durable repository implementation.
+- Projected existing offers, notifications and imported records into the durable event ledger without rewriting their source tables.
+- Dedupe is provider-scoped; offer status transitions are retained as distinct lifecycle observations.
+- Added payload codec round-trip tests.
+
+Still open:
+- Android migration acceptance against a pre-existing version-1 user database.
+- Conflict visibility and correction/reconciliation between notifications, offers and statements.
+- Durable evidence links and user-controlled source deletion.
+
+**Exit:** old imports and notifications persist in one timeline, source evidence remains intact, and duplicate/conflicting records are visible rather than silently counted twice.
 
 ### Slice 3 — Connected Apps UX
 
@@ -247,4 +253,4 @@ The next implementation must close this model split deliberately. Do not add a t
 
 ## 9. Immediate next checkpoint
 
-Implement Slice 1 and the non-destructive foundation of Slice 2, then surface existing notification/import data in one unified Driver Mirror timeline. This creates a real native integration surface immediately while leaving each provider's live acquisition capability honest and independently replaceable.
+Pass Android CI for the typed bridge, durable ledger and isolated POC app. Execute the owned-app outbound/inbound plaintext experiment in a controlled emulator, retain only redacted evidence, and stress delayed/duplicate/out-of-order/malformed cases. Then assess Uber and Bolt access/terms separately. Do not claim provider compatibility or add provider-specific instrumentation until a permitted, technically supported path is independently established.
