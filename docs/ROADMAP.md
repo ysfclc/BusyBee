@@ -31,7 +31,7 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 
 ## Phase 3 — Driver Data Mirror (first real product capability)
 
-**Status:** first usable vertical slice implemented. Real provider-export validation, statement reconciliation and completeness review with the driver's own data remain open.
+**Status:** first usable vertical slice implemented. Real provider-export validation, statement reconciliation and completeness review with the driver's own data remain open. Provider activity integration research is now explicitly tracked; no direct Uber/Bolt API or in-process integration is claimed.
 
 **Goal:** make BusyBee understand the driver's actual work, across platforms, under the driver's control.
 
@@ -41,11 +41,15 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 - Canonical records for platforms, sessions, offers, trips, route/time, gross earnings, fees, bonuses, adjustments and vehicle costs.
 - Reconciliation and duplicate detection without silently inventing missing values.
 - Driver profile and vehicle cost model; private data stays private by default.
+- **Provider activity research track:** investigate in-process plaintext observation at the outbound/pre-TLS and inbound/post-decryption boundary, without confusing it with VPN packet capture or UI scraping. Validate the concept in an owned test app before assessing provider-specific compatibility.
+- Adapter contract for every input method, including acquisition method, permission, provenance, event time, receive time, completeness, confidence, health and retention classification.
 
 **Exit gate**
 - Import/capture a representative set of real user records from at least one platform and show the original evidence beside the normalised records.
 - Cross-check totals against the source statement.
 - Clearly show unknowns, gaps, duplicate candidates and confidence; never treat missing values as zero.
+- Owned test harness demonstrates outbound and inbound plaintext observation, redaction and explicit unsupported-state handling before any provider-specific instrumentation feasibility claim.
+- No production Uber/Bolt integration is labelled connected until its access path, terms, compatibility, data coverage and real-device behaviour are independently verified.
 
 ## Phase 4 — Driver intelligence and decision engine
 
@@ -120,6 +124,8 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 - A generic dashboard with manually entered earnings as its only intelligence.
 - Fake live data, fabricated demand heatmaps or unsupported claims of Uber/Bolt API access.
 - Scraping private databases, bypassing authentication, or violating provider terms.
+- Treating screen OCR, notifications or VPN packet metadata as equivalent to in-process plaintext observation.
+- Treating observation of a provider request as permission to replay it or automate provider-side actions.
 
 ## Phase discipline
 
