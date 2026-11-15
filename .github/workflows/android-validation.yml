@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "android/**"
+      - "research/plaintext-observer/**"
       - "rust/**"
       - ".github/workflows/android-validation.yml"
   push:
@@ -83,3 +84,6 @@ jobs:
       - name: Assemble debug APK
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
+      - name: Test and assemble owned plaintext observer POC
+        run: |
+          ./android/gradlew --no-daemon -p research/plaintext-observer/android testDebugUnitTest assembleDebug
