@@ -23,7 +23,7 @@ class MainActivity : Activity() {
         endpoint = EditText(this).apply {
             setText("https://localhost:8443/event")
             hint = "Owned HTTPS fixture URL"
-            singleLine = true
+            isSingleLine = true
         }
         output = TextView(this).apply { textSize = 14f; text = "TEST APP ONLY — synthetic data; no provider accounts." }
         val run = Button(this).apply {
