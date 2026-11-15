@@ -246,6 +246,7 @@ Verification boundary:
 - Added a Connected Apps section for Uber Driver and Bolt Driver that distinguishes notification permission and observed/imported record counts from a verified provider API connection.
 - Added a unified Driver Mirror activity list with provider, event type, event time, receive time, source method, field completeness and missing-field disclosure.
 - Imported currency values are only represented as Money when they are valid three-letter currency codes; malformed/unknown currency does not crash the timeline or get silently converted.
+- Non-finite legacy offer values are omitted from typed amounts and marked missing rather than crashing projection.
 - Provider-side acceptance/decline actions remain in the official driver apps.
 
 Remaining work:
