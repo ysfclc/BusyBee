@@ -75,6 +75,34 @@ class ProviderBridgeTest {
         } catch (_: IllegalArgumentException) { }
     }
 
+    @Test fun providerEventCodecRoundTripsEveryPayloadShape() {
+        val base = event("codec")
+        val values = listOf(
+            base,
+            base.copy(payload = ProviderEventPayload.Trip(
+                pickup = "A", destination = "B", distanceKm = 4.2, durationMinutes = 13.0,
+                gross = Money(22.0, "PLN"), fees = Money(4.0, "PLN"), bonus = null
+            )),
+            base.copy(payload = ProviderEventPayload.Earnings(
+                Money(18.5, "EUR"), category = "payout", description = "Weekly transfer"
+            )),
+            base.copy(payload = ProviderEventPayload.Observation(
+                title = "Trip update", detail = "Destination changed"
+            ))
+        )
+        values.forEach { original ->
+            assertEquals(original, ProviderEventCodec.decode(ProviderEventCodec.encode(original)))
+        }
+    }
+
+    @Test fun providerEventCodecRejectsUnknownStorageVersion() {
+        val unsupported = java.util.Base64.getEncoder().encodeToString(byteArrayOf(0, 0, 0, 99))
+        try {
+            ProviderEventCodec.decode(unsupported)
+            fail("Expected unsupported storage version to fail")
+        } catch (_: IllegalArgumentException) { }
+    }
+
     @Test fun syntheticAdapterNeverClaimsVerifiedConnection() {
         val adapter = SyntheticProviderAdapter()
         assertEquals(ProviderConnectionState.PARTIAL, adapter.connect().state)
