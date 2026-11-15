@@ -168,7 +168,7 @@ Next design/engineering sequence:
 4. Validate real user-owned export samples and reconciliation.
 5. Only then decide whether any provider-specific live adapter is supportable.
 
-Detailed record: [Platform Activity Integration — Research and Design](PLATFORM_ACTIVITY_INTEGRATION.md).
+Detailed record: [Platform Activity Integration — Research and Design](PLATFORM_ACTIVITY_INTEGRATION.md). The next experiment is specified in [Plaintext Observer Proof of Concept — Design](PLAINTEXT_OBSERVER_POC.md): owned Android app, local HTTPS fixture, outbound/inbound observation, synthetic lifecycle, redaction and instrumentation-health tests.
 
 Verification boundary:
 - This commit is documentation/architecture only. No provider APK was modified, no third-party app was instrumented, no device root or access-control bypass was attempted, and no BusyBee APK was built for this change.
