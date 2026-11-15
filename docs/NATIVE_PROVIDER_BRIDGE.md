@@ -1,7 +1,7 @@
 # Native Provider Bridge — Product and Architecture Design
 
 **Date:** 2026-11-15  
-**Status:** design baseline; implementation not started  
+**Status:** typed bridge, durable first-pass ledger and isolated owned-app plaintext POC source implemented on `feat/native-provider-bridge-core`; CI and emulator verification pending  
 **Product outcome:** see the driver's Uber/Bolt activity inside BusyBee through one native, structured integration surface.
 
 Related: Product Charter, System Architecture, Platform Activity Integration, Driver Mirror Import, Plaintext Observer POC.
@@ -253,4 +253,4 @@ Still open:
 
 ## 9. Immediate next checkpoint
 
-Implement Slice 1 and the non-destructive foundation of Slice 2, then surface existing notification/import data in one unified Driver Mirror timeline. This creates a real native integration surface immediately while leaving each provider's live acquisition capability honest and independently replaceable.
+Pass Android CI for the typed bridge, durable ledger and isolated POC app. Execute the owned-app outbound/inbound plaintext experiment in a controlled emulator, retain only redacted evidence, and stress delayed/duplicate/out-of-order/malformed cases. Then assess Uber and Bolt access/terms separately. Do not claim provider compatibility or add provider-specific instrumentation until a permitted, technically supported path is independently established.
