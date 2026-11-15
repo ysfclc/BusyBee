@@ -160,8 +160,9 @@ class InMemoryProviderEventRepository : ProviderEventRepository {
 
     @Synchronized
     override fun insertIfNew(event: ProviderEvent): Boolean {
-        if (byDedupeKey.containsKey(event.dedupeKey)) return false
-        byDedupeKey[event.dedupeKey] = event
+        val storageKey = "${event.provider.name}:${event.dedupeKey}"
+        if (byDedupeKey.containsKey(storageKey)) return false
+        byDedupeKey[storageKey] = event
         return true
     }
 
@@ -174,19 +175,21 @@ class InMemoryProviderEventRepository : ProviderEventRepository {
 }
 
 class ProviderAdapterRegistry {
-    private val adapters = linkedMapOf<ProviderId, DriverProviderAdapter>()
+    private val adapters = linkedMapOf<String, DriverProviderAdapter>()
 
     @Synchronized
     fun register(adapter: DriverProviderAdapter) {
-        require(!adapters.containsKey(adapter.provider)) {
-            "An adapter is already registered for ${adapter.provider}"
+        require(!adapters.containsKey(adapter.identity.id)) {
+            "An adapter is already registered with id ${adapter.identity.id}"
         }
-        require(adapter.identity.id.isNotBlank())
-        adapters[adapter.provider] = adapter
+        adapters[adapter.identity.id] = adapter
     }
 
     @Synchronized
-    fun get(provider: ProviderId): DriverProviderAdapter? = adapters[provider]
+    fun get(adapterId: String): DriverProviderAdapter? = adapters[adapterId]
+
+    @Synchronized
+    fun forProvider(provider: ProviderId): List<DriverProviderAdapter> = adapters.values.filter { it.provider == provider }
 
     @Synchronized
     fun all(): List<DriverProviderAdapter> = adapters.values.toList()
