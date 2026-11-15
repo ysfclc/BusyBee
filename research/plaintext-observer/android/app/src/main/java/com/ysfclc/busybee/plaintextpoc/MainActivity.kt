@@ -21,7 +21,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         endpoint = EditText(this).apply {
-            setText("https://10.0.2.2:8443/event")
+            setText("https://localhost:8443/event")
             hint = "Owned HTTPS fixture URL"
             singleLine = true
         }
