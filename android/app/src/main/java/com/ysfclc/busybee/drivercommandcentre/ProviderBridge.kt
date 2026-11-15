@@ -119,10 +119,10 @@ data class ProviderEvent(
     init {
         require(eventId.isNotBlank())
         require(dedupeKey.isNotBlank())
-        require(expiresAtEpochMs == null || expiresAtEpochMs >= receivedAtEpochMs)
     }
 
     fun isStale(nowEpochMs: Long, maxAgeMs: Long): Boolean {
+        require(maxAgeMs >= 0)
         val eventTime = occurredAtEpochMs ?: receivedAtEpochMs
         return (expiresAtEpochMs != null && expiresAtEpochMs < nowEpochMs) ||
             nowEpochMs - eventTime > maxAgeMs
