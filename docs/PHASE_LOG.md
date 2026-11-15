@@ -235,3 +235,23 @@ Safety/correctness details:
 Verification boundary:
 - Source and test files are committed to the feature branch. A dedicated Android validation workflow has been added; its execution result is pending.
 - This is the domain/API foundation only; existing offers, notices and imported records are not yet routed through the new repository or shown in a unified timeline.
+
+
+## 2026-11-15 — First unified Driver Mirror projection
+
+**Status:** implemented on the same feature branch; Android validation workflow running.
+
+- Added a read-only projector that adapts existing offers, captured notifications and imported Driver Mirror rows into the canonical ProviderEvent envelope.
+- Existing SQLite databases remain the source of truth. The projector performs no schema change, migration, deletion or rewrite; it creates an in-memory unified query from the two existing stores.
+- Added a Connected Apps section for Uber Driver and Bolt Driver that distinguishes notification permission and observed/imported record counts from a verified provider API connection.
+- Added a unified Driver Mirror activity list with provider, event type, event time, receive time, source method, field completeness and missing-field disclosure.
+- Imported currency values are only represented as Money when they are valid three-letter currency codes; malformed/unknown currency does not crash the timeline or get silently converted.
+- Provider-side acceptance/decline actions remain in the official driver apps.
+
+Remaining work:
+- Durable cross-source reconciliation and conflict/evidence handling.
+- Persisted source capability/health and last-sync tracking.
+- Real provider access validation and real-device acceptance.
+
+Verification:
+- Dedicated Android validation workflow was added and is executing for this PR. No test/build result is claimed until the run completes.
