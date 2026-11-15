@@ -224,7 +224,7 @@ Implemented:
 - Added typed offer, trip and earnings payloads with provider identity, adapter identity/version, acquisition method, event/receive/expiry times, correlation/external IDs, completeness, evidence retention/redaction and dedupe key.
 - Added adapter registry keyed by adapter identity, allowing multiple acquisition methods for one provider.
 - Added repository ingestion boundary and in-memory implementation with provider-scoped idempotency and chronological ordering.
-- Added deterministic synthetic adapter and unit tests for idempotency, ordering, partial fields, stale/expired events, multi-source registration and honest synthetic connection state.
+- Added deterministic synthetic adapter and unit tests for idempotency across adapter sources, provider-scoped keys, ordering, partial fields, stale/late-expired events, multi-source registration and honest synthetic connection state.
 
 Safety/correctness details:
 - A late-arriving event whose expiry is already in the past remains ingestible and is marked stale; expiry is not treated as a reason to erase evidence.
@@ -233,5 +233,5 @@ Safety/correctness details:
 - No Uber/Bolt live adapter or provider access is claimed.
 
 Verification boundary:
-- Source and test files are committed to the feature branch. Android CI/build verification is pending PR creation.
+- Source and test files are committed to the feature branch. A dedicated Android validation workflow has been added; its execution result is pending.
 - This is the domain/API foundation only; existing offers, notices and imported records are not yet routed through the new repository or shown in a unified timeline.
