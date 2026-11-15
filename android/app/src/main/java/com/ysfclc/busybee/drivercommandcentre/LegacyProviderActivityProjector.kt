@@ -95,21 +95,25 @@ class LegacyProviderActivityProjector(
         val normalizedType = type.lowercase()
         val isTrip = normalizedType in setOf("trip", "ride", "completed_trip")
         val isOffer = normalizedType == "offer"
-        val amount = gross ?: fees ?: bonus
+        val currencyCode = currency.uppercase().takeIf { it.matches(Regex("[A-Z]{3}")) }
+        val grossMoney = gross?.takeIf { currencyCode != null }?.let { Money(it, currencyCode!!) }
+        val feesMoney = fees?.takeIf { currencyCode != null }?.let { Money(it, currencyCode!!) }
+        val bonusMoney = bonus?.takeIf { currencyCode != null }?.let { Money(it, currencyCode!!) }
+        val amountMoney = grossMoney ?: feesMoney ?: bonusMoney
         val expected = when {
             isTrip -> setOf("pickup", "dropoff", "distanceKm", "gross", "fees", "bonus")
             isOffer -> setOf("pickup", "dropoff", "gross")
-            amount != null -> setOf("amount")
+            amountMoney != null -> setOf("amount")
             else -> setOf("sourceRecord")
         }
         val present = buildSet {
             if (pickup != null) add("pickup")
             if (dropoff != null) add("dropoff")
             if (distanceKm != null) add("distanceKm")
-            if (gross != null) add(if (isOffer) "gross" else "gross")
-            if (fees != null) add("fees")
-            if (bonus != null) add("bonus")
-            if (amount != null && !isTrip && !isOffer) add("amount")
+            if (grossMoney != null) add("gross")
+            if (feesMoney != null) add("fees")
+            if (bonusMoney != null) add("bonus")
+            if (amountMoney != null && !isTrip && !isOffer) add("amount")
             if (expected == setOf("sourceRecord")) add("sourceRecord")
         }
         val eventType = when {
@@ -122,15 +126,14 @@ class LegacyProviderActivityProjector(
         val payload = when {
             isTrip -> ProviderEventPayload.Trip(
                 pickup, dropoff, distanceKm, null,
-                gross?.let { Money(it, currency) }, fees?.let { Money(it, currency) },
-                bonus?.let { Money(it, currency) }
+                grossMoney, feesMoney, bonusMoney
             )
             isOffer -> ProviderEventPayload.Offer(
-                pickup, dropoff, gross?.let { Money(it, currency) },
-                bonus?.let { Money(it, currency) }, null, distanceKm, null
+                pickup, dropoff, grossMoney,
+                bonusMoney, null, distanceKm, null
             )
-            amount != null -> ProviderEventPayload.Earnings(
-                Money(amount, currency), normalizedType, status
+            amountMoney != null -> ProviderEventPayload.Earnings(
+                amountMoney, normalizedType, status
             )
             else -> ProviderEventPayload.Observation("$platform · $type", status)
         }
