@@ -104,7 +104,7 @@ object DriverCsv {
 }
 
 class DriverMirrorStore(context: Context) :
-    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 1) {
+    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
@@ -151,10 +151,53 @@ class DriverMirrorStore(context: Context) :
         """.trimIndent())
         db.execSQL("CREATE INDEX records_time_idx ON records(occurred_at DESC)")
         db.execSQL("CREATE INDEX records_platform_idx ON records(platform)")
+        createProviderEventsTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Versioned migrations are added here; never destroy user evidence on upgrade.
+        // Additive migration only: imported rows and raw evidence remain untouched.
+        if (oldVersion < 2) createProviderEventsTable(db)
+    }
+
+    private fun createProviderEventsTable(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS provider_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                dedupe_key TEXT NOT NULL,
+                event_time INTEGER NOT NULL,
+                received_at INTEGER NOT NULL,
+                event_blob TEXT NOT NULL,
+                UNIQUE(provider, dedupe_key)
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS provider_events_time_idx ON provider_events(event_time DESC, received_at DESC)")
+    }
+
+    @Synchronized
+    internal fun insertProviderEvent(event: ProviderEvent, encoded: String): Boolean {
+        val values = ContentValues().apply {
+            put("provider", event.provider.name)
+            put("dedupe_key", event.dedupeKey)
+            put("event_time", event.occurredAtEpochMs ?: event.receivedAtEpochMs)
+            put("received_at", event.receivedAtEpochMs)
+            put("event_blob", encoded)
+        }
+        return writableDatabase.insertWithOnConflict(
+            "provider_events", null, values, SQLiteDatabase.CONFLICT_IGNORE
+        ) != -1L
+    }
+
+    @Synchronized
+    internal fun providerEventBlobs(limit: Int): List<String> {
+        val blobs = mutableListOf<String>()
+        readableDatabase.rawQuery(
+            "SELECT event_blob FROM provider_events ORDER BY event_time DESC, received_at DESC, id DESC LIMIT ?",
+            arrayOf(limit.coerceAtLeast(0).toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) blobs.add(cursor.getString(0))
+        }
+        return blobs
     }
 
     @Synchronized
