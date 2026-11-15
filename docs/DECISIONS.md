@@ -80,3 +80,28 @@
 - Provider-side actions remain in the official app unless a documented integration and separate security/product decision explicitly authorise them.
 
 **Design record:** [Platform Activity Integration — Research and Design](PLATFORM_ACTIVITY_INTEGRATION.md).
+
+
+## ADR-010 — Native Provider Bridge and unified driver activity API
+
+**Status:** Accepted as product/architecture direction; provider-specific live access remains unverified — 2026-11-15.
+
+**Decision:**
+- BusyBee exposes one first-class internal Provider Bridge API with typed provider adapters, capability discovery, canonical event envelopes and explicit connection health.
+- Uber, Bolt and future sources feed the same provider-neutral offer, trip, lifecycle and earnings model. UI and analytics never parse provider-specific payloads directly.
+- The Driver Mirror is the unified place to inspect all available driver activity, including live/partial events, trip history, earnings and source evidence.
+- Connection UX must expose per-capability coverage and acquisition method. Package detection or notification permission alone is not an API connection.
+- Preserve separate acquisition adapters for documented provider APIs, user-owned exports, Android-native notification/share signals and any separately approved future method.
+- Keep in-process plaintext instrumentation as a separate feasibility track; it must not define the canonical API or become a presumed production dependency.
+- Reconcile the existing offer/notification database and imported mirror database without data loss. Do not create another disconnected store.
+
+**Reason:** The product outcome is native-feeling, cross-platform driver data inside BusyBee. Provider access methods will differ and may be partial; a stable internal API lets the product remain coherent without overstating what each source exposes.
+
+**Consequences:**
+- Typed event envelope includes provider, source method, event/receive times, identity/correlation, nullable payload fields, field completeness, evidence, redaction and retention metadata.
+- Capabilities include offers, offer lifecycle, active/completed trips, route/distance/duration, fare breakdown, payouts, session state and history.
+- Connection states distinguish not configured, permission required, partial, verified, stale/degraded, blocked/unsupported and disconnected.
+- First implementation checkpoint is the Provider Bridge contract plus a unified local activity ledger and timeline using data BusyBee already captures/imports.
+- Live provider adapters are added only after access, terms, compatibility and field coverage are validated.
+
+**Design record:** [Native Provider Bridge](NATIVE_PROVIDER_BRIDGE.md).
