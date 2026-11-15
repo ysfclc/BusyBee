@@ -11,10 +11,11 @@ class ProviderBridgeTest {
         occurred: Long? = 100L,
         received: Long = 110L,
         expires: Long? = null,
-        present: Set<String> = setOf("fare")
+        present: Set<String> = setOf("fare"),
+        provider: ProviderId = ProviderId.UBER
     ) = ProviderEvent(
         eventId = key,
-        provider = ProviderId.UBER,
+        provider = provider,
         adapter = adapter,
         type = ProviderEventType.OFFER,
         sourceMethod = SourceMethod.OWNED_TEST_FIXTURE,
@@ -35,6 +36,8 @@ class ProviderBridgeTest {
         assertEquals(1, first.accepted)
         assertEquals(1, second.duplicates)
         assertEquals(1, repo.events().size)
+        assertTrue(repo.insertIfNew(event("same", provider = ProviderId.BOLT)))
+        assertEquals(2, repo.events().size)
     }
 
     @Test fun timelineOrdersByEventTimeAndThenReceiveTime() {
