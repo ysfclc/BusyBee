@@ -58,10 +58,10 @@ class LegacyProviderActivityProjector(
         }
         val fingerprint = sha256(raw.ifBlank { "$platform|$pickup|$destination|$fare|$bonus|$capturedAt" })
         val key = if (sourceMethod == SourceMethod.ANDROID_NOTIFICATION && raw.isNotBlank()) {
-            "notification-offer:${sha256("$platform|$raw")}"
+            "notification-offer:${sha256("$platform|$raw")}:${status.lowercase()}"
         } else "offer:$id:${status.lowercase()}"
         return ProviderEvent(
-            eventId = "command-offer:$id",
+            eventId = "command-offer:$id:${status.lowercase()}",
             provider = provider,
             adapter = AdapterIdentity("busybee.legacy.offer-store", "1"),
             type = type,
