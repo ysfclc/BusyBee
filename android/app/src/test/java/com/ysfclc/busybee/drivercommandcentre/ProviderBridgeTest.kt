@@ -56,12 +56,18 @@ class ProviderBridgeTest {
         assertFalse(event("fresh", occurred = 950, received = 950).isStale(1000, 100))
     }
 
-    @Test fun registryRejectsTwoAdaptersForSameProvider() {
+    @Test fun registryAllowsMultipleSourcesForOneProviderButRejectsDuplicateIds() {
         val registry = ProviderAdapterRegistry()
-        registry.register(SyntheticProviderAdapter(ProviderId.UBER))
+        val first = SyntheticProviderAdapter(ProviderId.UBER)
+        val second = object : DriverProviderAdapter by first {
+            override val identity = AdapterIdentity("notification.uber", "1")
+        }
+        registry.register(first)
+        registry.register(second)
+        assertEquals(2, registry.forProvider(ProviderId.UBER).size)
         try {
-            registry.register(SyntheticProviderAdapter(ProviderId.UBER))
-            fail("Expected duplicate provider registration to fail")
+            registry.register(first)
+            fail("Expected duplicate adapter id to fail")
         } catch (_: IllegalArgumentException) { }
     }
 
