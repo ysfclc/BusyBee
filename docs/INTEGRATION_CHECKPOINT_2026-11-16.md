@@ -80,3 +80,11 @@ A source change is not a build result. A workflow pass is not device acceptance.
 - The parallel APK workflow (#360) failed before compilation because Maven Central returned HTTP 429 for Android Gradle Plugin transitive dependencies. This is a dependency rate-limit collision, not an application compile failure.
 - Consolidated app tests, POC tests/build and APK assembly into one serialized workflow. Gradle dependency caching is now writable for same-repository PRs and remains read-only for fork PRs. The redundant Android validation workflow is removed from this candidate.
 - A fresh single-workflow run is required before marking the candidate build verified again.
+
+
+## Single-workflow build evidence — 2026-11-16
+
+- Consolidated workflow run #361 (43818601799) passed actionlint, Rust workspace tests, Android native-library compilation, Android unit/Robolectric tests, owned-app POC tests and APK assembly, apksigner verification, provenance and checksum generation.
+- Artifact busybee-pr-16-361: debug package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.361-debug, SHA-256 a3e8ff49cac44c5d07f0cb243393d54aaad5828e57fd63a9b9f8a2b3d9d04aea, size 92,417,689 bytes.
+- Release signing was skipped because persistent release-signing secrets are not configured. The artifact is not compatible as an update to the installed release package.
+- This run also proved the consolidated workflow and Gradle cache strategy avoid the earlier parallel Maven Central 429 collision.

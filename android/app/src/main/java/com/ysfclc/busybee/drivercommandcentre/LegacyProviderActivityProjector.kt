@@ -29,6 +29,8 @@ class LegacyProviderActivityProjector(
     private val mirror: DriverMirrorStore,
     private val repository: ProviderEventRepository = SqliteProviderEventRepository(mirror)
 ) {
+    val lastReadFailures: Int get() = repository.lastReadFailures
+
     fun project(limitPerSource: Int = 200): List<ProviderEvent> {
         val ingestor = ProviderEventIngestor(repository)
         val now = System.currentTimeMillis()

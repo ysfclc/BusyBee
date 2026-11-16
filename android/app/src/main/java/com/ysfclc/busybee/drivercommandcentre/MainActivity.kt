@@ -1429,7 +1429,12 @@ class MainActivity : AppCompatActivity() {
         // Project legacy source stores read-only into the durable Provider Bridge ledger.
         // This source timeline is not an authoritative cross-source earnings reconciliation.
         root.addView(section("UNIFIED DRIVER ACTIVITY","Offers, notifications and imported history · provenance and missing fields stay visible"))
-        val unifiedActivity = LegacyProviderActivityProjector(commands, mirror).project(100)
+        val activityProjector = LegacyProviderActivityProjector(commands, mirror)
+        val unifiedActivity = activityProjector.project(100)
+        if (activityProjector.lastReadFailures > 0) root.addView(card().apply {
+            addView(label("Some stored activity entries could not be decoded.", 11f, AMBER, true))
+            addView(label("They were left untouched in local storage. Original Mirror records and raw evidence are preserved.", 10f, MUTED, false))
+        })
         if (unifiedActivity.isEmpty()) {
             root.addView(card().apply {
                 addView(label("No provider activity yet.", 13f, WHITE, true))

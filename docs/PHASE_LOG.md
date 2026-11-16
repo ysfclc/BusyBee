@@ -349,3 +349,11 @@ Next verification:
 
 - Consolidated Android unit tests, the owned-app POC tests/build and APK assembly into one serialized workflow after parallel Gradle runs caused Maven Central HTTP 429 responses.
 - Enabled Gradle cache writes for same-repository PRs while retaining read-only caching for fork PRs. The next workflow run is the verification gate for this workflow change.
+
+
+## 2026-11-16 — Consolidated build passed and event-read resilience
+
+- Single workflow run #361 passed Rust tests/native builds, Android tests, POC tests/build, debug APK assembly, signature verification and checksum generation.
+- Added safe Provider Bridge reads: malformed event blobs are counted, skipped without deletion, and surfaced in the unified activity UI while valid events continue to load.
+- Added Robolectric regression coverage proving a corrupt row remains in SQLite while valid events are still returned.
+- Release signing and target-device update acceptance remain pending.

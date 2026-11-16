@@ -158,6 +158,8 @@ interface ProviderEventRepository {
     /** Returns false when this dedupe key has already been ingested. */
     fun insertIfNew(event: ProviderEvent): Boolean
     fun events(limit: Int = 100): List<ProviderEvent>
+    /** Number of malformed stored event blobs skipped by the most recent read. */
+    val lastReadFailures: Int get() = 0
 }
 
 class InMemoryProviderEventRepository : ProviderEventRepository {

@@ -369,3 +369,8 @@ A semantic icon family now covers map controls, workspace tabs, road event categ
 ## CI workflow consolidation — 2026-11-16
 
 The Android validation and signed APK workflows previously ran Gradle concurrently; one run hit Maven Central HTTP 429. The integration candidate now has a single serialized build workflow that runs Android tests, POC tests/build and APK assembly sequentially, with same-repository PR Gradle cache writes enabled. Fresh CI is pending.
+
+
+## Provider event read resilience — 2026-11-16
+
+Malformed Provider Bridge event blobs are now counted and skipped rather than crashing the timeline. The UI surfaces a warning; the malformed row remains untouched in SQLite, and valid events continue to load. Robolectric coverage was added. Latest consolidated CI run #361 passed before this change; rerun pending.

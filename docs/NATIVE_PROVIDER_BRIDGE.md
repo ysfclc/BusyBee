@@ -254,3 +254,8 @@ Still open:
 ## 9. Immediate next checkpoint
 
 Pass Android CI for the typed bridge, durable ledger and isolated POC app. Execute the owned-app outbound/inbound plaintext experiment in a controlled emulator, retain only redacted evidence, and stress delayed/duplicate/out-of-order/malformed cases. Then assess Uber and Bolt access/terms separately. Do not claim provider compatibility or add provider-specific instrumentation until a permitted, technically supported path is independently established.
+
+
+## Malformed event handling
+
+The SQLite repository skips malformed event blobs without deleting or rewriting them, exposes the count of decode failures, and allows valid events to continue loading. The unified activity screen surfaces a warning. Original Mirror records and raw evidence remain untouched. Regression coverage is in SqliteProviderEventRepositoryTest.
