@@ -335,3 +335,11 @@ Next verification:
 - Added pure unit tests for acquisition provenance and stable source identities.
 
 **Still pending:** rerun CI on this correction commit, release signing with the existing key, and target-device acceptance.
+
+
+## 2026-11-16 — Map icon family implementation
+
+- Replaced Unicode glyphs in map controls and workspace navigation with locally drawn icons and accessible control descriptions.
+- Replaced generic route endpoint, road event and private driver report pins with semantic custom marker artwork. Existing custom vehicle/building/entrance markers remain.
+- Added pure category-policy tests for roadworks, hazards, closures, weather and unknown categories.
+- Kept source honesty: no severity or freshness badges without source evidence. Target-phone visual and interaction acceptance remains pending.

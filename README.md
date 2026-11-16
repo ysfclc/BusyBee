@@ -11,6 +11,7 @@ The map is the default launch surface and uses the full display. It is the spati
 ## Product contract
 
 - [Canonical product contract](docs/PRODUCT_CONTRACT.md)
+- [Map icon system and acceptance](docs/MAP_ICON_SYSTEM.md)
 - [Map and workspace UX roadmap](docs/INTEGRATION_MAP_UX_ROADMAP.md)
 - [Integration checkpoint and verification ledger](docs/INTEGRATION_CHECKPOINT_2026-11-16.md)
 - [Native Provider Bridge design](docs/NATIVE_PROVIDER_BRIDGE.md)

@@ -8,7 +8,9 @@ import android.content.ComponentName
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.Typeface
 import org.maplibre.android.annotations.Icon
 import org.maplibre.android.annotations.IconFactory
@@ -387,10 +389,14 @@ class MainActivity : AppCompatActivity() {
         if(!mapStyleState.isReady) return
         routePolyline=active.addPolyline(PolylineOptions().addAll(route.points).color(MINT).width(5f))
         val origin=activeRouteOrigin ?: lastLocation?.let { LatLng(it.latitude,it.longitude) }
+        val factory=IconFactory.getInstance(this)
+        val night=daylightPhase==DaylightPhase.NIGHT
         origin?.let { point ->
-            active.addMarker(MarkerOptions().position(point).title("Route starts here"))?.let { routeMarkers.add(it) }
+            val icon=factory.fromBitmap(MapIconArtwork.routeEndpoint(this,false,night))
+            active.addMarker(MarkerOptions().position(point).title("Route starts here").icon(icon))?.let { routeMarkers.add(it) }
         }
-        active.addMarker(MarkerOptions().position(route.destination).title("Destination").snippet(route.destinationName))
+        val destinationIcon=factory.fromBitmap(MapIconArtwork.routeEndpoint(this,true,night))
+        active.addMarker(MarkerOptions().position(route.destination).title("Destination").snippet(route.destinationName).icon(destinationIcon))
             ?.let { routeMarkers.add(it) }
     }
 
@@ -422,23 +428,18 @@ class MainActivity : AppCompatActivity() {
     private fun buildNavigation() {
         nav.removeAllViews()
         listOf("MAP","OFFERS","EARNINGS","DRIVER HUB","SOURCES").forEach { tab ->
-            val glyph=when(tab) {
-                "MAP" -> "⌖"
-                "OFFERS" -> "↗"
-                "EARNINGS" -> "▥"
-                "DRIVER HUB" -> "◉"
-                else -> "◇"
-            }
-            val b=label("$glyph\\n$tab",9f,MUTED,true).apply{
+            val b=label(tab,8.5f,MUTED,true).apply{
                 gravity=Gravity.CENTER
-                setLineSpacing(-dp(2).toFloat(),1f)
-                setPadding(dp(3),dp(7),dp(3),dp(7))
+                setPadding(dp(2),dp(6),dp(2),dp(6))
+                val icon=BitmapDrawable(resources,MapIconArtwork.tab(this@MainActivity,tab))
+                icon.setBounds(0,0,dp(20),dp(20))
+                setCompoundDrawables(null,icon,null,null)
+                compoundDrawablePadding=dp(3)
                 setOnClickListener{safeUiAction("open $tab"){showTab(tab)}}
             }
             navButtons[tab]=b;nav.addView(b,LinearLayout.LayoutParams(0,-1,1f))
         }
     }
-
     private fun showTab(tab:String) {
         CrashDiagnostics.record(this,"tab:$tab")
         val mapSelected = tab=="MAP"
@@ -446,7 +447,7 @@ class MainActivity : AppCompatActivity() {
         nav.visibility = if(mapSelected) View.GONE else View.VISIBLE
         selectedTab=tab
         nav.setBackgroundColor(PANEL)
-        navButtons.forEach{(key,b)->b.setTextColor(if(key==tab)MINT else MUTED);b.background=rounded(if(key==tab)palette.selected else Color.TRANSPARENT,11)}
+        navButtons.forEach{(key,b)->val tint=if(key==tab)MINT else MUTED;b.setTextColor(tint);b.compoundDrawables[1]?.setTint(tint);b.background=rounded(if(key==tab)palette.selected else Color.TRANSPARENT,11)}
         if(mapSelected) {
             screenHost.showMap()
             return
@@ -493,7 +494,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(dp(9),dp(7),dp(8),dp(7))
             background=rounded(palette.overlay,18)
         }
-        top.addView(action("☰",false){showMainMenu()},LinearLayout.LayoutParams(dp(40),dp(38)))
+        top.addView(iconAction(MapIconArtwork.control(this,MapControlIcon.MENU),"Open menu",false){showMainMenu()},LinearLayout.LayoutParams(dp(40),dp(38)))
         val brand=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(9),0,0,0) }
         brand.addView(label("BUSYBEE",12f,WHITE,true))
         mapStatus=label("● CONNECTING",8f,MINT,true).apply { setPadding(0,dp(2),0,0) }
@@ -522,12 +523,12 @@ class MainActivity : AppCompatActivity() {
         })
 
         val side=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER }
-        side.addView(action("◎",true){
+        side.addView(iconAction(MapIconArtwork.control(this,MapControlIcon.RECENTER),"Recenter map",true){
             followLocation=true
             val fix=lastLocation?.takeIf { System.currentTimeMillis()-it.time in 0..120000L }
             if(fix!=null) updateDriverLocation(fix) else requestLocation()
         },LinearLayout.LayoutParams(dp(44),dp(44)))
-        side.addView(action("＋",false){reportRoadHazard()},LinearLayout.LayoutParams(dp(44),dp(44)).apply { topMargin=dp(7) })
+        side.addView(iconAction(MapIconArtwork.control(this,MapControlIcon.REPORT),"Report road hazard",false){reportRoadHazard()},LinearLayout.LayoutParams(dp(44),dp(44)).apply { topMargin=dp(7) })
         frame.addView(side,FrameLayout.LayoutParams(-2,-2,Gravity.END or Gravity.CENTER_VERTICAL).apply {
             setMargins(0,0,dp(10),dp(18))
         })
@@ -707,8 +708,12 @@ class MainActivity : AppCompatActivity() {
         routeMarkers.forEach { map?.removeAnnotation(it) };routeMarkers.clear()
         routePolyline=map?.addPolyline(PolylineOptions().addAll(plan.points).color(MINT).width(5f))
         activeRouteOrigin=origin
-        map?.addMarker(MarkerOptions().position(origin).title("Route starts here"))?.let{routeMarkers.add(it)}
-        map?.addMarker(MarkerOptions().position(plan.destination).title("Destination").snippet(plan.destinationName))?.let{routeMarkers.add(it)}
+        val markerFactory=IconFactory.getInstance(this)
+        val markerNight=daylightPhase==DaylightPhase.NIGHT
+        val startIcon=markerFactory.fromBitmap(MapIconArtwork.routeEndpoint(this,false,markerNight))
+        val destinationIcon=markerFactory.fromBitmap(MapIconArtwork.routeEndpoint(this,true,markerNight))
+        map?.addMarker(MarkerOptions().position(origin).title("Route starts here").icon(startIcon))?.let{routeMarkers.add(it)}
+        map?.addMarker(MarkerOptions().position(plan.destination).title("Destination").snippet(plan.destinationName).icon(destinationIcon))?.let{routeMarkers.add(it)}
         activeRoute=plan
         navigationStepIndex=0
         routeSummary?.text=String.format(Locale.US,"%s · %.1f km · %.0f min · no live traffic",kind,plan.distanceKm,plan.durationMinutes)
@@ -1088,9 +1093,17 @@ class MainActivity : AppCompatActivity() {
         if(!mapStyleState.isReady || isFinishing || isDestroyed) return
         val active=map?:return
         eventMarkers.forEach{active.removeAnnotation(it)};eventMarkers.clear()
-        roadEvents.filter{selectedLayers.contains(it.category)}.forEach{e->active.addMarker(MarkerOptions().position(e.point).title(e.title).snippet(e.category+" · "+e.detail+" · OSM"))?.let{eventMarkers.add(it)}}
+        val factory=IconFactory.getInstance(this)
+        val night=daylightPhase==DaylightPhase.NIGHT
+        roadEvents.filter{selectedLayers.contains(it.category)}.forEach{e->
+            val icon=factory.fromBitmap(MapIconArtwork.roadEvent(this,e.category,night))
+            active.addMarker(MarkerOptions().position(e.point).title(e.title).snippet(e.category+" · "+e.detail+" · OSM").icon(icon))?.let{eventMarkers.add(it)}
+        }
         reportMarkers.forEach{active.removeAnnotation(it)};reportMarkers.clear()
-        if(selectedLayers.contains("Driver reports"))commands.roadReports().forEach{r->active.addMarker(MarkerOptions().position(LatLng(r.latitude,r.longitude)).title(r.category).snippet(r.description+" · Private driver report"))?.let{reportMarkers.add(it)}}
+        if(selectedLayers.contains("Driver reports"))commands.roadReports().forEach{r->
+            val icon=factory.fromBitmap(MapIconArtwork.driverReport(this,night))
+            active.addMarker(MarkerOptions().position(LatLng(r.latitude,r.longitude)).title(r.category).snippet(r.description+" · Private driver report").icon(icon))?.let{reportMarkers.add(it)}
+        }
     }
 
     private fun requestLocation(follow:Boolean=true){
@@ -1217,7 +1230,7 @@ class MainActivity : AppCompatActivity() {
             platforms.addView(action("CAPTURE BOLT",false){launchDriverScreenCapture("Bolt")},LinearLayout.LayoutParams(0,dp(38),1f).apply{marginStart=dp(7)})
             addView(platforms)
             val extra=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
-            extra.addView(action("＋ OTHER APP",false){promptOtherPlatformCapture()},LinearLayout.LayoutParams(0,dp(36),1f))
+            extra.addView(action("OTHER APP",false){promptOtherPlatformCapture()},LinearLayout.LayoutParams(0,dp(36),1f))
             extra.addView(action("STOP",false){stopDriverScreenCapture()},LinearLayout.LayoutParams(dp(82),dp(36)).apply{marginStart=dp(7)})
             addView(extra.apply{setPadding(0,dp(7),0,dp(5))})
             addView(label("PROVIDER API ACCESS",9f,AMBER,true))
@@ -1227,7 +1240,7 @@ class MainActivity : AppCompatActivity() {
         val ranked=OfferEngine.rank(commands.offers(),num("cost_per_km",0.85),num("min_per_hour",35.0),num("max_pickup",8.0),num("min_rating",0.0))
         val add=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
         add.addView(label("RANKED OFFERS",13f,WHITE,true),LinearLayout.LayoutParams(0,-2,1f))
-        add.addView(action("＋ MANUAL",true){offerDialog()},LinearLayout.LayoutParams(dp(112),dp(38)))
+        add.addView(action("MANUAL ENTRY",true){offerDialog()},LinearLayout.LayoutParams(dp(112),dp(38)))
         root.addView(add.apply{setPadding(dp(2),dp(17),dp(2),dp(8))})
         root.addView(label("${ranked.size} offers meet your current rules · ranked by estimated net PLN/hour",9f,MUTED,false).apply{setPadding(dp(2),0,0,dp(7))})
         if(ranked.isEmpty()) root.addView(card().apply{
@@ -1342,7 +1355,7 @@ class MainActivity : AppCompatActivity() {
             info.addView(label("RECORDED VEHICLE EXPENSES",9f,MUTED,true))
             info.addView(label(money(expenses),19f,WHITE,true).apply{setPadding(0,dp(3),0,0)})
             line.addView(info,LinearLayout.LayoutParams(0,-2,1f))
-            line.addView(action("＋ LOG COST",true){itemDialog("Expense")},LinearLayout.LayoutParams(dp(112),dp(38)))
+            line.addView(action("LOG COST",true){itemDialog("Expense")},LinearLayout.LayoutParams(dp(112),dp(38)))
             addView(line)
             addView(label("Completed expense items only. They are not subtracted from trip totals until matched to the same period.",9f,MUTED,false).apply{setPadding(0,dp(6),0,0)})
         }
@@ -1605,8 +1618,8 @@ class MainActivity : AppCompatActivity() {
         root.addView(buildVehicleCard())
 
         val quick=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        quick.addView(action("＋ REMINDER / PAYMENT",true){itemDialog()},LinearLayout.LayoutParams(0,dp(42),1f))
-        quick.addView(action("＋ DOCUMENT",false){documentPicker.launch(arrayOf("*/*"))},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
+        quick.addView(action("REMINDER / PAYMENT",true){itemDialog()},LinearLayout.LayoutParams(0,dp(42),1f))
+        quick.addView(action("ADD DOCUMENT",false){documentPicker.launch(arrayOf("*/*"))},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
         root.addView(quick.apply{setPadding(0,dp(5),0,dp(12))})
 
         root.addView(section("YOUR ADMIN LIST","Tap an item to mark it completed; linked documents stay on this device."))
@@ -1665,7 +1678,7 @@ class MainActivity : AppCompatActivity() {
 
         root.addView(section("TRUSTED SERVICES","Mechanics, tyre shops, insurers, car washes and fleet contacts."))
         val services=commands.items("Service")
-        root.addView(action("＋ SAVE SERVICE / CONTACT",false){itemDialog("Service")}.apply{setPadding(0,dp(9),0,dp(9))})
+        root.addView(action("SAVE SERVICE / CONTACT",false){itemDialog("Service")}.apply{setPadding(0,dp(9),0,dp(9))})
         if(services.isEmpty()) root.addView(label("No service contacts saved.",9f,MUTED,false).apply{setPadding(dp(4),0,0,dp(8))})
         services.forEach { service ->
             root.addView(label(service.title+"  ·  "+service.details,10f,WHITE,false).apply{setPadding(dp(4),dp(8),0,dp(8))})
@@ -1684,7 +1697,7 @@ class MainActivity : AppCompatActivity() {
             11f,WHITE,false
         ).apply { setPadding(0,dp(6),0,dp(8)) }
         box.addView(vehicleProfileSummary)
-        box.addView(action(if(profile.totalCostPerKm==null)"＋ SELECT VEHICLE & COSTS" else "EDIT VEHICLE PROFILE",true){vehicleDialog()})
+        box.addView(action(if(profile.totalCostPerKm==null)"SELECT VEHICLE & COSTS" else "EDIT VEHICLE PROFILE",true){vehicleDialog()})
         return box
     }
 
@@ -1948,6 +1961,23 @@ class MainActivity : AppCompatActivity() {
             letterSpacing=.025f
             minHeight=dp(42)
             setOnClickListener{safeUiAction(title){onClick()}}
+        }
+        themedActions[button]=primary
+        applyActionPalette(button,primary)
+        return button
+    }
+
+    private fun iconAction(icon:Bitmap,description:String,primary:Boolean,onClick:()->Unit):TextView {
+        val button=TextView(this).apply {
+            contentDescription=description
+            gravity=Gravity.CENTER
+            minHeight=dp(38)
+            minWidth=dp(40)
+            setPadding(dp(6),dp(6),dp(6),dp(6))
+            val drawable=BitmapDrawable(resources,icon)
+            drawable.setBounds(0,0,dp(22),dp(22))
+            setCompoundDrawables(null,drawable,null,null)
+            setOnClickListener{safeUiAction(description){onClick()}}
         }
         themedActions[button]=primary
         applyActionPalette(button,primary)

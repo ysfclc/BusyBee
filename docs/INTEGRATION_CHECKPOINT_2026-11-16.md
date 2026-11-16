@@ -40,7 +40,8 @@ A source change is not a build result. A workflow pass is not device acceptance.
 
 ## Known acceptance work still required
 
-- Inspect the complete map marker/icon family and replace remaining production Unicode glyphs with consistent vector assets; test severity, freshness and source confidence at realistic map zooms.
+- [x] Implemented one semantic icon family for roadworks, hazards, closures, weather categories, private driver reports, route start/destination, map controls and workspace tabs. Existing vehicle/building/entrance artwork retained.
+- [ ] Accept icon size, overlap, tap targets, TalkBack descriptions and day/night contrast on the target phone. Severity/freshness are intentionally not shown where source data does not provide them.
 - Verify manual map pan/follow/recenter, 2D/3D camera, day/dusk/night style transitions, route preview, reroute and lifecycle restoration on the actual phone.
 - Verify Accessibility observer package allowlist, visible-text-only behaviour, disclosure, pause/revoke and battery behaviour on the device. Review Google Play Accessibility policy before Play distribution.
 - Validate SQLite upgrade from populated pre-Bridge databases, rollback behaviour, duplicate replay, restart and malformed/corrupt event blobs.
@@ -63,3 +64,11 @@ A source change is not a build result. A workflow pass is not device acceptance.
 - Artifact busybee-pr-16-358: package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.358-debug, SHA-256 45284351da920b88189e8f61161aeaabaf5acc2c2b149a9986510821e1895cdc, size 92,417,693 bytes.
 - The separate POC-only workflow run #4 (43815933431) hit Maven Central HTTP 429 dependency rate limiting while running concurrently. The same POC tests and APK assembly passed inside Android validation run #39. The redundant standalone POC workflow is removed from this integration candidate; the combined validation workflow remains the POC acceptance path.
 - The Vercel status check reported its existing build-rate-limit condition; it is not the Android build result. GitHub Actions above provide the verified build evidence.
+
+
+## Map icon implementation — 2026-11-16
+
+- Added a local drawn icon family for road event categories, private driver reports, route endpoints, map controls and workspace navigation. The vehicle, building and entrance artwork remains.
+- Removed production Unicode icon glyphs from the map controls and workspace navigation; replaced plus-symbol button prefixes with plain action labels.
+- Added category-policy tests. No unsupported severity, freshness or confidence indicators are fabricated.
+- Device-level visual, touch-target, TalkBack and day/night acceptance remains pending.
