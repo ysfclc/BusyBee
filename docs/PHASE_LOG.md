@@ -343,3 +343,9 @@ Next verification:
 - Replaced generic route endpoint, road event and private driver report pins with semantic custom marker artwork. Existing custom vehicle/building/entrance markers remain.
 - Added pure category-policy tests for roadworks, hazards, closures, weather and unknown categories.
 - Kept source honesty: no severity or freshness badges without source evidence. Target-phone visual and interaction acceptance remains pending.
+
+
+## 2026-11-16 — CI rate-limit hardening
+
+- Consolidated Android unit tests, the owned-app POC tests/build and APK assembly into one serialized workflow after parallel Gradle runs caused Maven Central HTTP 429 responses.
+- Enabled Gradle cache writes for same-repository PRs while retaining read-only caching for fork PRs. The next workflow run is the verification gate for this workflow change.

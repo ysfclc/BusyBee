@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: busybee-signed-apk
+  group: busybee-gradle-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -103,6 +103,7 @@ jobs:
         with:
           gradle-version: '8.9'
           validate-wrappers: false
+          cache-read-only: ${{ github.event.pull_request.head.repo.fork == true }}
 
       - name: Make Gradle entrypoint executable
         run: chmod +x android/gradlew
@@ -110,6 +111,10 @@ jobs:
       - name: Test Android app
         working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Test and assemble owned plaintext observer POC
+        run: |
+          ./android/gradlew --no-daemon -p research/plaintext-observer/android testDebugUnitTest assembleDebug
 
       - name: Prepare release keystore
         id: signing

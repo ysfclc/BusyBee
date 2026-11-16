@@ -35,3 +35,7 @@ Map symbols are functional controls or spatial evidence, not decoration. One dra
 - Verify menu, recenter and report controls are reachable and have TalkBack descriptions.
 - Check that map pan/follow, 2D/3D camera and style transitions do not duplicate or lose marker annotations.
 - Do not add severity badges or live-state animations until source freshness and confidence are genuinely available.
+
+## Build/runtime efficiency
+
+Road-event icons are cached per semantic category during each map render, and private driver reports reuse one icon instance. Map controls tint against the active palette so they remain legible in day and night themes.

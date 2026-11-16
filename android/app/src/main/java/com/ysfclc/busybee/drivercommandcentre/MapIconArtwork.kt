@@ -61,7 +61,8 @@ internal object MapIconArtwork {
     fun roadEvent(context: Context, category: String, night: Boolean): Bitmap {
         val kind = MapIconPolicy.eventKind(category)
         val accent = when (kind) {
-            MapEventMarkerKind.ROADWORKS, MapEventMarkerKind.CLOSURE -> amber
+            MapEventMarkerKind.ROADWORKS -> amber
+            MapEventMarkerKind.CLOSURE -> red
             MapEventMarkerKind.HAZARD -> red
             MapEventMarkerKind.WEATHER -> blue
             MapEventMarkerKind.OTHER -> mint

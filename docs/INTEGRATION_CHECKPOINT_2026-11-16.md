@@ -72,3 +72,11 @@ A source change is not a build result. A workflow pass is not device acceptance.
 - Removed production Unicode icon glyphs from the map controls and workspace navigation; replaced plus-symbol button prefixes with plain action labels.
 - Added category-policy tests. No unsupported severity, freshness or confidence indicators are fabricated.
 - Device-level visual, touch-target, TalkBack and day/night acceptance remains pending.
+
+
+## CI workflow consolidation — 2026-11-16
+
+- The map-icon candidate passed the combined Android validation workflow (#41), including Android unit/Robolectric tests, debug assembly and POC tests/assembly.
+- The parallel APK workflow (#360) failed before compilation because Maven Central returned HTTP 429 for Android Gradle Plugin transitive dependencies. This is a dependency rate-limit collision, not an application compile failure.
+- Consolidated app tests, POC tests/build and APK assembly into one serialized workflow. Gradle dependency caching is now writable for same-repository PRs and remains read-only for fork PRs. The redundant Android validation workflow is removed from this candidate.
+- A fresh single-workflow run is required before marking the candidate build verified again.

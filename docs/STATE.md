@@ -364,3 +364,8 @@ See [integration checkpoint](INTEGRATION_CHECKPOINT_2026-11-16.md) for exact acc
 ## Map icon implementation — 2026-11-16
 
 A semantic icon family now covers map controls, workspace tabs, road event categories, private driver reports and route endpoints. Existing vehicle/building/entrance artwork remains. Category-policy tests were added; severity and freshness are not invented. Target-phone visual, touch-target, TalkBack and day/night acceptance remains pending.
+
+
+## CI workflow consolidation — 2026-11-16
+
+The Android validation and signed APK workflows previously ran Gradle concurrently; one run hit Maven Central HTTP 429. The integration candidate now has a single serialized build workflow that runs Android tests, POC tests/build and APK assembly sequentially, with same-repository PR Gradle cache writes enabled. Fresh CI is pending.

@@ -1095,14 +1095,18 @@ class MainActivity : AppCompatActivity() {
         eventMarkers.forEach{active.removeAnnotation(it)};eventMarkers.clear()
         val factory=IconFactory.getInstance(this)
         val night=daylightPhase==DaylightPhase.NIGHT
+        val eventIconCache=mutableMapOf<MapEventMarkerKind,Icon>()
         roadEvents.filter{selectedLayers.contains(it.category)}.forEach{e->
-            val icon=factory.fromBitmap(MapIconArtwork.roadEvent(this,e.category,night))
+            val kind=MapIconPolicy.eventKind(e.category)
+            val icon=eventIconCache.getOrPut(kind){factory.fromBitmap(MapIconArtwork.roadEvent(this,e.category,night))}
             active.addMarker(MarkerOptions().position(e.point).title(e.title).snippet(e.category+" · "+e.detail+" · OSM").icon(icon))?.let{eventMarkers.add(it)}
         }
         reportMarkers.forEach{active.removeAnnotation(it)};reportMarkers.clear()
-        if(selectedLayers.contains("Driver reports"))commands.roadReports().forEach{r->
-            val icon=factory.fromBitmap(MapIconArtwork.driverReport(this,night))
-            active.addMarker(MarkerOptions().position(LatLng(r.latitude,r.longitude)).title(r.category).snippet(r.description+" · Private driver report").icon(icon))?.let{reportMarkers.add(it)}
+        if(selectedLayers.contains("Driver reports")) {
+            val reportIcon=factory.fromBitmap(MapIconArtwork.driverReport(this,night))
+            commands.roadReports().forEach{r->
+                active.addMarker(MarkerOptions().position(LatLng(r.latitude,r.longitude)).title(r.category).snippet(r.description+" · Private driver report").icon(reportIcon))?.let{reportMarkers.add(it)}
+            }
         }
     }
 
@@ -1976,6 +1980,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(dp(6),dp(6),dp(6),dp(6))
             val drawable=BitmapDrawable(resources,icon)
             drawable.setBounds(0,0,dp(22),dp(22))
+            drawable.setTint(if(primary)palette.actionText else palette.primaryText)
             setCompoundDrawables(null,drawable,null,null)
             setOnClickListener{safeUiAction(description){onClick()}}
         }
