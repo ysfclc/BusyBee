@@ -75,6 +75,7 @@ object ObserverReport {
             .put("privacy", JSONObject()
                 .put("localOnly", true)
                 .put("internetPermissionDeclared", false)
+                .put("accessNetworkStatePermissionDeclared", true)
                 .put("notificationAndScreenContentsStored", false)
                 .put("credentialsOrTokensCollected", false)
                 .put("userCanResetCounters", true)
