@@ -101,11 +101,11 @@ class MainActivity : Activity() {
             if (info != null) "INSTALLED · " + (info.versionName ?: "version unknown") else "NOT INSTALLED / NOT VISIBLE",
             12f, if (info != null) ACCENT else Color.rgb(255, 178, 113), true
         ))
-        card.addView(action("OPEN " + app.label.uppercase(Locale.ROOT)) {
+        card.addView(action("OPEN " + app.label.uppercase(Locale.ROOT), enabled = info != null) {
             val launch = packageManager.getLaunchIntentForPackage(app.packageName)
             if (launch != null) startActivity(launch)
             else Toast.makeText(this, "No launch screen available for " + app.label, Toast.LENGTH_SHORT).show()
-        }, enabled = info != null)
+        })
         return card
     }
 
@@ -201,7 +201,7 @@ class MainActivity : Activity() {
     }
 
     private fun isNotificationAccessEnabled(): Boolean =
-        componentEnabled(Settings.Secure.ENABLED_NOTIFICATION_LISTENERS, ObserverNotificationListener::class.java)
+        componentEnabled("enabled_notification_listeners", ObserverNotificationListener::class.java)
 
     private fun isAccessibilityEnabled(): Boolean {
         val enabledFlag = Settings.Secure.getInt(contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 0) == 1
