@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_description">Counts selected apps' accessibility event types and aggregate window structure only. Does not read screen text or perform actions.</string>
+</resources>
