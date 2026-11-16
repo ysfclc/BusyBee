@@ -357,3 +357,10 @@ Next verification:
 - Added safe Provider Bridge reads: malformed event blobs are counted, skipped without deletion, and surfaced in the unified activity UI while valid events continue to load.
 - Added Robolectric regression coverage proving a corrupt row remains in SQLite while valid events are still returned.
 - Release signing and target-device update acceptance remain pending.
+
+
+## 2026-11-16 — Integrated candidate verification after event-read fix
+
+- Workflow run #362 completed successfully (29/29 steps, no failures) on `6ca1f81190d915f4469762531fb7ff5a4466fbf5`.
+- The run includes the malformed-event read resilience and regression test; Android tests, native builds, owned-app POC checks and debug APK signature/checksum verification passed.
+- Exact artifact provenance and remaining release/device gates are recorded in `docs/INTEGRATION_CHECKPOINT_2026-11-16.md`.

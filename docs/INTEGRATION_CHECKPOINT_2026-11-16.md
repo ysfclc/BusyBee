@@ -88,3 +88,13 @@ A source change is not a build result. A workflow pass is not device acceptance.
 - Artifact busybee-pr-16-361: debug package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.361-debug, SHA-256 a3e8ff49cac44c5d07f0cb243393d54aaad5828e57fd63a9b9f8a2b3d9d04aea, size 92,417,689 bytes.
 - Release signing was skipped because persistent release-signing secrets are not configured. The artifact is not compatible as an update to the installed release package.
 - This run also proved the consolidated workflow and Gradle cache strategy avoid the earlier parallel Maven Central 429 collision.
+
+
+## Latest integrated build — run #362
+
+- Workflow run #362 (43819480240) on commit `6ca1f81190d915f4469762531fb7ff5a4466fbf5` completed successfully: 29/29 steps, no failed steps.
+- This run includes the malformed-event resilience implementation and its Robolectric regression test; the Android test suite passed after that change.
+- Artifact `busybee-pr-16-362`: debug package `com.ysfclc.busybee.drivercommandcentre.debug`, version `0.1.362-debug`, SHA-256 `0a506b4669c02d9852b0243b223679187b77ed6015b13f9641960cbd5ac31978`, size 92,417,693 bytes.
+- The artifact manifest and SHA256SUMS were checked against the downloaded APK; the checksum matches.
+- Release signing is still unavailable because persistent release keystore secrets are not configured. This debug APK is for a separate debug installation and cannot update the installed release app.
+- Target-phone acceptance, including install/update compatibility, map appearance, GPS/route behaviour, permissions, accessibility and lifecycle, remains pending.

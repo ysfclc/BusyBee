@@ -23,7 +23,7 @@ The map is the default launch surface and uses the full display. It is the spati
 
 The integration candidate combines the map-first/native-capture feature lineage with the typed Provider Bridge and its durable local event ledger. The candidate preserves the existing app ID and existing database names. The Provider Bridge uses an additive schema migration in `busybee_driver_mirror.db`; it does not introduce a third database.
 
-**Verification is deliberately separate from implementation.** The consolidated workflow (#361) passed Rust tests/native builds, Android unit/Robolectric tests, the owned-app POC tests/build, debug APK assembly, apksigner verification and checksum generation. Persistent release signing is not configured, so the generated .debug package cannot update the installed release app. Target-phone acceptance remains pending. See the integration checkpoint for exact SHAs, known limits and next acceptance gates.
+**Verification is deliberately separate from implementation.** The latest consolidated workflow (#362) passed all 29 steps, including Rust tests/native builds, Android unit/Robolectric tests (including malformed-event resilience), the owned-app POC tests/build, debug APK assembly, apksigner verification and checksum generation. Persistent release signing is not configured, so the generated .debug package cannot update the installed release app. Target-phone acceptance remains pending. See the integration checkpoint for exact SHAs, known limits and next acceptance gates.
 
 ## Data and privacy boundaries
 

@@ -374,3 +374,8 @@ The Android validation and signed APK workflows previously ran Gradle concurrent
 ## Provider event read resilience — 2026-11-16
 
 Malformed Provider Bridge event blobs are now counted and skipped rather than crashing the timeline. The UI surfaces a warning; the malformed row remains untouched in SQLite, and valid events continue to load. Robolectric coverage was added. Latest consolidated CI run #361 passed before this change; rerun pending.
+
+
+## Provider event read resilience — verified in CI — 2026-11-16
+
+The malformed-event handling implementation and Robolectric regression test passed in consolidated workflow run #362 (29/29 steps). Malformed blobs are skipped and reported without deletion; valid events continue to load. The produced artifact is debug-only. Release signing and target-device acceptance remain pending.
