@@ -37,7 +37,7 @@ object ObserverReport {
         AppCatalog.apps.forEach { apps.put(appInfo(context, it)) }
         val usageEnabled = hasUsageAccess(context)
         val notificationEnabled = isComponentEnabled(
-            context, ObserverNotificationListener::class.java, Settings.Secure.ENABLED_NOTIFICATION_LISTENERS
+            context, ObserverNotificationListener::class.java, "enabled_notification_listeners"
         )
         val accessibilityEnabled = isComponentEnabled(
             context, ObserverAccessibilityService::class.java, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
