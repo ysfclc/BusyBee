@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="accessibility_description">Counts selected apps' accessibility event types and aggregate window structure only. Does not read screen text or perform actions.</string>
+    <string name="app_name">App Observer Lab</string>
+    <string name="accessibility_description">Counts accessibility event types and aggregate window structure for selected apps only. Does not read screen text or perform actions.</string>
 </resources>
