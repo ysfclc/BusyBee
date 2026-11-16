@@ -56,6 +56,8 @@ jobs:
           set -euo pipefail
           APK="research/app-observer/android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -E "^package:|^sdkVersion:|^targetSdkVersion:"
           sha256sum "$APK" | tee research/app-observer/android/app/build/outputs/apk/debug/SHA256SUMS
           ls -lh "$APK"
       - name: Upload standalone APK
