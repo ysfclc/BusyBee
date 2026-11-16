@@ -37,6 +37,8 @@ jobs:
           cache-dependency-path: research/app-observer/android/**/*.gradle.kts
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install Android 35 SDK
         shell: bash
         run: |
