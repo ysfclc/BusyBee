@@ -49,8 +49,17 @@ A source change is not a build result. A workflow pass is not device acceptance.
 
 ## Next execution order
 
-1. Run the repository's Android validation and owned-app POC workflows on this branch; inspect actual job steps and logs.
-2. Fix source/test failures without weakening assertions or deleting existing project work.
-3. Build debug and release variants; verify package ID, version, ABI, signature and hash. Do not create a replacement signing key.
-4. Install as an update on the target phone and run the acceptance checklist.
-5. Only after the foundation passes, refine the visual map/icon system and complete map acceptance.
+1. Configure the existing release-signing secrets, without generating a replacement key.
+2. Install the debug candidate side-by-side if desired, then verify the release update path once the original key is available.
+3. Run the on-device acceptance checklist for data persistence, capture/review, WhatsApp groups, navigation and every workspace.
+4. Refine the visual map/icon system and complete map acceptance.
+
+
+## CI evidence recorded — 2026-11-16
+
+- Android validation run #39 (43815933532): passed Rust native-library compilation, Android unit/Robolectric tests, debug APK assembly, and the owned-app POC test/build step.
+- APK validation run #358 (43815933430): passed actionlint, Rust workspace tests, Android native-library compilation, Android unit/Robolectric tests, debug APK assembly, apksigner verification, provenance and SHA-256 generation.
+- Release-keystore preparation and signed-release assembly were skipped because persistent release-signing secrets were not configured. The verified artifact is therefore a debug APK, not an install-over-existing update.
+- Artifact busybee-pr-16-358: package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.358-debug, SHA-256 45284351da920b88189e8f61161aeaabaf5acc2c2b149a9986510821e1895cdc, size 92,417,693 bytes.
+- The separate POC-only workflow run #4 (43815933431) hit Maven Central HTTP 429 dependency rate limiting while running concurrently. The same POC tests and APK assembly passed inside Android validation run #39. The redundant standalone POC workflow is removed from this integration candidate; the combined validation workflow remains the POC acceptance path.
+- The Vercel status check reported its existing build-rate-limit condition; it is not the Android build result. GitHub Actions above provide the verified build evidence.

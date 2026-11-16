@@ -323,3 +323,15 @@ Next verification:
 - Added an integration checkpoint with source SHAs, known limitations and separate implementation/build/device acceptance gates.
 
 **Not yet verified:** Android compilation, unit/Robolectric test execution, signed APK assembly, update signature compatibility, installation over the existing phone app, or real driver-app/map workflows. The unified event timeline is not yet a cross-source reconciled financial ledger; do not use it for earnings totals.
+
+
+## 2026-11-16 — CI verification and provenance correction
+
+- GitHub Actions Android validation run #39 passed Rust native-library compilation, Android unit/Robolectric tests, debug APK assembly, and the owned-app POC test/build step.
+- APK workflow #358 passed actionlint, Rust tests, native-library builds, Android tests, debug APK assembly, signature verification and checksum/provenance generation.
+- Release signing was skipped because persistent signing secrets were not configured. The generated package is the separate .debug application and cannot update the installed release app.
+- The separate POC-only workflow encountered Maven Central HTTP 429 while running concurrently; its tests and assembly passed in the combined Android validation workflow. The redundant standalone workflow is removed from this candidate.
+- Corrected legacy event provenance so Accessibility UI and MediaProjection OCR observations retain their actual acquisition method. Notification deduplication now uses the stored notification identity, so separate identical notifications do not collapse. Trip duration is carried into Provider Bridge events and completeness reporting.
+- Added pure unit tests for acquisition provenance and stable source identities.
+
+**Still pending:** rerun CI on this correction commit, release signing with the existing key, and target-device acceptance.

@@ -10,6 +10,20 @@ import java.util.Locale
  * Projects the two pre-bridge stores into the canonical event ledger.
  * Source stores are read-only here; only the separate ProviderEventRepository is written.
  */
+internal object LegacyProviderEventPolicy {
+    fun sourceMethodForRecord(sourceName: String): SourceMethod = when {
+        sourceName.contains("live UI listener", ignoreCase = true) -> SourceMethod.ANDROID_ACCESSIBILITY_UI
+        sourceName.contains("screen capture", ignoreCase = true) ||
+            sourceName.contains("MediaProjection", ignoreCase = true) -> SourceMethod.ANDROID_MEDIA_PROJECTION_OCR
+        sourceName.contains("manual", ignoreCase = true) -> SourceMethod.MANUAL
+        else -> SourceMethod.USER_SELECTED_IMPORT
+    }
+
+    fun offerDedupeKey(id: Long, status: String): String =
+        "offer:$id:${status.trim().lowercase(Locale.ROOT)}"
+
+    fun notificationDedupeKey(id: Long): String = "notification:$id"
+}
 class LegacyProviderActivityProjector(
     private val commands: DriverCommandStore,
     private val mirror: DriverMirrorStore,
@@ -57,9 +71,7 @@ class LegacyProviderActivityProjector(
             if (duration != null) add("durationMinutes")
         }
         val fingerprint = sha256(raw.ifBlank { "$platform|$pickup|$destination|$fare|$bonus|$capturedAt" })
-        val key = if (sourceMethod == SourceMethod.ANDROID_NOTIFICATION && raw.isNotBlank()) {
-            "notification-offer:${sha256("$platform|$raw")}:${status.lowercase()}"
-        } else "offer:$id:${status.lowercase()}"
+        val key = LegacyProviderEventPolicy.offerDedupeKey(id, status)
         return ProviderEvent(
             eventId = "command-offer:$id:${status.lowercase()}",
             provider = provider,
@@ -91,7 +103,7 @@ class LegacyProviderActivityProjector(
             payload = ProviderEventPayload.Observation(title, body),
             completeness = FieldCompleteness(setOf("title", "body"), setOf("title", "body"), 1.0),
             evidence = EvidenceReference(fingerprint, "command-notice:$id", EvidenceRetention.LIMITED, redacted = false),
-            dedupeKey = "notification:$fingerprint"
+            dedupeKey = LegacyProviderEventPolicy.notificationDedupeKey(id)
         )
     }
 
@@ -101,12 +113,13 @@ class LegacyProviderActivityProjector(
         val isTrip = normalizedType in setOf("trip", "ride", "completed_trip")
         val isOffer = normalizedType == "offer"
         val currencyCode = currency.uppercase().takeIf { it.matches(Regex("[A-Z]{3}")) }
+        val duration = durationMinutes?.takeIf { it.isFinite() }
         val grossMoney = gross?.takeIf { currencyCode != null }?.let { Money(it, currencyCode!!) }
         val feesMoney = fees?.takeIf { currencyCode != null }?.let { Money(it, currencyCode!!) }
         val bonusMoney = bonus?.takeIf { currencyCode != null }?.let { Money(it, currencyCode!!) }
         val amountMoney = grossMoney ?: feesMoney ?: bonusMoney
         val expected = when {
-            isTrip -> setOf("pickup", "dropoff", "distanceKm", "gross", "fees", "bonus")
+            isTrip -> setOf("pickup", "dropoff", "distanceKm", "durationMinutes", "gross", "fees", "bonus")
             isOffer -> setOf("pickup", "dropoff", "gross")
             amountMoney != null -> setOf("amount")
             else -> setOf("sourceRecord")
@@ -115,6 +128,7 @@ class LegacyProviderActivityProjector(
             if (pickup != null) add("pickup")
             if (dropoff != null) add("dropoff")
             if (distanceKm != null) add("distanceKm")
+            if (duration != null) add("durationMinutes")
             if (grossMoney != null) add("gross")
             if (feesMoney != null) add("fees")
             if (bonusMoney != null) add("bonus")
@@ -130,7 +144,7 @@ class LegacyProviderActivityProjector(
         }
         val payload = when {
             isTrip -> ProviderEventPayload.Trip(
-                pickup, dropoff, distanceKm, null,
+                pickup, dropoff, distanceKm, duration,
                 grossMoney, feesMoney, bonusMoney
             )
             isOffer -> ProviderEventPayload.Offer(
@@ -149,7 +163,7 @@ class LegacyProviderActivityProjector(
             provider = provider,
             adapter = AdapterIdentity("busybee.user-import", "1"),
             type = eventType,
-            sourceMethod = SourceMethod.USER_SELECTED_IMPORT,
+            sourceMethod = LegacyProviderEventPolicy.sourceMethodForRecord(sourceName),
             occurredAtEpochMs = occurred,
             receivedAtEpochMs = now,
             externalEntityId = externalId,

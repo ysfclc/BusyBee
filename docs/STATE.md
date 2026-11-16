@@ -352,3 +352,10 @@ The current candidate is `integration/driver-command-centre-2026-11-16`, based o
 - Provider event projection is idempotent per provider/dedupe key but does not yet perform complete cross-source conflict reconciliation. Use reviewed Mirror records, not the unified event feed, for financial totals.
 
 See [integration checkpoint](INTEGRATION_CHECKPOINT_2026-11-16.md) for exact acceptance gates and limitations.
+
+
+## CI verification update — 2026-11-16
+
+- Android validation run #39 and APK workflow #358 passed the Android/Rust tests and debug APK build/signature checks. The owned-app POC tests and APK assembly passed in run #39.
+- The debug artifact package is com.ysfclc.busybee.drivercommandcentre.debug (0.1.358-debug), SHA-256 45284351da920b88189e8f61161aeaabaf5acc2c2b149a9986510821e1895cdc. It is not an update to the installed release app.
+- Release signing remains blocked by missing persistent keystore secrets. Target-device acceptance remains pending.
