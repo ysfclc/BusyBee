@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.security.MessageDigest
+import java.util.Locale
 
 data class DriverRecord(
     val id: Long,
@@ -21,8 +22,54 @@ data class DriverRecord(
     val currency: String,
     val status: String?,
     val raw: String,
-    val sourceName: String
+    val sourceName: String,
+    val durationMinutes: Double? = null,
+    val parseConfidence: Double? = null
 )
+
+data class DriverFinancialRow(
+    val recordType: String,
+    val currency: String,
+    val gross: Double?,
+    val fees: Double?,
+    val bonus: Double?
+)
+
+data class DriverFinancialTotals(
+    val gross: Double?,
+    val fees: Double?,
+    val bonuses: Double?,
+    val netComplete: Boolean
+) {
+    val knownNet: Double?
+        get() = if (netComplete && gross != null && fees != null && bonuses != null) {
+            gross - fees + bonuses
+        } else null
+}
+
+object DriverFinancialSummaryCalculator {
+    private val earningTripTypes = setOf("trip", "ride", "completed_trip")
+
+    fun calculate(records: Iterable<DriverFinancialRow>): DriverFinancialTotals {
+        val trips = records.filter {
+            it.recordType.trim().lowercase(java.util.Locale.ROOT) in earningTripTypes &&
+                it.currency.equals("PLN", ignoreCase = true)
+        }
+
+        fun total(value: (DriverFinancialRow) -> Double?): Double? =
+            trips.mapNotNull(value).takeIf { it.isNotEmpty() }?.sum()
+
+        val allTripsComplete = trips.isNotEmpty() &&
+            trips.all { it.gross != null && it.fees != null && it.bonus != null }
+
+        return DriverFinancialTotals(
+            gross = total { it.gross },
+            fees = total { it.fees },
+            bonuses = total { it.bonus },
+            netComplete = allTripsComplete
+        )
+    }
+}
 
 data class MirrorSummary(
     val records: Int,
@@ -43,15 +90,17 @@ object DriverCsv {
     val requiredHeaders = setOf("platform", "record_type")
     val supportedHeaders = setOf(
         "platform", "record_type", "external_id", "occurred_at", "pickup", "dropoff",
-        "distance_km", "gross", "fees", "bonus", "currency", "status"
+        "distance_km", "duration_minutes", "gross", "fees", "bonus", "currency", "status"
     )
 
     fun parse(text: String): List<Map<String, String>> {
         val rows = csvRows(text)
         if (rows.isEmpty()) return emptyList()
         val headers = rows.first().mapIndexed { index, value ->
-            (if (index == 0) value.removePrefix("\uFEFF") else value).trim().lowercase().replace(" ", "_")
+            (if (index == 0) value.removePrefix("\uFEFF") else value).trim().lowercase(Locale.ROOT).replace(" ", "_")
         }
+        require(headers.none { it.isBlank() }) { "CSV contains an empty column header" }
+        require(headers.size == headers.toSet().size) { "CSV contains duplicate column headers" }
         require(headers.toSet().containsAll(requiredHeaders)) {
             "CSV needs platform and record_type columns"
         }
@@ -60,9 +109,16 @@ object DriverCsv {
         }
         return rows.drop(1).mapNotNull { cells ->
             if (cells.all { it.isBlank() }) return@mapNotNull null
-            headers.mapIndexedNotNull { index, key ->
-                if (index < cells.size) key to cells[index].trim() else null
+            require(cells.size <= headers.size) {
+                "CSV row has ${cells.size} values but the header defines ${headers.size} columns"
+            }
+            val row = headers.mapIndexed { index, key ->
+                key to cells.getOrElse(index) { "" }.trim()
             }.toMap()
+            require(row["platform"].orEmpty().isNotBlank() && row["record_type"].orEmpty().isNotBlank()) {
+                "Every CSV data row must include platform and record_type"
+            }
+            row
         }
     }
 
@@ -104,7 +160,7 @@ object DriverCsv {
 }
 
 class DriverMirrorStore(context: Context) :
-    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 2) {
+    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 4) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
@@ -139,6 +195,8 @@ class DriverMirrorStore(context: Context) :
                 pickup TEXT,
                 dropoff TEXT,
                 distance_km REAL,
+                duration_minutes REAL,
+                parse_confidence REAL,
                 gross REAL,
                 fees REAL,
                 bonus REAL,
@@ -155,8 +213,10 @@ class DriverMirrorStore(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Additive migration only: imported rows and raw evidence remain untouched.
-        if (oldVersion < 2) createProviderEventsTable(db)
+        if (oldVersion < 2) db.execSQL("ALTER TABLE records ADD COLUMN duration_minutes REAL")
+        if (oldVersion < 3) db.execSQL("ALTER TABLE records ADD COLUMN parse_confidence REAL")
+        if (oldVersion < 4) createProviderEventsTable(db)
+        // Never destroy user evidence on upgrade.
     }
 
     private fun createProviderEventsTable(db: SQLiteDatabase) {
@@ -215,9 +275,9 @@ class DriverMirrorStore(context: Context) :
             var inserted = 0
             rows.forEachIndexed { rowIndex, row ->
                 val platform = row["platform"].orEmpty().trim().ifBlank { "Unknown" }
-                val type = row["record_type"].orEmpty().trim().lowercase().ifBlank { "unknown" }
+                val type = row["record_type"].orEmpty().trim().lowercase(Locale.ROOT).ifBlank { "unknown" }
                 val raw = row.entries.sortedBy { it.key }.joinToString("&") { "${it.key}=${it.value}" }
-                val fingerprint = sha256(listOf(platform.lowercase(), type, row["external_id"].orEmpty(), row["occurred_at"].orEmpty(), raw).joinToString("|"))
+                val fingerprint = sha256(listOf(platform.lowercase(Locale.ROOT), type, row["external_id"].orEmpty(), row["occurred_at"].orEmpty(), raw).joinToString("|"))
                 val evidence = ContentValues().apply {
                     put("import_id", importId)
                     put("row_number", rowIndex + 1)
@@ -236,10 +296,11 @@ class DriverMirrorStore(context: Context) :
                     put("pickup", row["pickup"])
                     put("dropoff", row["dropoff"])
                     put("distance_km", DriverCsv.number(row["distance_km"]) )
+                    put("duration_minutes", DriverCsv.number(row["duration_minutes"]))
                     put("gross", DriverCsv.number(row["gross"]))
                     put("fees", DriverCsv.number(row["fees"]))
                     put("bonus", DriverCsv.number(row["bonus"]))
-                    put("currency", row["currency"].orEmpty().ifBlank { "PLN" }.uppercase())
+                    put("currency", row["currency"].orEmpty().ifBlank { "PLN" }.uppercase(Locale.ROOT))
                     put("status", row["status"])
                     put("raw", raw)
                     put("source_name", sourceName)
@@ -254,49 +315,150 @@ class DriverMirrorStore(context: Context) :
         }
     }
 
+    /**
+     * Persists a screen observation only after the driver reviews and confirms it.
+     * The raw OCR text is retained as evidence; unknown financial fields remain NULL.
+     */
+    @Synchronized
+    fun saveReviewedNativeObservation(
+        platform: String,
+        recordType: String,
+        capturedAt: Long,
+        visibleText: String,
+        gross: Double?,
+        fees: Double?,
+        bonus: Double?,
+        distanceKm: Double?,
+        durationMinutes: Double?,
+        currency: String = "PLN",
+        pickup: String? = null,
+        dropoff: String? = null,
+        sourceName: String = "Android screen capture",
+        parseConfidence: Double? = null
+    ): Long {
+        val safePlatform = platform.trim().take(60)
+        require(safePlatform.matches(Regex("[\\p{L}0-9 ._-]{2,60}"))) { "Enter a valid driver platform name" }
+        val type = recordType.trim().lowercase(Locale.ROOT)
+        require(type in setOf("offer", "trip", "ride", "completed_trip", "payout", "adjustment")) {
+            "Choose a supported record type"
+        }
+        require(visibleText.isNotBlank()) { "Original screen evidence is missing" }
+        listOf(gross, fees, bonus, distanceKm, durationMinutes).filterNotNull().forEach {
+            require(it.isFinite() && it >= 0.0) { "Reviewed values must be valid non-negative numbers" }
+        }
+        require(parseConfidence == null || (parseConfidence.isFinite() && parseConfidence in 0.0..1.0)) {
+            "Parser confidence must be between 0 and 1"
+        }
+        val safeCurrency = currency.trim().uppercase(Locale.ROOT).ifBlank { "PLN" }
+        require(safeCurrency.matches(Regex("[A-Z]{3}"))) { "Use a three-letter currency code" }
+        val raw = visibleText.take(5000)
+        val safePickup = pickup?.trim()?.take(180)?.takeIf { it.isNotBlank() }
+        val safeDropoff = dropoff?.trim()?.take(180)?.takeIf { it.isNotBlank() }
+        val safeSourceName = sourceName.trim().takeIf {
+            it in setOf("Android live UI listener", "Android screen capture", "Android MediaProjection OCR")
+        } ?: "Android screen capture"
+        val occurredAt = java.time.Instant.ofEpochMilli(capturedAt).toString()
+        val fingerprint = sha256(
+            listOf(safePlatform, type, occurredAt, raw, gross, fees, bonus, distanceKm, safeCurrency, safePickup, safeDropoff, safeSourceName, parseConfidence).joinToString("|")
+        )
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val importedAt = System.currentTimeMillis()
+            val importId = db.insertOrThrow("imports", null, ContentValues().apply {
+                put("source_name", safeSourceName)
+                put("imported_at", importedAt)
+                put("row_count", 1)
+                put("inserted_count", 0)
+            })
+            db.insertOrThrow("raw_evidence", null, ContentValues().apply {
+                put("import_id", importId)
+                put("row_number", 1)
+                put("fingerprint", fingerprint)
+                put("raw", raw)
+                put("source_name", safeSourceName)
+            })
+            val recordId = db.insertOrThrow("records", null, ContentValues().apply {
+                put("fingerprint", fingerprint)
+                put("import_id", importId)
+                put("platform", safePlatform)
+                put("record_type", type)
+                putNull("external_id")
+                put("occurred_at", occurredAt)
+                if (safePickup == null) putNull("pickup") else put("pickup", safePickup)
+                if (safeDropoff == null) putNull("dropoff") else put("dropoff", safeDropoff)
+                if (distanceKm == null) putNull("distance_km") else put("distance_km", distanceKm)
+                if (durationMinutes == null) putNull("duration_minutes") else put("duration_minutes", durationMinutes)
+                if (parseConfidence == null) putNull("parse_confidence") else put("parse_confidence", parseConfidence)
+                if (gross == null) putNull("gross") else put("gross", gross)
+                if (fees == null) putNull("fees") else put("fees", fees)
+                if (bonus == null) putNull("bonus") else put("bonus", bonus)
+                put("currency", safeCurrency)
+                put("status", "driver-reviewed")
+                put("raw", raw)
+                put("source_name", safeSourceName)
+            })
+            db.execSQL("UPDATE imports SET inserted_count=1 WHERE id=?", arrayOf(importId))
+            db.setTransactionSuccessful()
+            return recordId
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     fun summary(): MirrorSummary {
         val db = readableDatabase
         fun scalar(sql: String): Double {
             db.rawQuery(sql, null).use { c -> return if (c.moveToFirst()) c.getDouble(0) else 0.0 }
         }
-        fun nullableSum(column: String): Double? {
-            db.rawQuery("SELECT SUM($column) FROM records WHERE currency='PLN' AND $column IS NOT NULL", null).use { c ->
-                return if (c.moveToFirst() && !c.isNull(0)) c.getDouble(0) else null
-            }
-        }
         val records = scalar("SELECT COUNT(*) FROM records").toInt()
         val trips = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type) IN ('trip','ride','completed_trip')").toInt()
         val offers = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type)='offer'").toInt()
-        // Never add unlike currencies together. Headline totals are PLN-only.
-        val gross = nullableSum("gross")
-        val fees = nullableSum("fees")
-        val bonuses = nullableSum("bonus")
+        val financialRows = mutableListOf<DriverFinancialRow>()
+        db.rawQuery("SELECT record_type,currency,gross,fees,bonus FROM records WHERE lower(record_type) IN ('trip','ride','completed_trip') AND upper(currency)='PLN'", null).use { c ->
+            while (c.moveToNext()) {
+                financialRows.add(
+                    DriverFinancialRow(
+                        recordType = c.getString(0),
+                        currency = c.getString(1),
+                        gross = if (c.isNull(2)) null else c.getDouble(2),
+                        fees = if (c.isNull(3)) null else c.getDouble(3),
+                        bonus = if (c.isNull(4)) null else c.getDouble(4)
+                    )
+                )
+            }
+        }
+        // Earnings include recognised PLN trip rows only; offers and other activity are not revenue.
+        val financials = DriverFinancialSummaryCalculator.calculate(financialRows)
         val imports = scalar("SELECT COUNT(*) FROM imports").toInt()
         val nonPln = scalar("SELECT COUNT(*) FROM records WHERE currency<>'PLN'").toInt()
-        val grossRows = scalar("SELECT COUNT(*) FROM records WHERE currency='PLN' AND gross IS NOT NULL")
-        val incompleteNetRows = scalar("SELECT COUNT(*) FROM records WHERE currency='PLN' AND gross IS NOT NULL AND (fees IS NULL OR bonus IS NULL)")
-        val netComplete = grossRows > 0 && incompleteNetRows == 0.0
         val platforms = mutableListOf<String>()
         db.rawQuery("SELECT DISTINCT platform FROM records ORDER BY platform", null).use { c ->
             while (c.moveToNext()) platforms.add(c.getString(0))
         }
-        return MirrorSummary(records, trips, offers, gross, fees, bonuses, platforms, imports, nonPln, netComplete)
+        return MirrorSummary(
+            records, trips, offers,
+            financials.gross, financials.fees, financials.bonuses,
+            platforms, imports, nonPln, financials.netComplete
+        )
     }
 
     fun recent(limit: Int = 30): List<DriverRecord> {
         val records = mutableListOf<DriverRecord>()
         readableDatabase.rawQuery(
-            "SELECT id,platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,gross,fees,bonus,currency,status,raw,source_name FROM records ORDER BY COALESCE(occurred_at,'') DESC,id DESC LIMIT ?",
+            "SELECT id,platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,duration_minutes,gross,fees,bonus,currency,status,raw,source_name,parse_confidence FROM records ORDER BY COALESCE(occurred_at,'') DESC,id DESC LIMIT ?",
             arrayOf(limit.toString())
         ).use { c ->
             while (c.moveToNext()) records.add(DriverRecord(
                 c.getLong(0), c.getString(1), c.getString(2), c.getString(3), c.getString(4),
                 c.getString(5), c.getString(6),
                 if (c.isNull(7)) null else c.getDouble(7),
-                if (c.isNull(8)) null else c.getDouble(8),
                 if (c.isNull(9)) null else c.getDouble(9),
                 if (c.isNull(10)) null else c.getDouble(10),
-                c.getString(11), c.getString(12), c.getString(13), c.getString(14)
+                if (c.isNull(11)) null else c.getDouble(11),
+                c.getString(12), c.getString(13), c.getString(14), c.getString(15),
+                if (c.isNull(8)) null else c.getDouble(8),
+                if (c.isNull(16)) null else c.getDouble(16)
             ))
         }
         return records

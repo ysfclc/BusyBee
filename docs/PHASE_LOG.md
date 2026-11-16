@@ -310,3 +310,16 @@ Next verification:
 2. Execute the runbook in a controlled emulator and retain redacted console evidence for all six boundary events.
 3. Add malformed, duplicate, delayed and out-of-order fixture cases plus instrumentation-overhead comparison.
 4. Keep Uber and Bolt access/terms/capability assessments separate; do not move to provider instrumentation absent a documented, permitted path.
+ 
+## 2026-11-16 — Integrated map-first Driver Command Centre candidate
+
+**Status:** integration candidate assembled on `integration/driver-command-centre-2026-11-16`; automated validation and target-device acceptance pending.
+
+- Combined the PR #8 → #9 map-first/native-capture feature lineage with the PR #14 Provider Bridge implementation without changing the original branches or `main`.
+- Kept the full-screen map as the default spatial workspace and retained Driver Mirror, capture/review and Driver Operations as equally core workflows.
+- Merged the Provider Bridge timeline and Connected Apps partial-source status into the map-first MainActivity.
+- Advanced `busybee_driver_mirror.db` from feature-line version 3 to version 4. Existing duration and parse-confidence migrations remain ordered; the provider event table is created on fresh install and added on upgrade. Existing records, imports and raw evidence are not rewritten.
+- Added Robolectric migration regression coverage for a fresh install and populated version-1/version-3 databases.
+- Added an integration checkpoint with source SHAs, known limitations and separate implementation/build/device acceptance gates.
+
+**Not yet verified:** Android compilation, unit/Robolectric test execution, signed APK assembly, update signature compatibility, installation over the existing phone app, or real driver-app/map workflows. The unified event timeline is not yet a cross-source reconciled financial ledger; do not use it for earnings totals.
