@@ -39,6 +39,34 @@ data class MirrorSummary(
     val knownNet: Double? get() = if (netComplete && gross != null && fees != null && bonuses != null) gross - fees + bonuses else null
 }
 
+data class PcapdroidCaptureSummary(
+    val id: Long,
+    val sourceName: String,
+    val provider: String,
+    val importedAt: Long,
+    val callCount: Int,
+    val normalizedCount: Int,
+    val insertedCount: Int
+)
+
+data class PcapdroidStoredCall(
+    val sequence: Int,
+    val host: String,
+    val method: String,
+    val path: String,
+    val status: Int?,
+    val startedAt: String?,
+    val requestMime: String?,
+    val responseMime: String?,
+    val classification: String,
+    val requestKind: String,
+    val responseKind: String,
+    val requestBytes: Int,
+    val responseBytes: Int,
+    val requestPreview: String,
+    val responsePreview: String
+)
+
 object DriverCsv {
     val requiredHeaders = setOf("platform", "record_type")
     val supportedHeaders = setOf(
@@ -104,7 +132,7 @@ object DriverCsv {
 }
 
 class DriverMirrorStore(context: Context) :
-    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 1) {
+    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
@@ -124,6 +152,7 @@ class DriverMirrorStore(context: Context) :
                 fingerprint TEXT NOT NULL,
                 raw TEXT NOT NULL,
                 source_name TEXT NOT NULL,
+                capture_id INTEGER,
                 FOREIGN KEY(import_id) REFERENCES imports(id)
             )
         """.trimIndent())
@@ -146,15 +175,58 @@ class DriverMirrorStore(context: Context) :
                 status TEXT,
                 raw TEXT NOT NULL,
                 source_name TEXT NOT NULL,
+                capture_id INTEGER,
                 FOREIGN KEY(import_id) REFERENCES imports(id)
             )
         """.trimIndent())
         db.execSQL("CREATE INDEX records_time_idx ON records(occurred_at DESC)")
         db.execSQL("CREATE INDEX records_platform_idx ON records(platform)")
+        createPcapdroidTables(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Versioned migrations are added here; never destroy user evidence on upgrade.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE raw_evidence ADD COLUMN capture_id INTEGER")
+            db.execSQL("ALTER TABLE records ADD COLUMN capture_id INTEGER")
+            createPcapdroidTables(db)
+        }
+    }
+
+    private fun createPcapdroidTables(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE pcapdroid_captures (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_name TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                imported_at INTEGER NOT NULL,
+                call_count INTEGER NOT NULL,
+                normalized_count INTEGER NOT NULL,
+                inserted_count INTEGER NOT NULL
+            )
+        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE pcapdroid_calls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                capture_id INTEGER NOT NULL,
+                sequence INTEGER NOT NULL,
+                host TEXT NOT NULL,
+                method TEXT NOT NULL,
+                path TEXT NOT NULL,
+                status INTEGER,
+                started_at TEXT,
+                request_mime TEXT,
+                response_mime TEXT,
+                classification TEXT NOT NULL,
+                request_kind TEXT NOT NULL,
+                response_kind TEXT NOT NULL,
+                request_bytes INTEGER NOT NULL,
+                response_bytes INTEGER NOT NULL,
+                request_preview TEXT NOT NULL,
+                response_preview TEXT NOT NULL,
+                FOREIGN KEY(capture_id) REFERENCES pcapdroid_captures(id) ON DELETE CASCADE
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX pcapdroid_calls_capture_idx ON pcapdroid_calls(capture_id, sequence)")
     }
 
     @Synchronized
@@ -209,6 +281,143 @@ class DriverMirrorStore(context: Context) :
         } finally {
             db.endTransaction()
         }
+    }
+
+    @Synchronized
+    fun importPcapdroidCapture(sourceName: String, analysis: PcapdroidCaptureAnalysis): PcapdroidCaptureSummary {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val importedAt = System.currentTimeMillis()
+            val captureValues = ContentValues().apply {
+                put("source_name", sourceName)
+                put("provider", analysis.provider)
+                put("imported_at", importedAt)
+                put("call_count", analysis.calls.size)
+                put("normalized_count", analysis.normalizedRows.size)
+                put("inserted_count", 0)
+            }
+            val captureId = db.insertOrThrow("pcapdroid_captures", null, captureValues)
+
+            analysis.calls.forEach { call ->
+                val values = ContentValues().apply {
+                    put("capture_id", captureId)
+                    put("sequence", call.index)
+                    put("host", call.host)
+                    put("method", call.method)
+                    put("path", call.path)
+                    if (call.status == null) putNull("status") else put("status", call.status)
+                    put("started_at", call.startedAt)
+                    put("request_mime", call.requestMimeType)
+                    put("response_mime", call.responseMimeType)
+                    put("classification", call.classification)
+                    put("request_kind", call.requestKind)
+                    put("response_kind", call.responseKind)
+                    put("request_bytes", call.requestBytes)
+                    put("response_bytes", call.responseBytes)
+                    put("request_preview", call.requestPreview.take(3_500))
+                    put("response_preview", call.responsePreview.take(3_500))
+                }
+                db.insertOrThrow("pcapdroid_calls", null, values)
+            }
+
+            var inserted = 0
+            val rows = analysis.normalizedRows
+            if (rows.isNotEmpty()) {
+                val importValues = ContentValues().apply {
+                    put("source_name", sourceName)
+                    put("imported_at", importedAt)
+                    put("row_count", rows.size)
+                    put("inserted_count", 0)
+                }
+                val importId = db.insertOrThrow("imports", null, importValues)
+                rows.forEachIndexed { rowIndex, row ->
+                    val platform = row["platform"].orEmpty().trim().ifBlank { analysis.provider }
+                    val type = row["record_type"].orEmpty().trim().lowercase().ifBlank { "unknown" }
+                    val externalId = row["external_id"].orEmpty()
+                    val occurredAt = row["occurred_at"].orEmpty()
+                    val raw = row.entries.sortedBy { it.key }.joinToString("&") { "${it.key}=${it.value}" }
+                    val fingerprint = sha256(listOf(
+                        platform.lowercase(), type, externalId, occurredAt,
+                        row["pickup"].orEmpty(), row["dropoff"].orEmpty(), row["distance_km"].orEmpty(),
+                        row["gross"].orEmpty(), row["fees"].orEmpty(), row["bonus"].orEmpty(),
+                        row["currency"].orEmpty(), row["status"].orEmpty()
+                    ).joinToString("|"))
+                    val evidence = ContentValues().apply {
+                        put("import_id", importId)
+                        put("row_number", rowIndex + 1)
+                        put("fingerprint", fingerprint)
+                        put("raw", raw)
+                        put("source_name", sourceName)
+                        put("capture_id", captureId)
+                    }
+                    db.insertOrThrow("raw_evidence", null, evidence)
+
+                    val record = ContentValues().apply {
+                        put("fingerprint", fingerprint)
+                        put("import_id", importId)
+                        put("platform", platform)
+                        put("record_type", type)
+                        put("external_id", externalId)
+                        put("occurred_at", row["occurred_at"])
+                        put("pickup", row["pickup"])
+                        put("dropoff", row["dropoff"])
+                        put("distance_km", DriverCsv.number(row["distance_km"]))
+                        put("gross", DriverCsv.number(row["gross"]))
+                        put("fees", DriverCsv.number(row["fees"]))
+                        put("bonus", DriverCsv.number(row["bonus"]))
+                        put("currency", row["currency"].orEmpty().ifBlank { "UNKNOWN" }.uppercase())
+                        put("status", row["status"])
+                        put("raw", raw)
+                        put("source_name", sourceName)
+                        put("capture_id", captureId)
+                    }
+                    if (db.insertWithOnConflict("records", null, record, SQLiteDatabase.CONFLICT_IGNORE) != -1L) inserted++
+                }
+                db.execSQL("UPDATE imports SET inserted_count=? WHERE id=?", arrayOf(inserted, importId))
+            }
+
+            db.execSQL("UPDATE pcapdroid_captures SET inserted_count=? WHERE id=?", arrayOf(inserted, captureId))
+            db.setTransactionSuccessful()
+            return PcapdroidCaptureSummary(
+                captureId, sourceName, analysis.provider, importedAt,
+                analysis.calls.size, rows.size, inserted
+            )
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun latestPcapdroidCapture(): PcapdroidCaptureSummary? {
+        readableDatabase.rawQuery(
+            "SELECT id,source_name,provider,imported_at,call_count,normalized_count,inserted_count FROM pcapdroid_captures ORDER BY id DESC LIMIT 1",
+            null
+        ).use { c ->
+            if (!c.moveToFirst()) return null
+            return PcapdroidCaptureSummary(
+                c.getLong(0), c.getString(1), c.getString(2), c.getLong(3),
+                c.getInt(4), c.getInt(5), c.getInt(6)
+            )
+        }
+    }
+
+    fun pcapdroidCalls(captureId: Long, limit: Int = 30): List<PcapdroidStoredCall> {
+        val calls = mutableListOf<PcapdroidStoredCall>()
+        readableDatabase.rawQuery(
+            """SELECT sequence,host,method,path,status,started_at,request_mime,response_mime,
+                      classification,request_kind,response_kind,request_bytes,response_bytes,
+                      request_preview,response_preview
+               FROM pcapdroid_calls WHERE capture_id=? ORDER BY sequence LIMIT ?""".trimIndent(),
+            arrayOf(captureId.toString(), limit.coerceIn(1, 200).toString())
+        ).use { c ->
+            while (c.moveToNext()) calls.add(PcapdroidStoredCall(
+                c.getInt(0), c.getString(1), c.getString(2), c.getString(3),
+                if (c.isNull(4)) null else c.getInt(4), c.getString(5),
+                c.getString(6), c.getString(7), c.getString(8), c.getString(9),
+                c.getString(10), c.getInt(11), c.getInt(12), c.getString(13), c.getString(14)
+            ))
+        }
+        return calls
     }
 
     fun summary(): MirrorSummary {
