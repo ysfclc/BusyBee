@@ -627,8 +627,7 @@ class MainActivity : AppCompatActivity() {
                     AlertDialog.Builder(this)
                         .setTitle("PCAPdroid capture interpreted")
                         .setMessage(message)
-                        .setPositiveButton("View calls", null)
-                        .setNeutralButton("Done", null)
+                        .setPositiveButton("Close", null)
                         .show()
                 }
             } catch (error: Exception) {
