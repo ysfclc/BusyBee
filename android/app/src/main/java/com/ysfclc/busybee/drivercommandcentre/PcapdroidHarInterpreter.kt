@@ -264,7 +264,7 @@ object PcapdroidHarInterpreter {
     private fun redactText(value: String): String {
         var output = value
         output = output.replace(Regex("(?i)bearer\\s+[a-z0-9._~+/=-]+"), "Bearer [REDACTED]")
-        output = output.replace(Regex("(?i)(authorization|cookie|set-cookie|access_token|refresh_token|client_secret)(\\s*[:=]\\s*)[^\\s,;]+")) {
+        output = output.replace(Regex("(?i)(authorization|cookie|set-cookie|token|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|session[_-]?id|api[_-]?key)(\\s*[:=]\\s*)[^\\s,;&]+")) {
             it.groupValues[1] + it.groupValues[2] + "[REDACTED]"
         }
         output = output.replace(Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), "[REDACTED_EMAIL]")
@@ -412,7 +412,7 @@ object PcapdroidHarInterpreter {
         return null
     }
 
-    private fun firstNonBlank(vararg values: String): String? = values.firstOrNull { it.isNotBlank() }
+    private fun firstNonBlank(vararg values: String?): String? = values.firstOrNull { !it.isNullOrBlank() }
 
     private fun hostFromUrl(url: String): String {
         val withoutScheme = url.substringAfter("://", url)
