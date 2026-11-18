@@ -83,6 +83,7 @@ class MainActivity : AppCompatActivity() {
     private val documentPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importDocument(uri)}
     private val chatPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importCommunity(uri)}
     private val csvPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importCsv(uri)}
+    private val pcapdroidPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)choosePcapdroidProvider(uri)}
 
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
@@ -562,8 +563,124 @@ class MainActivity : AppCompatActivity() {
         }catch(e:Exception){Toast.makeText(this,"Import failed: "+e.message,Toast.LENGTH_LONG).show()}
     }
 
+
+    private fun choosePcapdroidProvider(uri:Uri) {
+        val options = arrayOf("Bolt Driver", "Uber Driver", "Unknown / Other")
+        AlertDialog.Builder(this)
+            .setTitle("Which app was captured?")
+            .setItems(options) { _, selected ->
+                val provider = when (selected) {
+                    0 -> "Bolt"
+                    1 -> "Uber"
+                    else -> "Unknown"
+                }
+                importPcapdroidHar(uri, provider)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun readPcapdroidHar(uri:Uri):String {
+        val output = java.io.ByteArrayOutputStream()
+        val input = contentResolver.openInputStream(uri) ?: error("The selected file could not be opened.")
+        input.use { stream ->
+            val buffer = ByteArray(8 * 1024)
+            var total = 0
+            while (true) {
+                val count = stream.read(buffer)
+                if (count < 0) break
+                total += count
+                require(total <= 40 * 1024 * 1024) { "HAR file exceeds the 40 MB import limit." }
+                output.write(buffer, 0, count)
+            }
+        }
+        return String(output.toByteArray(), Charsets.UTF_8)
+    }
+
+    private fun importPcapdroidHar(uri:Uri, provider:String) {
+        Toast.makeText(this, "Interpreting PCAPdroid capture…", Toast.LENGTH_SHORT).show()
+        worker.execute {
+            try {
+                val name = contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val column = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (cursor.moveToFirst() && column >= 0) cursor.getString(column) else "pcapdroid-export.har"
+                } ?: "pcapdroid-export.har"
+                val analysis = PcapdroidHarInterpreter.interpret(readPcapdroidHar(uri), provider)
+                val sourceName = "PCAPdroid · " + provider + " · " + name
+                val saved = mirror.importPcapdroidCapture(sourceName, analysis)
+                runOnUiThread {
+                    showTab("SOURCES")
+                    val endpointCounts = analysis.calls.groupBy { it.classification }
+                        .entries.sortedByDescending { it.value.size }.take(6)
+                        .joinToString("\n") { it.key + ": " + it.value.size }
+                    val message = buildString {
+                        append("HTTP calls reconstructed: ").append(saved.callCount)
+                        append("\nJSON bodies: ").append(analysis.jsonBodies)
+                        append("\nText/form bodies: ").append(analysis.textBodies)
+                        append("\nBinary/opaque bodies: ").append(analysis.binaryBodies)
+                        append(" (Protobuf-like: ").append(analysis.protobufBodies).append(")")
+                        append("\nOffer/trip observations: ").append(saved.normalizedCount)
+                        append("\nNew Driver Mirror records: ").append(saved.insertedCount)
+                        append("\n\nCall classification\n").append(endpointCounts.ifBlank { "No classified calls." })
+                        append("\n\nRequest and response previews are redacted and stored locally. Only explicit offer/trip-shaped JSON objects become Driver Mirror records.")
+                    }
+                    AlertDialog.Builder(this)
+                        .setTitle("PCAPdroid capture interpreted")
+                        .setMessage(message)
+                        .setPositiveButton("View calls", null)
+                        .setNeutralButton("Done", null)
+                        .show()
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setTitle("PCAPdroid import failed")
+                        .setMessage(error.message ?: "The HAR could not be interpreted.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+            }
+        }
+    }
+
+    private fun showPcapdroidCall(call:PcapdroidStoredCall) {
+        val message = buildString {
+            append(call.method).append(" ").append(call.path)
+            append("\nHTTP status: ").append(call.status?.toString() ?: "not recorded")
+            append("\nClass: ").append(call.classification)
+            append("\nStarted: ").append(call.startedAt ?: "not recorded")
+            append("\nRequest: ").append(call.requestKind).append(" · ").append(call.requestBytes).append(" bytes")
+            append("\nRequest MIME: ").append(call.requestMime ?: "not recorded")
+            append("\n\nREQUEST PAYLOAD\n").append(call.requestPreview)
+            append("\n\nResponse: ").append(call.responseKind).append(" · ").append(call.responseBytes).append(" bytes")
+            append("\nResponse MIME: ").append(call.responseMime ?: "not recorded")
+            append("\n\nRESPONSE PAYLOAD\n").append(call.responsePreview)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(call.host + " · " + call.method)
+            .setMessage(message.take(12_000))
+            .setPositiveButton("Close", null)
+            .show()
+    }
+
     private fun buildSourcesScreen():View{
         val root=columnScroll()
+        val captureCard=card()
+        captureCard.addView(label("PCAPDROID PAYLOAD INGESTION",11f,MINT,true))
+        captureCard.addView(label("In PCAPdroid, open the HTTP Requests view and export the decrypted requests as HAR. Importing HAR resolves only traffic PCAPdroid successfully decrypted; encrypted-only flows stay opaque.",10f,MUTED,false).apply{setPadding(0,dp(5),0,dp(8))})
+        captureCard.addView(action("IMPORT PCAPDROID HAR",true){pcapdroidPicker.launch(arrayOf("application/json","application/har","*/*"))},LinearLayout.LayoutParams(-1,dp(40)))
+        mirror.latestPcapdroidCapture()?.let { capture ->
+            captureCard.addView(label("LAST CAPTURE · "+capture.provider.uppercase(),10f,MINT,true).apply{setPadding(0,dp(12),0,dp(3))})
+            captureCard.addView(label(capture.callCount.toString()+" calls · "+capture.normalizedCount+" offer/trip observations · "+capture.insertedCount+" new records",10f,WHITE,false))
+            mirror.pcapdroidCalls(capture.id,12).forEach { call ->
+                val status = call.status?.toString() ?: "—"
+                captureCard.addView(action(
+                    call.method+"  "+call.host+call.path+"  ·  "+status+"  ·  "+call.classification,
+                    false
+                ){showPcapdroidCall(call)},LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(4)})
+            }
+        }
+        root.addView(captureCard)
         root.addView(section("INTELLIGENCE NETWORK","Independent source status. Candidate does not mean connected."))
         val live=card();live.addView(label("AVAILABLE IN THIS BUILD",11f,MINT,true))
         sourceRow(live,"OpenFreeMap / OpenStreetMap","Vector streets, labels and 3D building extrusions","LIVE · OSM attribution")
