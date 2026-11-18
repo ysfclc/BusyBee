@@ -137,6 +137,28 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
 
+      - name: Verify debug APK and checksum
+        if: steps.signing-check.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -E "^package:|^sdkVersion:|^targetSdkVersion:"
+          sha256sum "$APK" | tee android/app/build/outputs/apk/debug/SHA256SUMS
+
+      - name: Upload debug APK for pull-request testing
+        if: github.event_name == 'pull_request' && steps.signing-check.outputs.ready != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: busybee-debug-${{ github.run_number }}
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/debug/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Verify signed APK signature
         if: steps.signing-check.outputs.ready == 'true'
         shell: bash
@@ -183,6 +205,9 @@ jobs:
               echo "- Version: 0.1.${{ github.run_number }}"
               echo "- Signing: verified with apksigner"
               echo "- Download: ${{ steps.publish.outputs.url }}"
+              if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.signing-check.outputs.ready }}" != "true" ]]; then
+                echo "- PR test APK: workflow artifact busybee-debug-${{ github.run_number }} (14-day retention)."
+              fi
               echo "- Updates: same package ID and signing certificate preserve app data."
             else
               echo "## Debug APK built — release signing still required"
