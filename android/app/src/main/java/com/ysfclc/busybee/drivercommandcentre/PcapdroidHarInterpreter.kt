@@ -184,7 +184,7 @@ object PcapdroidHarInterpreter {
             return DecodedBody(
                 if (protobuf != null) "protobuf-like" else "binary",
                 bytes.size,
-                protobuf ?: "Binary payload · \${bytes.size} bytes · " + hexPreview(bytes),
+                protobuf ?: "Binary payload · ${bytes.size} bytes · " + hexPreview(bytes),
                 null
             )
         }
