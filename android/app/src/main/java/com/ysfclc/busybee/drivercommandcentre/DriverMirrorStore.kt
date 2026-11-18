@@ -422,25 +422,29 @@ class DriverMirrorStore(context: Context) :
 
     fun summary(): MirrorSummary {
         val db = readableDatabase
+        val realisedTripFilter = "lower(record_type) IN ('trip','ride','completed_trip')"
         fun scalar(sql: String): Double {
             db.rawQuery(sql, null).use { c -> return if (c.moveToFirst()) c.getDouble(0) else 0.0 }
         }
         fun nullableSum(column: String): Double? {
-            db.rawQuery("SELECT SUM($column) FROM records WHERE currency='PLN' AND $column IS NOT NULL", null).use { c ->
+            db.rawQuery(
+                "SELECT SUM($column) FROM records WHERE currency='PLN' AND $column IS NOT NULL AND $realisedTripFilter",
+                null
+            ).use { c ->
                 return if (c.moveToFirst() && !c.isNull(0)) c.getDouble(0) else null
             }
         }
         val records = scalar("SELECT COUNT(*) FROM records").toInt()
-        val trips = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type) IN ('trip','ride','completed_trip')").toInt()
+        val trips = scalar("SELECT COUNT(*) FROM records WHERE $realisedTripFilter").toInt()
         val offers = scalar("SELECT COUNT(*) FROM records WHERE lower(record_type)='offer'").toInt()
-        // Never add unlike currencies together. Headline totals are PLN-only.
+        // Offers are estimates, not realised income. Only completed trip records feed earnings totals.
         val gross = nullableSum("gross")
         val fees = nullableSum("fees")
         val bonuses = nullableSum("bonus")
         val imports = scalar("SELECT COUNT(*) FROM imports").toInt()
         val nonPln = scalar("SELECT COUNT(*) FROM records WHERE currency<>'PLN'").toInt()
-        val grossRows = scalar("SELECT COUNT(*) FROM records WHERE currency='PLN' AND gross IS NOT NULL")
-        val incompleteNetRows = scalar("SELECT COUNT(*) FROM records WHERE currency='PLN' AND gross IS NOT NULL AND (fees IS NULL OR bonus IS NULL)")
+        val grossRows = scalar("SELECT COUNT(*) FROM records WHERE currency='PLN' AND gross IS NOT NULL AND $realisedTripFilter")
+        val incompleteNetRows = scalar("SELECT COUNT(*) FROM records WHERE currency='PLN' AND gross IS NOT NULL AND (fees IS NULL OR bonus IS NULL) AND $realisedTripFilter")
         val netComplete = grossRows > 0 && incompleteNetRows == 0.0
         val platforms = mutableListOf<String>()
         db.rawQuery("SELECT DISTINCT platform FROM records ORDER BY platform", null).use { c ->
