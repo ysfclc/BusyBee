@@ -666,12 +666,12 @@ class MainActivity : AppCompatActivity() {
         val root=columnScroll()
         val captureCard=card()
         captureCard.addView(label("PCAPDROID PAYLOAD INGESTION",11f,MINT,true))
-        captureCard.addView(label("In PCAPdroid, open the HTTP Requests view and export the decrypted requests as HAR. Importing HAR resolves only traffic PCAPdroid successfully decrypted; encrypted-only flows stay opaque.",10f,MUTED,false).apply{setPadding(0,dp(5),0,dp(8))})
+        captureCard.addView(label("In PCAPdroid, enable Full payload and TLS decryption where supported. Open HTTP Requests and export decrypted requests as HAR. Only payloads PCAPdroid successfully decrypted are resolved; encrypted-only flows stay opaque.",10f,MUTED,false).apply{setPadding(0,dp(5),0,dp(8))})
         captureCard.addView(action("IMPORT PCAPDROID HAR",true){pcapdroidPicker.launch(arrayOf("application/json","application/har","*/*"))},LinearLayout.LayoutParams(-1,dp(40)))
         mirror.latestPcapdroidCapture()?.let { capture ->
             captureCard.addView(label("LAST CAPTURE · "+capture.provider.uppercase(),10f,MINT,true).apply{setPadding(0,dp(12),0,dp(3))})
             captureCard.addView(label(capture.callCount.toString()+" calls · "+capture.normalizedCount+" offer/trip observations · "+capture.insertedCount+" new records",10f,WHITE,false))
-            mirror.pcapdroidCalls(capture.id,12).forEach { call ->
+            mirror.pcapdroidCalls(capture.id,200).forEach { call ->
                 val status = call.status?.toString() ?: "—"
                 captureCard.addView(action(
                     call.method+"  "+call.host+call.path+"  ·  "+status+"  ·  "+call.classification,
