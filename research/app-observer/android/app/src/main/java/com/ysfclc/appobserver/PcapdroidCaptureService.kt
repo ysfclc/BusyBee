@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Receives PCAPdroid's localhost UDP exporter while a user-started session is active.
- * It only binds to 127.0.0.1 and writes raw-IP PCAP evidence into this app's private session folder.
+ * It only binds to 127.0.0.1 and writes raw-IP or Ethernet PCAP evidence into this app's private session folder.
  */
 class PcapdroidCaptureService : Service() {
     @Volatile private var receiverSocket: DatagramSocket? = null
@@ -63,6 +63,7 @@ class PcapdroidCaptureService : Service() {
         val pcapFile = File(directory, "network.pcap")
         var packets = 0L
         var bytes = 0L
+        var pcapLinkType: Int? = null
         try {
             DatagramSocket(null).use { socket ->
                 receiverSocket = socket
@@ -77,8 +78,6 @@ class PcapdroidCaptureService : Service() {
                 FileOutputStream(pcapFile, false).use { output ->
                     FileOutputStream(File(directory, "network-events.jsonl"), false)
                         .bufferedWriter(Charsets.UTF_8).use { networkIndex ->
-                            output.write(PCAP_GLOBAL_HEADER)
-                            output.flush()
                             val buffer = ByteArray(65_535)
                             while (!stopping.get()) {
                                 val datagram = DatagramPacket(buffer, buffer.size)
@@ -94,6 +93,22 @@ class PcapdroidCaptureService : Service() {
                                     length,
                                     ObservationStore.activePackage(this) ?: "selected-app"
                                 ) ?: continue
+
+                                if (pcapLinkType == null) {
+                                    pcapLinkType = packet.linkType
+                                    output.write(PcapdroidPacketParser.globalHeader(packet.linkType))
+                                } else if (packet.linkType != pcapLinkType) {
+                                    // Classic PCAP has one link type per file. Keep the capture valid
+                                    // and make the incompatible datagram visible in the session log.
+                                    ObservationStore.appendSessionEvent(this, JSONObject()
+                                        .put("type", "pcap_packet_link_type_mismatch")
+                                        .put("timestampEpochMs", System.currentTimeMillis())
+                                        .put("expectedLinkType", pcapLinkType)
+                                        .put("receivedLinkType", packet.linkType)
+                                        .put("packetBytes", packet.packetData.size))
+                                    continue
+                                }
+
                                 output.write(packet.recordHeader)
                                 output.write(packet.packetData)
                                 packets++
@@ -104,6 +119,10 @@ class PcapdroidCaptureService : Service() {
                                     networkIndex.flush()
                                     updateNotification("Capturing: $packets packets · " + (bytes / 1024) + " KB")
                                 }
+                            }
+                            if (pcapLinkType == null) {
+                                // A valid empty capture still needs a global header.
+                                output.write(PcapdroidPacketParser.globalHeader(PcapdroidPacketParser.DLT_RAW))
                             }
                             output.flush()
                             networkIndex.flush()
@@ -176,14 +195,5 @@ class PcapdroidCaptureService : Service() {
         const val EXTRA_FINISH_REASON = "finish_reason"
         const val PORT = 5123
         const val LOOPBACK = "127.0.0.1"
-        private const val CHANNEL_ID = "app_observer_capture"
-        private const val NOTIFICATION_ID = 7512
-        private val PCAP_GLOBAL_HEADER = byteArrayOf(
-            0xd4.toByte(), 0xc3.toByte(), 0xb2.toByte(), 0xa1.toByte(),
-            0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0xff.toByte(), 0xff.toByte(),
-            // DLT_RAW (101): PCAPdroid exports raw IP packets when metadata extensions are disabled.
-            0x65, 0x00, 0x00, 0x00
-        )
     }
 }
