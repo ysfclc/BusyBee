@@ -28,6 +28,17 @@ object PcapdroidPacketParser {
     const val DLT_RAW = 101
     const val DLT_EN10MB = 1
 
+    /** Build a classic-PCAP global header whose link type matches packetData. */
+    fun globalHeader(linkType: Int): ByteArray {
+        require(linkType == DLT_RAW || linkType == DLT_EN10MB) { "Unsupported PCAP link type: $linkType" }
+        return byteArrayOf(
+            0xd4.toByte(), 0xc3.toByte(), 0xb2.toByte(), 0xa1.toByte(),
+            0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0xff.toByte(), 0xff.toByte(),
+            linkType.toByte(), (linkType ushr 8).toByte(), 0x00, 0x00
+        )
+    }
+
     fun isGlobalHeader(bytes: ByteArray, length: Int): Boolean =
         length == 24 && bytes.size >= 4 &&
             bytes[0] == 0xd4.toByte() && bytes[1] == 0xc3.toByte() &&
