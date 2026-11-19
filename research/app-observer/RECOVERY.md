@@ -14,6 +14,7 @@ It is not a standalone diagnostics dashboard, not the BusyBee app, and not just 
 - App source: `research/app-observer/android`
 - Debug package: `com.ysfclc.appobserver.debug`
 - Debug APK: `research/app-observer/android/app/build/outputs/apk/debug/app-debug.apk`
+- Draft PR: [#18](https://github.com/ysfclc/BusyBee/pull/18)
 - This branch is deliberately separate from the older draft PR #17 branch, which contains unrelated BusyBee-side PCAP/HAR ingestion work. Do not merge that branch as part of this App Observer task.
 
 ## Implemented in source on this branch
@@ -25,22 +26,27 @@ It is not a standalone diagnostics dashboard, not the BusyBee app, and not just 
 - Selected-app notification evidence when visible text is opted in.
 - PCAPdroid CaptureCtrl API integration for start/stop and package filtering.
 - PCAPdroid UDP exporter receiver bound to loopback only.
-- Raw-IP PCAP output that does not require PCAPdroid's optional paid metadata extension, plus parsing support for extended packets.
+- Classic PCAP output with a global-header link type selected from the first valid packet: raw IP in the default exporter mode, Ethernet when the optional PCAPdroid metadata extension is present.
+- A single link type per PCAP file; an unexpected change is recorded in the session log and the incompatible datagram is excluded rather than corrupting the file.
 - Packet-level JSONL index with selected-package identity, endpoints, ports, protocol, payload sizes and timestamps; UID is only available when the optional PCAPdroid extension is present.
 - ZIP export containing session metadata, UI timeline, network event index, PCAP and Android capability report.
-- Unit tests for UDP-exporter packet parsing and extension stripping.
+- Unit tests for raw-IP and Ethernet PCAP headers, UDP-exporter packet parsing, metadata-extension parsing and malformed datagrams.
 
-## CI verification
+## Latest CI verification — 2026-11-19
 
-- Current commit: `71e535256c784bd56c4c1d2716db98e16d06beb0`
+- Branch head: `ae8cefb516f2e9f255b250a7d62efc57410a876f`
 - Draft PR: [#18](https://github.com/ysfclc/BusyBee/pull/18)
-- GitHub Actions run: [#31](https://github.com/ysfclc/BusyBee/actions/runs/44489049927) — passed
-- Unit tests and Android debug assemble: passed
-- APK signature verification: passed
+- GitHub Actions run: [#46](https://github.com/ysfclc/BusyBee/actions/runs/44595753635) — **passed**
+- Android unit tests: passed
+- Debug APK assembly: passed
+- APK v2 signature verification: passed
+- Artifact upload: passed
 - Package: `com.ysfclc.appobserver.debug`
-- Version: `0.2.0-observation-debug`
-- APK SHA-256: `cbec72071659d7b061106c67bf7ab202ff0be03bb733ca305046f541f0a5ff63`
-- Workflow artifact: `14511203369` (temporary, expires 2026-12-03)
+- Version: `0.2.0-observation-debug` (versionCode 2)
+- APK SHA-256: `0b7ed28f99d8efcc8468f2eb9bffcf11234c1db5e13ab80756359d5b36e22207`
+- Workflow artifact: `14564359227`, `app-observer-evidence-recorder-46` (temporary, expires 2026-12-03)
+
+The artifact was downloaded and its APK SHA-256 was independently checked against the workflow's `SHA256SUMS` file.
 
 ## Not yet verified on a real device
 
@@ -48,7 +54,7 @@ It is not a standalone diagnostics dashboard, not the BusyBee app, and not just 
 - Actual packet delivery, TLS decryption outcomes and packet-to-screen correlation against Uber/Bolt.
 - OEM-specific Accessibility service reliability when App Observer is backgrounded.
 
-The APK build is verified; end-to-end device observation is not. Do not claim real Uber/Bolt packets have been captured until a physical-device evidence ZIP proves it.
+The APK build and automated tests are verified; end-to-end device observation is not. Do not claim real Uber/Bolt packets have been captured until a physical-device evidence ZIP proves it.
 
 ## Build
 
