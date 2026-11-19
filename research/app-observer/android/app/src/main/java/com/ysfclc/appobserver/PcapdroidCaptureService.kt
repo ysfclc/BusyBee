@@ -195,5 +195,7 @@ class PcapdroidCaptureService : Service() {
         const val EXTRA_FINISH_REASON = "finish_reason"
         const val PORT = 5123
         const val LOOPBACK = "127.0.0.1"
+        private const val CHANNEL_ID = "app_observer_capture"
+        private const val NOTIFICATION_ID = 7512
     }
 }
