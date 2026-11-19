@@ -1,34 +1,67 @@
-# App Observer Lab recovery record
+# App Observer recovery and project state
 
-This is a standalone diagnostic app. It is NOT BusyBee and must not be merged into BusyBee's product UI.
+## Product purpose
+
+App Observer is a separate Android research recorder whose job is to provide real evidence for BusyBee engineering. It correlates the selected driver's app UI lifecycle with network packets captured through PCAPdroid.
+
+It is not a standalone diagnostics dashboard, not the BusyBee app, and not just a HAR importer.
 
 ## Source of truth
-- Source branch: `research/app-observer-lab-2026-11-16`
-- Source commit at this recovery: `6a8ac7fa9d1aaf41e6df6e8a51e2d6ec0e1571b1`
-- Pull request: #17 (draft)
-- Package: `com.ysfclc.appobserver.debug`
-- APK: `research/app-observer/android/app/build/outputs/apk/debug/app-debug.apk`
 
-## Verified recovery APK
-- GitHub Actions workflow run: `44424379275` (App Observer Lab APK, success)
-- Artifact ID: `14483645939` (temporary; expires 2026-12-02)
-- APK SHA-256: `5b4c903f53c0312b0412b1754bdce2335a00c0fab2098a2978300b3f9cc2ae57`
+- Repository: `ysfclc/BusyBee`
+- Isolated working branch: `research/app-observer-observation-2026-11-19`
+- Base: `main`
+- App source: `research/app-observer/android`
+- Debug package: `com.ysfclc.appobserver.debug`
+- Debug APK: `research/app-observer/android/app/build/outputs/apk/debug/app-debug.apk`
+- This branch is deliberately separate from the older draft PR #17 branch, which contains unrelated BusyBee-side PCAP/HAR ingestion work. Do not merge that branch as part of this App Observer task.
 
-The checksum was verified against the APK extracted from the artifact. Artifact is temporary; source code and reproducible build instructions are the durable recovery route.
+## Implemented in source on this branch
 
-## Rebuild
-From repository root:
+- Explicit session lifecycle and selected-app filtering.
+- Read-only Accessibility UI timeline for the selected package, with optional visible text capture.
+- Exclusion of editable and password fields.
+- Common phone, email and token redaction before visible text is persisted.
+- Selected-app notification evidence when visible text is opted in.
+- PCAPdroid CaptureCtrl API integration for start/stop and package filtering.
+- PCAPdroid UDP exporter receiver bound to loopback only.
+- PCAPdroid extension/FCS removal and standard Ethernet PCAP output.
+- Packet-level JSONL index with app identity/UID, endpoints, ports, protocol, payload sizes and timestamps.
+- ZIP export containing session metadata, UI timeline, network event index, PCAP and Android capability report.
+- Unit tests for UDP-exporter packet parsing and extension stripping.
+
+## Not yet verified
+
+- The Android Gradle build and unit tests on this branch.
+- PCAPdroid interoperability on a physical Android device.
+- Actual packet delivery, TLS decryption outcomes and packet-to-screen correlation against Uber/Bolt.
+- OEM-specific Accessibility service reliability when App Observer is backgrounded.
+
+Do not describe these items as complete until the workflow/device evidence exists.
+
+## Build
+
 ```sh
 chmod +x android/gradlew
 android/gradlew -p research/app-observer/android --no-daemon testDebugUnitTest assembleDebug
 ```
 
-## Scope guard
-App Observer is the place for observation experiments. Do not add App Observer experiments into BusyBee by default. Keep its existing scope and permissions explicit, and don't expand it into packet capture, TLS decryption, credential collection, or third-party app automation without a separate reviewed task.
+## Acceptance test on device
 
-## Recovery procedure
-1. Read this file and `README.md`.
-2. Build from the source branch above; do not rely on a temporary artifact.
-3. Verify APK package, signature, and checksum.
-4. Run the phone checklist in `README.md`.
-5. Preserve the last verified APK checksum and build run here before replacing it.
+1. Install App Observer and PCAPdroid.
+2. Enable App Observer's Accessibility service.
+3. Open App Observer, select Uber Driver or Bolt Driver, and start a session.
+4. Approve PCAPdroid's capture request.
+5. Use the selected app through several visible state changes and one network event.
+6. Stop the session and export its ZIP.
+7. Confirm that `session.json`, `ui-events.jsonl`, `network-events.jsonl` and `network.pcap` exist when the relevant capture channels were enabled.
+8. Open the PCAP in Wireshark or another analyzer and compare timestamps with the UI timeline.
+9. Review for personal data before sharing the ZIP.
+
+## Safety and scope guard
+
+- No third-party app actions, clicks, gestures, request replay, credential collection, process injection, private database access or TLS pinning bypass.
+- The user explicitly starts each session and approves PCAPdroid's capture.
+- Visible UI/notification text is an optional explicit session setting.
+- Evidence remains local until the user exports it. The ZIP can contain sensitive information and must be reviewed before sharing.
+- Keep all research capture and analysis in this App Observer project unless a separate, explicit BusyBee integration task is authorized.
