@@ -211,6 +211,7 @@ class MainActivity : Activity() {
     }
 
     private fun launchPcapdroidStart(app: ObservedApp, sessionId: String) {
+        if (!ObservationStore.hasActiveSession(this)) return
         ObservationStore.appendSessionEvent(this, JSONObject()
             .put("type", "pcapdroid_start_requested")
             .put("timestampEpochMs", System.currentTimeMillis())
@@ -274,17 +275,24 @@ class MainActivity : Activity() {
         return null
     }
 
+    @Suppress("DEPRECATION")
     private fun isPackageInstalled(packageName: String): Boolean =
         runCatching {
-            if (Build.VERSION.SDK_INT >= 33) packageManager.getPackageInfo(
-                packageName, PackageManager.PackageInfoFlags.of(0)
-            ) else @Suppress("DEPRECATION") packageManager.getPackageInfo(packageName, 0)
+            if (Build.VERSION.SDK_INT >= 33) {
+                packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                packageManager.getPackageInfo(packageName, 0)
+            }
         }.isSuccess
 
     private fun exportEvidenceBundle() {
         val directory = ObservationStore.latestDirectory(this)
         if (directory == null) {
             Toast.makeText(this, "No session evidence exists yet.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (ObservationStore.hasActiveSession(this)) {
+            Toast.makeText(this, "Stop the research session before exporting its evidence.", Toast.LENGTH_LONG).show()
             return
         }
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
