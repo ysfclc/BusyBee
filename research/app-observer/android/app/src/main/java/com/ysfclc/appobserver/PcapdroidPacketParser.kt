@@ -38,7 +38,7 @@ object PcapdroidPacketParser {
         val uid = trailer.int
         val appBytes = ByteArray(20)
         trailer.get(appBytes)
-        val appName = appBytes.toString(Charsets.UTF_8).trim('\u0000', ' ')
+        val appName = String(appBytes, Charsets.UTF_8).trim('\u0000', ' ')
         if (appName.isBlank()) return null
 
         val frameLength = trailerStart - RECORD_HEADER_SIZE
