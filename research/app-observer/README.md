@@ -25,7 +25,7 @@ App Observer uses PCAPdroid's documented CaptureCtrl activity API:
 - Sends packets to a UDP socket bound only to `127.0.0.1:5123`.
 - Requests full packet payloads and TLS decryption when the payload option is enabled. It does not require PCAPdroid's optional paid metadata extension; package filtering supplies the app scope.
 - Writes the packet stream as a standard raw-IP PCAP file. The receiver also recognizes the optional PCAPdroid metadata-extension format if it is present.
-- Records packet timestamps, app identity/UID, IP endpoints, ports, transport protocol and payload lengths in a JSONL index.
+- Records packet timestamps, selected-package identity, IP endpoints, ports, transport protocol and payload lengths in a JSONL index. UID/app-name metadata is available only when PCAPdroid supplies its optional extension.
 
 The integration does not silently approve PCAPdroid, bypass certificate pinning, extract credentials, or replay requests. TLS decryption is subject to PCAPdroid's consent flow and the selected app's TLS controls. Encrypted payloads remain encrypted when PCAPdroid cannot decrypt them.
 
