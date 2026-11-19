@@ -17,7 +17,7 @@ class AppCatalogTest {
 
     @Test
     fun contentPolicyDescribesSessionScopedOptInCapture() {
-        assertTrue(AppCatalog.CONTENT_POLICY.contains("selected app"))
+        assertTrue(AppCatalog.CONTENT_POLICY.contains("selected driver"))
         assertTrue(AppCatalog.CONTENT_POLICY.contains("explicit session toggle"))
         assertTrue(AppCatalog.CONTENT_POLICY.contains("password fields"))
     }
