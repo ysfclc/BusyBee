@@ -70,7 +70,7 @@ object ObserverReport {
                 .put("selectedAppNotifications", "metadata_and_optional_redacted_title_text")
                 .put("pcapdroidControlApi", "start_stop_status_via_user_consent")
                 .put("perAppPacketCapture", "implemented_via_pcapdroid_localhost_udp_exporter")
-                .put("packetExport", "standard_ethernet_pcap_without_pcapdroid_extension_trailer")
+                .put("packetExport", "standard_raw_ip_pcap_without_requiring_paid_metadata_extensions")
                 .put("httpsPayloadDecryption", "requested_from_pcapdroid_when_opted_in_subject_to_app_tls_controls")
                 .put("inProcessPlaintextObservation", "separate_owned_app_test_harness_only")
                 .put("providerPrivateDatabaseAccess", "not_attempted")
