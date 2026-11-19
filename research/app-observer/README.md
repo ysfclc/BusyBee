@@ -23,8 +23,8 @@ App Observer uses PCAPdroid's documented CaptureCtrl activity API:
 - Requests capture start/stop through an Android activity result, so PCAPdroid can ask the user for consent.
 - Starts `udp_exporter` mode filtered to the selected package.
 - Sends packets to a UDP socket bound only to `127.0.0.1:5123`.
-- Requests PCAPdroid's packet metadata extension, full payloads and TLS decryption when the payload option is enabled.
-- Removes the PCAPdroid per-packet metadata trailer and writes the packet stream as a standard Ethernet PCAP file.
+- Requests full packet payloads and TLS decryption when the payload option is enabled. It does not require PCAPdroid's optional paid metadata extension; package filtering supplies the app scope.
+- Writes the packet stream as a standard raw-IP PCAP file. The receiver also recognizes the optional PCAPdroid metadata-extension format if it is present.
 - Records packet timestamps, app identity/UID, IP endpoints, ports, transport protocol and payload lengths in a JSONL index.
 
 The integration does not silently approve PCAPdroid, bypass certificate pinning, extract credentials, or replay requests. TLS decryption is subject to PCAPdroid's consent flow and the selected app's TLS controls. Encrypted payloads remain encrypted when PCAPdroid cannot decrypt them.
@@ -67,7 +67,7 @@ The ZIP can contain:
 - `events.jsonl` — session lifecycle and receiver status.
 - `ui-events.jsonl` — selected-app UI snapshots and optional visible labels/notification text.
 - `network-events.jsonl` — packet-level metadata.
-- `network.pcap` — standard Ethernet PCAP with packet payloads as captured by PCAPdroid.
+- `network.pcap` — standard raw-IP PCAP with packet payloads as captured by PCAPdroid.
 - `device-capability-report.json` — Android app/version/permission and observer capability report.
 - `REVIEW-BEFORE-SHARING.txt` — reminder to inspect the bundle for personal data.
 
