@@ -10,7 +10,6 @@ import android.os.IBinder
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
-import java.io.BufferedWriter
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -78,33 +77,37 @@ class PcapdroidCaptureService : Service() {
                 FileOutputStream(pcapFile, false).use { output ->
                     FileOutputStream(File(directory, "network-events.jsonl"), false)
                         .bufferedWriter(Charsets.UTF_8).use { networkIndex ->
-                    output.write(PCAP_GLOBAL_HEADER)
-                    output.flush()
-                    val buffer = ByteArray(65_535)
-                    while (!stopping.get()) {
-                        val datagram = DatagramPacket(buffer, buffer.size)
-                        try {
-                            socket.receive(datagram)
-                        } catch (_: SocketTimeoutException) {
-                            continue
-                        }
-                        val length = datagram.length
-                        if (PcapdroidPacketParser.isGlobalHeader(buffer, length)) continue
-                        val packet = PcapdroidPacketParser.parse(buffer, length, ObservationStore.activePackage(this) ?: "selected-app") ?: continue
-                        output.write(packet.recordHeader)
-                        output.write(packet.packetData)
-                        packets++
-                        bytes += packet.packetData.size
-                        networkIndex.append(packet.summary.toString()).append('\n')
-                        if (packets % 24L == 0L) {
+                            output.write(PCAP_GLOBAL_HEADER)
+                            output.flush()
+                            val buffer = ByteArray(65_535)
+                            while (!stopping.get()) {
+                                val datagram = DatagramPacket(buffer, buffer.size)
+                                try {
+                                    socket.receive(datagram)
+                                } catch (_: SocketTimeoutException) {
+                                    continue
+                                }
+                                val length = datagram.length
+                                if (PcapdroidPacketParser.isGlobalHeader(buffer, length)) continue
+                                val packet = PcapdroidPacketParser.parse(
+                                    buffer,
+                                    length,
+                                    ObservationStore.activePackage(this) ?: "selected-app"
+                                ) ?: continue
+                                output.write(packet.recordHeader)
+                                output.write(packet.packetData)
+                                packets++
+                                bytes += packet.packetData.size
+                                networkIndex.append(packet.summary.toString()).append('\n')
+                                if (packets % 24L == 0L) {
+                                    output.flush()
+                                    networkIndex.flush()
+                                    updateNotification("Capturing: $packets packets · " + (bytes / 1024) + " KB")
+                                }
+                            }
                             output.flush()
                             networkIndex.flush()
-                            updateNotification("Capturing: $packets packets · " + (bytes / 1024) + " KB")
                         }
-                    }
-                    output.flush()
-                    networkIndex.flush()
-                    }
                 }
             }
         } catch (error: Exception) {
