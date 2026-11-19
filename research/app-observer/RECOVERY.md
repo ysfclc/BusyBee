@@ -25,7 +25,7 @@ It is not a standalone diagnostics dashboard, not the BusyBee app, and not just 
 - Selected-app notification evidence when visible text is opted in.
 - PCAPdroid CaptureCtrl API integration for start/stop and package filtering.
 - PCAPdroid UDP exporter receiver bound to loopback only.
-- PCAPdroid extension/FCS removal and standard Ethernet PCAP output.
+- Raw-IP PCAP output that does not require PCAPdroid's optional paid metadata extension, plus parsing support for extended packets.
 - Packet-level JSONL index with app identity/UID, endpoints, ports, protocol, payload sizes and timestamps.
 - ZIP export containing session metadata, UI timeline, network event index, PCAP and Android capability report.
 - Unit tests for UDP-exporter packet parsing and extension stripping.
