@@ -10,6 +10,7 @@ import android.os.IBinder
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.io.BufferedWriter
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -75,6 +76,8 @@ class PcapdroidCaptureService : Service() {
                     .put("collector", "$LOOPBACK:$PORT"))
 
                 FileOutputStream(pcapFile, false).use { output ->
+                    FileOutputStream(File(directory, "network-events.jsonl"), false)
+                        .bufferedWriter(Charsets.UTF_8).use { networkIndex ->
                     output.write(PCAP_GLOBAL_HEADER)
                     output.flush()
                     val buffer = ByteArray(65_535)
@@ -92,13 +95,16 @@ class PcapdroidCaptureService : Service() {
                         output.write(packet.packetData)
                         packets++
                         bytes += packet.packetData.size
-                        ObservationStore.appendNetworkEvent(this, packet.summary)
+                        networkIndex.append(packet.summary.toString()).append('\n')
                         if (packets % 24L == 0L) {
                             output.flush()
+                            networkIndex.flush()
                             updateNotification("Capturing: $packets packets · " + (bytes / 1024) + " KB")
                         }
                     }
                     output.flush()
+                    networkIndex.flush()
+                    }
                 }
             }
         } catch (error: Exception) {
