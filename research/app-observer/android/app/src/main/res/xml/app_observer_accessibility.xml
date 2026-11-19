@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled|typeViewClicked|typeViewFocused|typeViewTextChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled|typeViewClicked|typeViewFocused"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:notificationTimeout="300"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:notificationTimeout="150"
     android:canRetrieveWindowContent="true"
     android:canPerformGestures="false"
-    android:packageNames="com.ubercab.driver,ee.mtakso.driver,com.waze,com.google.android.apps.maps,com.whatsapp,com.whatsapp.w4b"
+    android:packageNames="com.ubercab.driver,ee.mtakso.driver,com.waze,com.google.android.apps.maps"
     android:description="@string/accessibility_description" />
