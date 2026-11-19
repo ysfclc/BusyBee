@@ -198,7 +198,7 @@ class MainActivity : Activity() {
             Toast.makeText(this, app.label + " is not installed.", Toast.LENGTH_LONG).show()
             return
         }
-        val id = ObservationStore.startSession(this, app.packageName, app.label, includeUiText.isChecked)
+        val id = ObservationStore.startSession(this, app.packageName, app.label, includeUiText.isChecked, includePayloads.isChecked)
         startPcapReceiverService()
         pcapdroidPackage = findPcapdroidPackage()
         if (pcapdroidPackage == null) {
