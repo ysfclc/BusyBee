@@ -87,11 +87,11 @@ class PcapdroidCaptureService : Service() {
                         }
                         val length = datagram.length
                         if (PcapdroidPacketParser.isGlobalHeader(buffer, length)) continue
-                        val packet = PcapdroidPacketParser.parse(buffer, length) ?: continue
+                        val packet = PcapdroidPacketParser.parse(buffer, length, ObservationStore.activePackage(this) ?: "selected-app") ?: continue
                         output.write(packet.recordHeader)
-                        output.write(packet.ethernetFrame)
+                        output.write(packet.packetData)
                         packets++
-                        bytes += packet.ethernetFrame.size
+                        bytes += packet.packetData.size
                         ObservationStore.appendNetworkEvent(this, packet.summary)
                         if (packets % 24L == 0L) {
                             output.flush()
@@ -173,7 +173,8 @@ class PcapdroidCaptureService : Service() {
             0xd4.toByte(), 0xc3.toByte(), 0xb2.toByte(), 0xa1.toByte(),
             0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0xff.toByte(), 0xff.toByte(),
-            0x00, 0x00, 0x01, 0x00, 0x00, 0x00
+            // DLT_RAW (101): PCAPdroid exports raw IP packets when metadata extensions are disabled.
+            0x65, 0x00, 0x00, 0x00
         )
     }
 }
