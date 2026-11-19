@@ -24,7 +24,7 @@ App Observer uses PCAPdroid's documented CaptureCtrl activity API:
 - Starts `udp_exporter` mode filtered to the selected package.
 - Sends packets to a UDP socket bound only to `127.0.0.1:5123`.
 - Requests full packet payloads and TLS decryption when the payload option is enabled. It does not require PCAPdroid's optional paid metadata extension; package filtering supplies the app scope.
-- Writes classic PCAP with a global-header link type matching the packet records: raw IP (`DLT_RAW`) in the default no-extension mode, or Ethernet (`DLT_EN10MB`) when PCAPdroid supplies its optional metadata extension. A file never mixes link types; an unexpected change is recorded in the session log and the incompatible datagram is excluded.
+- Writes classic PCAP with a global-header link type matching the packet records: raw IP (`DLT_RAW`) in the default no-extension mode, or Ethernet (`DLT_EN10MB`) when PCAPdroid supplies its optional metadata extension. A file never mixes link types. The receiver waits for the first valid packet before writing the global header, so even metadata-extension captures declare Ethernet correctly. An unexpected link-type change is recorded in the session log and the incompatible datagram is excluded rather than corrupting the PCAP.
 - The receiver recognizes the optional PCAPdroid metadata-extension format when present.
 - Records packet timestamps, selected-package identity, IP endpoints, ports, transport protocol and payload lengths in a JSONL index. UID/app-name metadata is available only when PCAPdroid supplies its optional extension.
 - The parser and PCAP header builder have unit tests for both link types.
