@@ -14,8 +14,11 @@ class PcapdroidStatusReceiver : BroadcastReceiver() {
             .put("timestampEpochMs", System.currentTimeMillis())
             .put("running", running))
         if (!running && ObservationStore.hasActiveSession(context)) {
-            context.startService(Intent(context, PcapdroidCaptureService::class.java)
-                .setAction(PcapdroidCaptureService.ACTION_STOP))
+            runCatching {
+                context.startService(Intent(context, PcapdroidCaptureService::class.java)
+                    .setAction(PcapdroidCaptureService.ACTION_END_SESSION)
+                    .putExtra(PcapdroidCaptureService.EXTRA_FINISH_REASON, "pcapdroid_stopped_externally"))
+            }
         }
     }
 
