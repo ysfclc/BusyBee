@@ -26,18 +26,29 @@ It is not a standalone diagnostics dashboard, not the BusyBee app, and not just 
 - PCAPdroid CaptureCtrl API integration for start/stop and package filtering.
 - PCAPdroid UDP exporter receiver bound to loopback only.
 - Raw-IP PCAP output that does not require PCAPdroid's optional paid metadata extension, plus parsing support for extended packets.
-- Packet-level JSONL index with app identity/UID, endpoints, ports, protocol, payload sizes and timestamps.
+- Packet-level JSONL index with selected-package identity, endpoints, ports, protocol, payload sizes and timestamps; UID is only available when the optional PCAPdroid extension is present.
 - ZIP export containing session metadata, UI timeline, network event index, PCAP and Android capability report.
 - Unit tests for UDP-exporter packet parsing and extension stripping.
 
-## Not yet verified
+## CI verification
 
-- The Android Gradle build and unit tests on this branch.
+- Current commit: `cfb200d995cc4f7c6cc80e51e98b8db0704923a6`
+- Draft PR: [#18](https://github.com/ysfclc/BusyBee/pull/18)
+- GitHub Actions run: [#22](https://github.com/ysfclc/BusyBee/actions/runs/44487714229) — passed
+- Unit tests and Android debug assemble: passed
+- APK signature verification: passed
+- Package: `com.ysfclc.appobserver.debug`
+- Version: `0.2.0-observation-debug`
+- APK SHA-256: `ec8361fa9cc0beff792ae3e8811d2a2e5f4e458cae322295ba3b2d7d2e25a069`
+- Workflow artifact: `14511666021` (temporary, expires 2026-12-03)
+
+## Not yet verified on a real device
+
 - PCAPdroid interoperability on a physical Android device.
 - Actual packet delivery, TLS decryption outcomes and packet-to-screen correlation against Uber/Bolt.
 - OEM-specific Accessibility service reliability when App Observer is backgrounded.
 
-Do not describe these items as complete until the workflow/device evidence exists.
+The APK build is verified; end-to-end device observation is not. Do not claim real Uber/Bolt packets have been captured until a physical-device evidence ZIP proves it.
 
 ## Build
 
