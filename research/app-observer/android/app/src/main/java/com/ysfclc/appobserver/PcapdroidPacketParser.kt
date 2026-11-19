@@ -62,6 +62,8 @@ object PcapdroidPacketParser {
         // Without the optional extension, PCAPdroid exports raw IPv4/IPv6 packets.
         val packetLength = length - RECORD_HEADER_SIZE
         if (packetLength < 20) return null
+        val ipVersion = (bytes[RECORD_HEADER_SIZE].toInt() ushr 4) and 0x0f
+        if (ipVersion != 4 && ipVersion != 6) return null
         val packetData = bytes.copyOfRange(RECORD_HEADER_SIZE, length)
         normalizeRecordLengths(header, packetLength)
         return PcapdroidPacket(
