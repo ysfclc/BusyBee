@@ -35,6 +35,7 @@ class MainActivity : Activity() {
     private lateinit var includeUiText: CheckBox
     private lateinit var includePayloads: CheckBox
     private var pcapdroidPackage: String? = null
+    private var pcapdroidCaptureStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -204,12 +205,17 @@ class MainActivity : Activity() {
             ObservationStore.markPcapdroidUnavailable(this, "PCAPdroid is not installed")
             Toast.makeText(this, "UI observation started. Install PCAPdroid to add network capture.", Toast.LENGTH_LONG).show()
         } else {
-            launchPcapdroidStart(app, id)
+            window.decorView.postDelayed({ launchPcapdroidStart(app, id) }, 800L)
         }
         refresh()
     }
 
     private fun launchPcapdroidStart(app: ObservedApp, sessionId: String) {
+        ObservationStore.appendSessionEvent(this, JSONObject()
+            .put("type", "pcapdroid_start_requested")
+            .put("timestampEpochMs", System.currentTimeMillis())
+            .put("targetPackage", app.packageName)
+            .put("sessionId", sessionId))
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setClassName(pcapdroidPackage!!, PCAPDROID_CAPTURE_ACTIVITY)
             putExtra("action", "start")
@@ -235,9 +241,9 @@ class MainActivity : Activity() {
             Toast.makeText(this, "There is no active session.", Toast.LENGTH_SHORT).show()
             return
         }
-        val packageName = pcapdroidPackage ?: findPcapdroidPackage()
-        if (packageName == null) {
-            endLocalSession("user_stopped_without_pcapdroid")
+        val packageName = pcapdroidPackage
+        if (packageName == null || !pcapdroidCaptureStarted) {
+            endLocalSession("user_stopped_without_active_pcapdroid")
             return
         }
         val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -250,7 +256,8 @@ class MainActivity : Activity() {
 
     private fun endLocalSession(reason: String) {
         startService(Intent(this, PcapdroidCaptureService::class.java)
-            .setAction(PcapdroidCaptureService.ACTION_END_SESSION))
+            .setAction(PcapdroidCaptureService.ACTION_END_SESSION)
+            .putExtra(PcapdroidCaptureService.EXTRA_FINISH_REASON, reason))
         refresh()
     }
 
@@ -297,9 +304,11 @@ class MainActivity : Activity() {
                 if (resultCode == RESULT_OK) {
                     val versionName = data?.getStringExtra("version_name")
                     val versionCode = data?.getIntExtra("version_code", 0) ?: 0
+                    pcapdroidCaptureStarted = true
                     ObservationStore.markPcapdroidStarted(this, versionName, versionCode)
                     Toast.makeText(this, "PCAPdroid capture started for the selected app.", Toast.LENGTH_LONG).show()
                 } else {
+                    pcapdroidCaptureStarted = false
                     ObservationStore.markPcapdroidUnavailable(this, "capture consent denied or start failed")
                     Toast.makeText(this, "PCAPdroid did not start. UI observation is still active.", Toast.LENGTH_LONG).show()
                 }
