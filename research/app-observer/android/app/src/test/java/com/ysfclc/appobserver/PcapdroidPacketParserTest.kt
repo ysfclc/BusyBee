@@ -99,8 +99,12 @@ class PcapdroidPacketParserTest {
         bytes[3] = bytes.size.toByte()
         bytes[9] = 17
         bytes[12] = 1
+        bytes[13] = 1
+        bytes[14] = 1
         bytes[15] = 1
         bytes[16] = 8
+        bytes[17] = 8
+        bytes[18] = 8
         bytes[19] = 8
         bytes[20] = 0x04
         bytes[21] = 0xd2.toByte()
