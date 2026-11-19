@@ -3,7 +3,7 @@
 App Observer is a separate Android research recorder used to collect the evidence needed to design and build BusyBee integrations. It observes one selected driver/navigation app during an explicit session and correlates two streams:
 
 1. **Android UI evidence:** window transitions, visible UI labels and selected-app notifications (visible text is optional and off by default).
-2. **PCAPdroid network evidence:** packets streamed from PCAPdroid's UDP exporter, filtered to the selected app, written to a standard PCAP file.
+2. **PCAPdroid network evidence:** packets streamed from PCAPdroid's UDP exporter, filtered to the selected app, written to a standard classic-PCAP file.
 
 It is not a BusyBee dashboard, does not control third-party apps, and does not upload evidence.
 
@@ -24,8 +24,10 @@ App Observer uses PCAPdroid's documented CaptureCtrl activity API:
 - Starts `udp_exporter` mode filtered to the selected package.
 - Sends packets to a UDP socket bound only to `127.0.0.1:5123`.
 - Requests full packet payloads and TLS decryption when the payload option is enabled. It does not require PCAPdroid's optional paid metadata extension; package filtering supplies the app scope.
-- Writes the packet stream as a standard raw-IP PCAP file. The receiver also recognizes the optional PCAPdroid metadata-extension format if it is present.
+- Writes classic PCAP with a global-header link type matching the packet records: raw IP (`DLT_RAW`) in the default no-extension mode, or Ethernet (`DLT_EN10MB`) when PCAPdroid supplies its optional metadata extension. A file never mixes link types; an unexpected change is recorded in the session log and the incompatible datagram is excluded.
+- The receiver recognizes the optional PCAPdroid metadata-extension format when present.
 - Records packet timestamps, selected-package identity, IP endpoints, ports, transport protocol and payload lengths in a JSONL index. UID/app-name metadata is available only when PCAPdroid supplies its optional extension.
+- The parser and PCAP header builder have unit tests for both link types.
 
 The integration does not silently approve PCAPdroid, bypass certificate pinning, extract credentials, or replay requests. TLS decryption is subject to PCAPdroid's consent flow and the selected app's TLS controls. Encrypted payloads remain encrypted when PCAPdroid cannot decrypt them.
 
@@ -67,7 +69,7 @@ The ZIP can contain:
 - `events.jsonl` — session lifecycle and receiver status.
 - `ui-events.jsonl` — selected-app UI snapshots and optional visible labels/notification text.
 - `network-events.jsonl` — packet-level metadata.
-- `network.pcap` — standard raw-IP PCAP with packet payloads as captured by PCAPdroid.
+- `network.pcap` — standard classic PCAP with a link type declared to match the records.
 - `device-capability-report.json` — Android app/version/permission and observer capability report.
 - `REVIEW-BEFORE-SHARING.txt` — reminder to inspect the bundle for personal data.
 
