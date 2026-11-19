@@ -32,15 +32,15 @@ It is not a standalone diagnostics dashboard, not the BusyBee app, and not just 
 
 ## CI verification
 
-- Current commit: `cfb200d995cc4f7c6cc80e51e98b8db0704923a6`
+- Current commit: `b6bd910ef67cb16543f4982bd21b2f13fdb894ff`
 - Draft PR: [#18](https://github.com/ysfclc/BusyBee/pull/18)
-- GitHub Actions run: [#22](https://github.com/ysfclc/BusyBee/actions/runs/44487714229) — passed
+- GitHub Actions run: [#30](https://github.com/ysfclc/BusyBee/actions/runs/44488613444) — passed
 - Unit tests and Android debug assemble: passed
 - APK signature verification: passed
 - Package: `com.ysfclc.appobserver.debug`
 - Version: `0.2.0-observation-debug`
-- APK SHA-256: `ec8361fa9cc0beff792ae3e8811d2a2e5f4e458cae322295ba3b2d7d2e25a069`
-- Workflow artifact: `14511666021` (temporary, expires 2026-12-03)
+- APK SHA-256: `866b4f484801d9ca1425cd34f057c812d6a03f745da41dab3ac84d5f3e4b4ced`
+- Workflow artifact: `14512035903` (temporary, expires 2026-12-03)
 
 ## Not yet verified on a real device
 
