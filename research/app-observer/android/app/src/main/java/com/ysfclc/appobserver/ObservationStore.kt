@@ -93,7 +93,21 @@ object ObservationStore {
                 .put("status", "running")
                 .put("versionName", versionName ?: JSONObject.NULL)
                 .put("versionCode", versionCode)
+                .put("startResultAtEpochMs", System.currentTimeMillis())
         }
+        appendSessionEvent(context, JSONObject()
+            .put("type", "pcapdroid_capture_started")
+            .put("timestampEpochMs", System.currentTimeMillis())
+            .put("versionName", versionName ?: JSONObject.NULL)
+            .put("versionCode", versionCode))
+    }
+
+    fun isPcapdroidRunning(context: Context): Boolean {
+        val directory = activeDirectory(context) ?: return false
+        val file = File(directory, "session.json")
+        if (!file.isFile) return false
+        return runCatching { JSONObject(file.readText()).getJSONObject("pcapdroid").optString("status") == "running" }
+            .getOrDefault(false)
     }
 
     fun markPcapdroidUnavailable(context: Context, reason: String) {
@@ -113,9 +127,10 @@ object ObservationStore {
             val metadataFile = File(directory, "session.json")
             if (metadataFile.exists()) {
                 val root = runCatching { JSONObject(metadataFile.readText()) }.getOrElse { JSONObject() }
-                root.put("finishedAtEpochMs", now)
+                    root.put("finishedAtEpochMs", now)
                     .put("durationMs", now - root.optLong("startedAtEpochMs", now))
                     .put("finishReason", reason)
+                root.optJSONObject("pcapdroid")?.put("status", "stopped")
                 val pcapFile = File(directory, "network.pcap")
                 root.put("networkCapture", JSONObject()
                     .put("filePresent", pcapFile.exists())
