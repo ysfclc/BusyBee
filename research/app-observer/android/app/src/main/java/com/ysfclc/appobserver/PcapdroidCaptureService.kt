@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Receives PCAPdroid's localhost UDP exporter while a user-started session is active.
- * It only binds to 127.0.0.1 and writes evidence into this app's private session folder.
+ * It only binds to 127.0.0.1 and writes raw-IP PCAP evidence into this app's private session folder.
  */
 class PcapdroidCaptureService : Service() {
     @Volatile private var receiverSocket: DatagramSocket? = null
