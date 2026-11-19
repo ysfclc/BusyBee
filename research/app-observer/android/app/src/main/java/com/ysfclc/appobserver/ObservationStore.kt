@@ -22,7 +22,7 @@ object ObservationStore {
     private const val INCLUDE_UI_TEXT = "include_ui_text"
     private val lock = Any()
 
-    fun startSession(context: Context, packageName: String, label: String, includeUiText: Boolean): String {
+    fun startSession(context: Context, packageName: String, label: String, includeUiText: Boolean, includePayloads: Boolean): String {
         synchronized(lock) {
             val id = System.currentTimeMillis().toString() + "-" + UUID.randomUUID().toString().take(8)
             val directory = sessionDirectory(context, id)
@@ -45,8 +45,8 @@ object ObservationStore {
                     .put("mode", "udp_exporter")
                     .put("appFilter", packageName)
                     .put("collector", "127.0.0.1:5123")
-                    .put("tlsDecryptionRequested", true)
-                    .put("fullPayloadRequested", true)
+                    .put("tlsDecryptionRequested", includePayloads)
+                    .put("fullPayloadRequested", includePayloads)
                     .put("status", "starting"))
                 .put("privacy", JSONObject()
                     .put("localOnly", true)
@@ -171,7 +171,7 @@ object ObservationStore {
         var safe = value?.toString()?.replace(Regex("\\s+"), " ")?.trim().orEmpty()
         if (safe.isBlank()) return ""
         safe = safe.replace(Regex("(?i)bearer\\s+[A-Za-z0-9._~+/=-]+"), "Bearer [REDACTED]")
-        safe = safe.replace(Regex("(?i)(access[_-]?token|refresh[_-]?token|authorization|password|session[_-]?id)\\s*[:=]\\s*[^\\s,;]+"), "$1=[REDACTED]")
+        safe = safe.replace(Regex("(?i)(access[_-]?token|refresh[_-]?token|authorization|password|session[_-]?id)\\s*[:=]\\s*[^\\s,;]+")) { match -> match.groupValues[1] + "=[REDACTED]" }
         safe = safe.replace(Regex("[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", RegexOption.IGNORE_CASE), "[EMAIL]")
         safe = safe.replace(Regex("(?<!\\w)\\+?\\d[\\d ().-]{7,}\\d(?!\\w)"), "[PHONE]")
         safe = safe.replace(Regex("\\b[A-Za-z0-9_-]{40,}\\b"), "[LONG_TOKEN]")
