@@ -10,6 +10,27 @@ import java.nio.ByteOrder
 
 class PcapdroidPacketParserTest {
     @Test
+    fun rawIpGlobalHeaderDeclaresRawLinkType() {
+        val header = PcapdroidPacketParser.globalHeader(PcapdroidPacketParser.DLT_RAW)
+        assertEquals(24, header.size)
+        assertEquals(PcapdroidPacketParser.DLT_RAW,
+            ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).getInt(20))
+    }
+
+    @Test
+    fun ethernetGlobalHeaderDeclaresEthernetLinkType() {
+        val header = PcapdroidPacketParser.globalHeader(PcapdroidPacketParser.DLT_EN10MB)
+        assertEquals(24, header.size)
+        assertEquals(PcapdroidPacketParser.DLT_EN10MB,
+            ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).getInt(20))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsUnsupportedGlobalHeaderLinkType() {
+        PcapdroidPacketParser.globalHeader(999)
+    }
+
+    @Test
     fun parsesRawIpUdpExporterPacketWithoutPaidMetadataExtension() {
         val packet = udpIpv4Packet()
         val datagram = ByteArray(16 + packet.size)
@@ -75,12 +96,7 @@ class PcapdroidPacketParserTest {
 
     @Test
     fun detectsClassicPcapGlobalHeader() {
-        val header = byteArrayOf(
-            0xd4.toByte(), 0xc3.toByte(), 0xb2.toByte(), 0xa1.toByte(),
-            0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0xff.toByte(), 0xff.toByte(),
-            0x00, 0x00, 0x65, 0x00, 0x00, 0x00
-        )
+        val header = PcapdroidPacketParser.globalHeader(PcapdroidPacketParser.DLT_RAW)
         assertTrue(PcapdroidPacketParser.isGlobalHeader(header, header.size))
     }
 
