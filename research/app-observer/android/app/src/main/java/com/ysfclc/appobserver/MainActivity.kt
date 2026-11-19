@@ -35,7 +35,6 @@ class MainActivity : Activity() {
     private lateinit var includeUiText: CheckBox
     private lateinit var includePayloads: CheckBox
     private var pcapdroidPackage: String? = null
-    private var pcapdroidCaptureStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -244,7 +243,7 @@ class MainActivity : Activity() {
             return
         }
         val packageName = pcapdroidPackage
-        if (packageName == null || !pcapdroidCaptureStarted) {
+        if (packageName == null || !ObservationStore.isPcapdroidRunning(this)) {
             endLocalSession("user_stopped_without_active_pcapdroid")
             return
         }
@@ -313,11 +312,9 @@ class MainActivity : Activity() {
                 if (resultCode == RESULT_OK) {
                     val versionName = data?.getStringExtra("version_name")
                     val versionCode = data?.getIntExtra("version_code", 0) ?: 0
-                    pcapdroidCaptureStarted = true
                     ObservationStore.markPcapdroidStarted(this, versionName, versionCode)
                     Toast.makeText(this, "PCAPdroid capture started for the selected app.", Toast.LENGTH_LONG).show()
                 } else {
-                    pcapdroidCaptureStarted = false
                     ObservationStore.markPcapdroidUnavailable(this, "capture consent denied or start failed")
                     Toast.makeText(this, "PCAPdroid did not start. UI observation is still active.", Toast.LENGTH_LONG).show()
                 }
