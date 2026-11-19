@@ -36,6 +36,12 @@ class PcapdroidCaptureService : Service() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
+            ACTION_END_SESSION -> {
+                stopReceiver()
+                ObservationStore.finishSession(this, intent.getStringExtra(EXTRA_FINISH_REASON) ?: "user_stopped")
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
         }
         return START_NOT_STICKY
     }
@@ -117,7 +123,11 @@ class PcapdroidCaptureService : Service() {
     private fun stopReceiver() {
         stopping.set(true)
         receiverSocket?.close()
-        receiverThread?.interrupt()
+        val thread = receiverThread
+        thread?.interrupt()
+        if (thread != null && thread !== Thread.currentThread()) {
+            runCatching { thread.join(1_500L) }
+        }
         receiverThread = null
     }
 
@@ -129,9 +139,10 @@ class PcapdroidCaptureService : Service() {
         ).apply { description = "Shows when App Observer is receiving a local PCAPdroid session" })
     }
 
+    @Suppress("DEPRECATION")
     private fun buildNotification(status: String): Notification {
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID)
-            else @Suppress("DEPRECATION") Notification.Builder(this)
+            else Notification.Builder(this)
         return builder
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("App Observer · Research session")
@@ -152,6 +163,8 @@ class PcapdroidCaptureService : Service() {
     companion object {
         const val ACTION_START = "com.ysfclc.appobserver.action.PCAP_START"
         const val ACTION_STOP = "com.ysfclc.appobserver.action.PCAP_STOP"
+        const val ACTION_END_SESSION = "com.ysfclc.appobserver.action.END_SESSION"
+        const val EXTRA_FINISH_REASON = "finish_reason"
         const val PORT = 5123
         const val LOOPBACK = "127.0.0.1"
         private const val CHANNEL_ID = "app_observer_capture"
