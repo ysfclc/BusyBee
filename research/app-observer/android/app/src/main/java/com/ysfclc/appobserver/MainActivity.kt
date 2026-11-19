@@ -223,9 +223,10 @@ class MainActivity : Activity() {
             putExtra("broadcast_receiver", PcapdroidStatusReceiver::class.java.name)
             putExtra("pcap_dump_mode", "udp_exporter")
             putExtra("collector_host", PcapdroidCaptureService.LOOPBACK)
+            // Deprecated alias supports older PCAPdroid versions.
+            putExtra("collector_ip_address", PcapdroidCaptureService.LOOPBACK)
             putExtra("collector_port", PcapdroidCaptureService.PORT.toString())
             putExtra("app_filter", app.packageName)
-            putExtra("dump_extensions", true)
             putExtra("max_dump_size", MAX_CAPTURE_BYTES)
             putExtra("full_payload", includePayloads.isChecked)
             putExtra("tls_decryption", includePayloads.isChecked)
