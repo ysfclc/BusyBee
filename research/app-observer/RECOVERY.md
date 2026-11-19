@@ -21,7 +21,7 @@ From repository root:
 ```sh
 chmod +x android/gradlew
 android/gradlew -p research/app-observer/android --no-daemon testDebugUnitTest assembleDebug
-``
+```
 
 ## Scope guard
 App Observer is the place for observation experiments. Do not add App Observer experiments into BusyBee by default. Keep its existing scope and permissions explicit, and don't expand it into packet capture, TLS decryption, credential collection, or third-party app automation without a separate reviewed task.
