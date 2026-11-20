@@ -229,7 +229,7 @@ class MainActivity : Activity() {
             ).apply { setPadding(0, dp(8), 0, dp(8)) }
             addView(machineUnderstandingPreview)
             addView(label(
-                "The device analyses screenshots with on-device OCR and image labelling, then correlates Accessibility structure, interactions, authorised notification content and nearby network activity. Repeated screens and transitions become persistent learned states. Raw OCR text is not saved.",
+                "The device analyses screenshots with on-device OCR and image labelling, then correlates Accessibility structure, interactions, authorised notification content and nearby network activity. Repeated screens and transitions become persistent learned states. Raw OCR text is not saved. Confidence scores are currently uncalibrated evidence scores, not proof that an app operation succeeded.",
                 11f, MUTED, false
             ).apply { setPadding(0, dp(8), 0, 0) })
             addView(action("CORRECT / TEACH THE LOCAL MODEL") {
