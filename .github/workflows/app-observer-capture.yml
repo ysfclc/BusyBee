@@ -1,0 +1,70 @@
+name: App Observer Capture (PCAPdroid)
+
+on:
+  push:
+    branches:
+      - fix/app-observer-capture-0.2.1
+    paths:
+      - 'research/app-observer-capture/**'
+      - '.github/workflows/app-observer-capture.yml'
+      - 'android/gradlew'
+      - 'android/gradle/**'
+  pull_request:
+    paths:
+      - 'research/app-observer-capture/**'
+      - '.github/workflows/app-observer-capture.yml'
+      - 'android/gradlew'
+      - 'android/gradle/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build isolated App Observer Capture APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: research/app-observer-capture/android/**/*.gradle.kts
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install Android 35 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Test and assemble isolated debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x android/gradlew
+          android/gradlew -p research/app-observer-capture/android --no-daemon --stacktrace testDebugUnitTest assembleDebug
+      - name: Verify package identity, APK signature and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="research/app-observer-capture/android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture.debug'"
+          sha256sum "$APK" | tee research/app-observer-capture/android/app/build/outputs/apk/debug/SHA256SUMS
+      - name: Upload isolated test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-observer-capture-test-${{ github.run_number }}
+          path: |
+            research/app-observer-capture/android/app/build/outputs/apk/debug/app-debug.apk
+            research/app-observer-capture/android/app/build/outputs/apk/debug/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
