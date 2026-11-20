@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - research/app-observer-lab-2026-11-16
+      - restore/app-observer-lab-0.1.0
     paths:
       - 'research/app-observer/**'
       - '.github/workflows/app-observer-lab.yml'
