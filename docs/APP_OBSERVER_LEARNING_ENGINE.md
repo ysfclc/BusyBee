@@ -57,7 +57,7 @@ PCAPdroid's TCP exporter is an optional source. The packet stream is handled loc
 - TCP flags where available.
 - Frame and transport payload byte counts.
 
-Do not retain source/destination IP addresses, domain names, DNS values, URLs, TLS metadata, headers, cookies, tokens, application payloads or raw PCAP files. Disable PCAPdroid full-payload capture and TLS decryption. Packet bytes are discarded after header metadata is derived. This data describes timing and shape, not application request/response meaning.
+Do not retain source/destination IP addresses, domain names, DNS values, URLs, TLS metadata, headers, cookies, tokens, application payloads or raw PCAP files. Disable PCAPdroid full-payload capture and TLS decryption. Only a bounded header prefix is read into memory. The rest of each packet is drained through a small wiped buffer, and the prefix is wiped after parsing. Packet content is not retained. This data describes timing and shape, not application request/response meaning.
 
 The allowlist is intentional: packet sizes and timing may help align an interaction with a network burst, but this is not proof of a business operation and does not reveal encrypted content.
 
