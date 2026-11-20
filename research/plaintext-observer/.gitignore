@@ -1,0 +1,5 @@
+fixture/certs/
+*.key
+*.pem
+*.p12
+*.pfx

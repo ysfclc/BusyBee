@@ -1,0 +1,111 @@
+package com.ysfclc.busybee.drivercommandcentre
+
+import org.junit.Assert.*
+import org.junit.Test
+
+class ProviderBridgeTest {
+    private val adapter = AdapterIdentity("fixture", "1")
+
+    private fun event(
+        key: String,
+        occurred: Long? = 100L,
+        received: Long = 110L,
+        expires: Long? = null,
+        present: Set<String> = setOf("fare"),
+        provider: ProviderId = ProviderId.UBER,
+        sourceAdapter: AdapterIdentity = adapter
+    ) = ProviderEvent(
+        eventId = key,
+        provider = provider,
+        adapter = sourceAdapter,
+        type = ProviderEventType.OFFER,
+        sourceMethod = SourceMethod.OWNED_TEST_FIXTURE,
+        occurredAtEpochMs = occurred,
+        receivedAtEpochMs = received,
+        expiresAtEpochMs = expires,
+        payload = ProviderEventPayload.Offer(fare = Money(12.5, "PLN")),
+        completeness = FieldCompleteness(setOf("fare", "pickup"), present, 0.8),
+        evidence = EvidenceReference("fp-$key", retention = EvidenceRetention.EPHEMERAL),
+        dedupeKey = key
+    )
+
+    @Test fun ingestionIsIdempotentAcrossSources() {
+        val repo = InMemoryProviderEventRepository()
+        val ingestor = ProviderEventIngestor(repo)
+        val first = ingestor.ingest(listOf(event("same")))
+        val second = ingestor.ingest(listOf(event("same", sourceAdapter = AdapterIdentity("notification.uber", "1"))))
+        assertEquals(1, first.accepted)
+        assertEquals(1, second.duplicates)
+        assertEquals(1, repo.events().size)
+        assertTrue(repo.insertIfNew(event("same", provider = ProviderId.BOLT)))
+        assertEquals(2, repo.events().size)
+    }
+
+    @Test fun timelineOrdersByEventTimeAndThenReceiveTime() {
+        val repo = InMemoryProviderEventRepository()
+        repo.insertIfNew(event("older", occurred = 50, received = 200))
+        repo.insertIfNew(event("newer", occurred = 150, received = 160))
+        assertEquals(listOf("newer", "older"), repo.events().map { it.eventId })
+    }
+
+    @Test fun missingFieldsRemainExplicitlyMissing() {
+        val completeness = event("partial").completeness
+        assertFalse(completeness.isComplete)
+        assertEquals(setOf("pickup"), completeness.missingFields)
+    }
+
+    @Test fun staleAndExpiredEventsAreDetected() {
+        assertTrue(event("old", occurred = 10, received = 10).isStale(1000, 100))
+        assertTrue(event("expired", occurred = 950, received = 990, expires = 980).isStale(1000, 100))
+        assertFalse(event("fresh", occurred = 950, received = 950).isStale(1000, 100))
+    }
+
+    @Test fun registryAllowsMultipleSourcesForOneProviderButRejectsDuplicateIds() {
+        val registry = ProviderAdapterRegistry()
+        val first = SyntheticProviderAdapter(ProviderId.UBER)
+        val second = object : DriverProviderAdapter by first {
+            override val identity = AdapterIdentity("notification.uber", "1")
+        }
+        registry.register(first)
+        registry.register(second)
+        assertEquals(2, registry.forProvider(ProviderId.UBER).size)
+        try {
+            registry.register(first)
+            fail("Expected duplicate adapter id to fail")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun providerEventCodecRoundTripsEveryPayloadShape() {
+        val base = event("codec")
+        val values = listOf(
+            base,
+            base.copy(payload = ProviderEventPayload.Trip(
+                pickup = "A", destination = "B", distanceKm = 4.2, durationMinutes = 13.0,
+                gross = Money(22.0, "PLN"), fees = Money(4.0, "PLN"), bonus = null
+            )),
+            base.copy(payload = ProviderEventPayload.Earnings(
+                Money(18.5, "EUR"), category = "payout", description = "Weekly transfer"
+            )),
+            base.copy(payload = ProviderEventPayload.Observation(
+                title = "Trip update", detail = "Destination changed"
+            ))
+        )
+        values.forEach { original ->
+            assertEquals(original, ProviderEventCodec.decode(ProviderEventCodec.encode(original)))
+        }
+    }
+
+    @Test fun providerEventCodecRejectsUnknownStorageVersion() {
+        val unsupported = java.util.Base64.getEncoder().encodeToString(byteArrayOf(0, 0, 0, 99))
+        try {
+            ProviderEventCodec.decode(unsupported)
+            fail("Expected unsupported storage version to fail")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun syntheticAdapterNeverClaimsVerifiedConnection() {
+        val adapter = SyntheticProviderAdapter()
+        assertEquals(ProviderConnectionState.PARTIAL, adapter.connect().state)
+        assertTrue(adapter.connect().detail!!.contains("no provider account"))
+    }
+}
