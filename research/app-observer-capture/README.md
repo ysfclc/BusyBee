@@ -1,48 +1,52 @@
-# App Observer Capture
+# App Observer — Generic Behaviour Recorder
 
-App Observer Capture is a separate Android research recorder used to collect evidence for BusyBee engineering. It correlates a manually selected driver/navigation app's read-only UI timeline with packet traffic exported by PCAPdroid.
-
-It is intentionally separate from BusyBee and from the preserved App Observer Lab 0.1 survey app. Its CI/debug package is com.ysfclc.appobserver.capture.debug so it can be installed side-by-side with the survey build.
+App Observer is a separate Android research recorder for BusyBee engineering. It observes any user-selected app that Android exposes through the launcher-app query; there is no Uber/Bolt/Waze/Maps allowlist. App Observer itself is excluded from the target list.
 
 ## What it records
-- One explicitly selected target at a time: Uber Driver, Bolt Driver, Waze or Google Maps.
-- Read-only Accessibility UI structure and lifecycle events for only the selected package.
-- Optional visible UI and notification text, off by default.
-- PCAPdroid packet capture restricted with app_filter to the selected package.
-- Packet timestamps, IP endpoints, ports, transport protocol and payload lengths.
-- A local evidence ZIP with session metadata, UI timeline, network index, PCAP and capability report.
 
-The recorder never clicks, swipes, enters data or replays requests. It does not upload anything. Session data stays in App Observer's private storage until explicitly exported.
+- One explicitly selected app per manually started session.
+- Read-only Accessibility event timeline and structure-only UI snapshots.
+- Interaction source-node structure where Android exposes it.
+- Notification envelope metadata for the selected app, without notification content.
+- Optional PCAPdroid TCP-exporter packet-header metadata: time, app identifier, IP version, protocol, ports, flags and byte counts.
 
-## PCAPdroid
-Install PCAPdroid separately. App Observer uses its documented CaptureCtrl Activity API and asks PCAPdroid to start/stop capture through Android's activity-result consent flow.
+## Privacy baseline
 
-The recorder uses TCP Exporter (PCAP-over-IP) and listens on loopback 127.0.0.1:5123. TCP is selected because PCAPdroid documents it as reliable; UDP can drop or reorder packets. The target package is passed to app_filter.
+The recorder does not store visible UI text, typed values, notification titles or bodies, screenshots, clipboard data, URLs, domains, IP addresses, headers, cookies, tokens, application payloads or raw PCAP files.
 
-Full payload capture and TLS decryption are off by default. Enabling them is an explicit research choice. TLS decryption may fail for apps that enforce certificate pinning or other platform protections; no bypass is attempted. Captures can contain account, trip, location or other sensitive information.
+Packet bytes arrive from PCAPdroid and are inspected in memory only to derive allowlisted header metadata. They are then discarded. Full-payload capture and TLS decryption are always disabled. New sessions do not create network.pcap; evidence export excludes any legacy raw PCAP and sanitises JSONL fields again before sharing.
 
-## Focused observation
-1. Install App Observer Capture and PCAPdroid.
+Data stays in App Observer's private storage until the user explicitly exports the evidence ZIP. There is no upload path.
+
+## Android app discovery
+
+The picker queries installed apps with a MAIN / LAUNCHER activity. This avoids the restricted QUERY_ALL_PACKAGES permission. Hidden, disabled and non-launchable packages are therefore outside the picker. The AccessibilityService does not use a fixed package filter; the active session's selected package is checked in code before evidence is written.
+
+## Observation flow
+
+1. Install App Observer and optionally PCAPdroid.
 2. Enable App Observer's read-only Accessibility service.
-3. Select one installed target app.
-4. Leave visible text and full-payload/TLS options off unless the specific test requires them.
-5. Start a session and approve PCAPdroid's capture prompt.
-6. Use the selected app normally for one controlled scenario.
-7. Stop the session in App Observer Capture.
-8. Export the evidence ZIP and inspect it before sharing.
-
-A useful first scenario is app launch → online/available → wait for a test event → open its details → close/return. Do not accept a real ride or trigger a paid action solely for this test.
+3. Optionally enable notification access for notification envelope metadata.
+4. Select any app shown in the dynamic picker.
+5. Start a session and approve PCAPdroid's capture-consent prompt if available.
+6. Use the selected app normally. No actions are performed by App Observer.
+7. Stop the session and optionally export the privacy-minimised evidence ZIP.
 
 ## Evidence layout
-- session.json: target, device, versions, consent options and session timing.
-- events.jsonl: session and receiver lifecycle.
-- ui-events.jsonl: selected-app UI events and optional visible text.
-- network-events.jsonl: per-packet metadata index.
-- network.pcap: standard PCAP stream received from PCAPdroid TCP Exporter.
-- device-capability-report.json: Android access and installed app report.
-- REVIEW-BEFORE-SHARING.txt: privacy reminder.
+
+- session.json: selected target, Android API, session mode and privacy flags.
+- events.jsonl: receiver and session lifecycle.
+- ui-events.jsonl: structure-only UI and notification metadata.
+- network-events.jsonl: allowlisted packet-header metadata only.
+- device-capability-report.json: minimal Android access/capability report.
+- PRIVACY-AND-REVIEW.txt: export privacy summary.
+
+## Scope boundary
+
+This is an observation instrument for a future state-transition classifier. It does not yet classify behaviour, learn semantic business events, or execute reusable automations. It never taps, swipes, types, replays network requests or controls the target app.
 
 ## Build
+
 From the repository root:
 
     chmod +x android/gradlew
