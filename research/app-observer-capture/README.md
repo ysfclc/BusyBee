@@ -14,7 +14,7 @@ App Observer is a separate Android research recorder for BusyBee engineering. It
 
 The recorder does not store visible UI text, typed values, notification titles or bodies, screenshots, clipboard data, URLs, domains, IP addresses, headers, cookies, tokens, application payloads or raw PCAP files.
 
-Packet bytes arrive from PCAPdroid and are inspected in memory only to derive allowlisted header metadata. They are then discarded. Full-payload capture and TLS decryption are always disabled. New sessions do not create network.pcap; evidence export excludes any legacy raw PCAP and sanitises JSONL fields again before sharing.
+Only a bounded packet-header prefix is read; the remainder is drained in a small buffer that is wiped after use. The prefix is wiped after parsing. Allowlisted header metadata is retained and all packet content is discarded. Full-payload capture and TLS decryption are always disabled. New sessions do not create network.pcap; evidence export excludes any legacy raw PCAP and sanitises JSONL fields again before sharing.
 
 Data stays in App Observer's private storage until the user explicitly exports the evidence ZIP. There is no upload path.
 
