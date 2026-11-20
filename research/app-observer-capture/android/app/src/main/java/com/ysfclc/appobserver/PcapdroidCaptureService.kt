@@ -129,11 +129,15 @@ class PcapdroidCaptureService : Service() {
                                 discardExactly(input, record.capturedLength - prefixLength)
                                 val selectedPackage = ObservationStore.activePackage(this)
                                     ?: "selected-app"
-                                val summary = ObservationPrivacy.safeNetworkMetadata(
-                                    PcapdroidPacketParser.summarizePcapPacket(
-                                        packetPrefix, fileHeader, record, selectedPackage
+                                val summary = try {
+                                    ObservationPrivacy.safeNetworkMetadata(
+                                        PcapdroidPacketParser.summarizePcapPacket(
+                                            packetPrefix, fileHeader, record, selectedPackage
+                                        )
                                     )
-                                )
+                                } finally {
+                                    packetPrefix.fill(0)
+                                }
                                 networkIndex.append(summary.toString()).append('\n')
                                 packets++
                                 bytes += record.capturedLength
@@ -209,13 +213,18 @@ class PcapdroidCaptureService : Service() {
 
     private fun discardExactly(input: java.io.InputStream, size: Int) {
         require(size >= 0) { "Invalid packet remainder size" }
-        val buffer = ByteArray(8 * 1024)
+        val buffer = ByteArray(1024)
         var remaining = size
-        while (remaining > 0) {
-            val count = input.read(buffer, 0, minOf(buffer.size, remaining))
-            if (count < 0) throw EOFException("TCP stream ended while discarding packet payload")
-            if (count == 0) continue
-            remaining -= count
+        try {
+            while (remaining > 0) {
+                val count = input.read(buffer, 0, minOf(buffer.size, remaining))
+                if (count < 0) throw EOFException("TCP stream ended while discarding packet payload")
+                if (count == 0) continue
+                remaining -= count
+                buffer.fill(0)
+            }
+        } finally {
+            buffer.fill(0)
         }
     }
 
