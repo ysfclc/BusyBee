@@ -425,6 +425,71 @@ object ScreenUnderstandingService {
             .put("failureReason", reason))
     }
 
+    fun regionsForScreenshot(context: Context, screenshotId: String): List<MachineRegion> {
+        if (screenshotId.isBlank()) return emptyList()
+        val directory = ObservationStore.latestDirectory(context) ?: return emptyList()
+        val file = java.io.File(directory, "screen-understanding.jsonl")
+        if (!file.isFile) return emptyList()
+        val matching = runCatching {
+            val bytes = RandomAccessFile(file, "r").use { input ->
+                val start = (input.length() - MAX_JSONL_TAIL_BYTES).coerceAtLeast(0L)
+                input.seek(start)
+                if (start > 0L) input.readLine()
+                val remaining = (input.length() - input.filePointer).toInt().coerceAtLeast(0)
+                ByteArray(remaining).also { input.readFully(it) }
+            }
+            String(bytes, Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }.toList()
+                .asReversed().firstNotNullOfOrNull { line ->
+                    runCatching { JSONObject(line) }.getOrNull()
+                        ?.takeIf { it.optString("screenshotId") == screenshotId }
+                }
+        }.getOrNull() ?: return emptyList()
+        val concepts = matching.optJSONArray("concepts") ?: JSONArray()
+        val regions = ArrayList<MachineRegion>()
+        for (index in 0 until concepts.length()) {
+            val concept = concepts.optJSONObject(index) ?: continue
+            val raw = concept.optJSONObject("region") ?: continue
+            val region = NormalisedRegion(
+                raw.optDouble("left", -1.0).toFloat(),
+                raw.optDouble("top", -1.0).toFloat(),
+                raw.optDouble("right", -1.0).toFloat(),
+                raw.optDouble("bottom", -1.0).toFloat()
+            )
+            if (region.left !in 0f..1f || region.top !in 0f..1f ||
+                region.right !in 0f..1f || region.bottom !in 0f..1f ||
+                region.left >= region.right || region.top >= region.bottom) continue
+            regions += MachineRegion(
+                concept.optString("concept").replace('_', ' ').uppercase(Locale.ROOT),
+                concept.optDouble("confidence").toFloat().coerceIn(0f, 1f),
+                region,
+                concept.optJSONArray("evidenceSources")?.let { sources ->
+                    (0 until sources.length()).joinToString("+") { sources.optString(it) }
+                }.orEmpty()
+            )
+        }
+        val entities = matching.optJSONArray("entities") ?: JSONArray()
+        for (index in 0 until entities.length()) {
+            val entity = entities.optJSONObject(index) ?: continue
+            val raw = entity.optJSONObject("region") ?: continue
+            val region = NormalisedRegion(
+                raw.optDouble("left", -1.0).toFloat(),
+                raw.optDouble("top", -1.0).toFloat(),
+                raw.optDouble("right", -1.0).toFloat(),
+                raw.optDouble("bottom", -1.0).toFloat()
+            )
+            if (region.left !in 0f..1f || region.top !in 0f..1f ||
+                region.right !in 0f..1f || region.bottom !in 0f..1f ||
+                region.left >= region.right || region.top >= region.bottom) continue
+            regions += MachineRegion(
+                entity.optString("amount").take(32),
+                1f,
+                region,
+                "ocr_currency_pattern"
+            )
+        }
+        return regions.take(16)
+    }
+
     fun preview(context: Context): String {
         val directory = ObservationStore.latestDirectory(context)
         val file = directory?.let { java.io.File(it, "screen-understanding.jsonl") }
