@@ -13,11 +13,22 @@ Do not change the application ID or replace this signing key after the first sta
 
 The earlier 0.3.x viewer APKs used ephemeral GitHub runner debug certificates and different debug package IDs. Android does not permit a differently signed APK to update those packages. The stable release is therefore a one-time side-by-side migration; do not uninstall the earlier apps during migration.
 
+## First stable release produced
+
+The initial stable APK was built from App Observer commit `fb697c578272b1d84914e544ede25246a32ade80` and signed offline with this exact keystore using Android 35 `apksigner`:
+
+- Package: `com.ysfclc.appobserver.capture`
+- Version: `0.4.0-visual-rules` (versionCode 7)
+- Schemes verified: v2 and v3 (the signing command also requested v1)
+- APK SHA-256: `b0dc5ed37ff4d4241cff2df648c7564d035c73b92fcbc2ad97d3ac15b0a736b3`
+
+The CI workflow still publishes an unsigned, ZIP-aligned release candidate when the repository secrets are absent. The installable first stable APK was signed with the local persistent JKS; no ephemeral debug key was used. Future releases should be signed in CI after the four repository secrets are configured.
+
 ## One-time repository secrets
 
 A keystore was generated outside the public repository. It must remain private and must never be committed.
 
-In GitHub, open ysfclc/BusyBee → Settings → Secrets and variables → Actions and create these repository secrets using the supplied private secrets handoff file:
+In GitHub, open ysfclc/BusyBee → Settings → Secrets and variables → Actions and create these repository secrets using the supplied private secrets handoff file. This is a one-time setup; never replace the key when updating the app:
 
 - APP_OBSERVER_KEYSTORE_BASE64
 - APP_OBSERVER_KEYSTORE_PASSWORD
