@@ -468,6 +468,11 @@ object ScreenUnderstandingService {
             )
         }
         val entities = matching.optJSONArray("entities") ?: JSONArray()
+        val priceConfidence = (0 until concepts.length()).mapNotNull { index ->
+            concepts.optJSONObject(index)
+                ?.takeIf { it.optString("concept") == "price_or_fare" }
+                ?.optDouble("confidence")?.toFloat()
+        }.maxOrNull()?.coerceIn(0f, 1f) ?: 0f
         for (index in 0 until entities.length()) {
             val entity = entities.optJSONObject(index) ?: continue
             val raw = entity.optJSONObject("region") ?: continue
@@ -482,7 +487,7 @@ object ScreenUnderstandingService {
                 region.left >= region.right || region.top >= region.bottom) continue
             regions += MachineRegion(
                 entity.optString("amount").take(32),
-                1f,
+                priceConfidence,
                 region,
                 "ocr_currency_pattern"
             )
