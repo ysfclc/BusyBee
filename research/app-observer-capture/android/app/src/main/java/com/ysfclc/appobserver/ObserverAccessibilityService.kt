@@ -2,7 +2,10 @@ package com.ysfclc.appobserver
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Rect
+import android.os.Build
+import android.view.Display
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -20,6 +23,7 @@ class ObserverAccessibilityService : AccessibilityService() {
     private val lastContentSampleAt = mutableMapOf<String, Long>()
     private val lastFingerprint = mutableMapOf<String, String>()
     private var observedSessionId: String? = null
+    private var lastScreenshotRequestedAt = 0L
 
     private data class PendingNode(
         val node: AccessibilityNodeInfo,
@@ -72,7 +76,8 @@ class ObserverAccessibilityService : AccessibilityService() {
         }
 
         try {
-            captureSelectedEvent(event, packageName, eventType, now)
+            captureSelectedEvent(event, packageName, eventType, now, sessionId.orEmpty())
+            if (shouldCaptureScreenshot(eventType)) requestScreenshot(sessionId.orEmpty(), packageName, eventType, now)
         } catch (failure: Throwable) {
             ObserverSignals.recordCaptureDiagnostic(this, "pipeline_failures")
             persistUiEvent(this, JSONObject()
@@ -90,7 +95,8 @@ class ObserverAccessibilityService : AccessibilityService() {
         event: AccessibilityEvent,
         packageName: String,
         eventType: Int,
-        now: Long
+        now: Long,
+        sessionId: String
     ) {
         val eventName = AppCatalog.eventName(eventType)
         val source = runCatching { event.source }.getOrNull()
@@ -161,6 +167,36 @@ class ObserverAccessibilityService : AccessibilityService() {
                     readNode(this, false) {
                         node.getBoundsInScreen(bounds)
                         true
+                    }
+
+                    // Content is read only when this exact screen region has a user-authored
+                    // rule that explicitly permits Accessibility text capture.
+                    if (!isPassword && !bounds.isEmpty) {
+                        val allowedRules = SemanticRuleStore.matchingAccessibilityRules(
+                            this, packageName, bounds,
+                            resources.displayMetrics.widthPixels,
+                            resources.displayMetrics.heightPixels
+                        )
+                        if (allowedRules.isNotEmpty()) {
+                            val nodeText = readNode(this, null as String?) {
+                                node.text?.toString()?.take(MAX_SEMANTIC_TEXT_CHARS)
+                            }?.trim().orEmpty()
+                            if (nodeText.isNotEmpty()) {
+                                val screenshotId = ObservationStore.latestScreenshotId(this, sessionId)
+                                allowedRules.forEach { rule ->
+                                    ObservationStore.appendSemanticPayload(this, sessionId, JSONObject()
+                                        .put("timestampEpochMs", now)
+                                        .put("packageName", packageName)
+                                        .put("semanticRuleId", rule.id)
+                                        .put("semanticLabel", rule.label)
+                                        .put("source", "accessibility_node_text")
+                                        .put("screenshotId", screenshotId ?: JSONObject.NULL)
+                                        .put("nodeClassName", className ?: JSONObject.NULL)
+                                        .put("nodeViewId", viewId ?: JSONObject.NULL)
+                                        .put("payloadText", nodeText))
+                                }
+                            }
+                        }
                     }
 
                     if (isVisible) visible++
@@ -251,6 +287,78 @@ class ObserverAccessibilityService : AccessibilityService() {
         ObserverSignals.recordAccessibility(this, packageName, eventType, shape)
     }
 
+    private fun shouldCaptureScreenshot(eventType: Int): Boolean =
+        eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_CLICKED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_SELECTED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
+
+    private fun requestScreenshot(
+        sessionId: String,
+        packageName: String,
+        eventType: Int,
+        timestampEpochMs: Long
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            ObserverSignals.recordCaptureDiagnostic(this, "screenshots_failed")
+            return
+        }
+        if (SystemClock.elapsedRealtime() - lastScreenshotRequestedAt < SCREENSHOT_INTERVAL_MS) {
+            ObserverSignals.recordCaptureDiagnostic(this, "screenshots_rate_limited")
+            return
+        }
+        lastScreenshotRequestedAt = SystemClock.elapsedRealtime()
+        ObserverSignals.recordCaptureDiagnostic(this, "screenshots_attempted")
+        runCatching {
+            takeScreenshot(
+                Display.DEFAULT_DISPLAY,
+                mainExecutor,
+                object : TakeScreenshotCallback {
+                    override fun onSuccess(result: ScreenshotResult) {
+                        val hardwareBuffer = result.hardwareBuffer
+                        val bitmap = runCatching {
+                            Bitmap.wrapHardwareBuffer(hardwareBuffer, result.colorSpace)
+                                ?.copy(Bitmap.Config.ARGB_8888, false)
+                        }.getOrNull()
+                        runCatching { hardwareBuffer.close() }
+                        if (bitmap == null) {
+                            ObserverSignals.recordCaptureDiagnostic(this@ObserverAccessibilityService, "screenshots_failed")
+                            ObservationStore.appendUiEvent(this@ObserverAccessibilityService, JSONObject()
+                                .put("timestampEpochMs", timestampEpochMs)
+                                .put("packageName", packageName)
+                                .put("eventType", "screenshot_failed")
+                                .put("screenshotFailure", "bitmap_unavailable"))
+                            return
+                        }
+                        val stored = ObservationStore.storeScreenshot(
+                            this@ObserverAccessibilityService, sessionId, packageName,
+                            AppCatalog.eventName(eventType), timestampEpochMs, bitmap
+                        )
+                        bitmap.recycle()
+                        if (stored != null) {
+                            ObserverSignals.recordCaptureDiagnostic(this@ObserverAccessibilityService, "screenshots_stored")
+                        } else {
+                            ObserverSignals.recordCaptureDiagnostic(this@ObserverAccessibilityService, "screenshots_failed")
+                        }
+                    }
+
+                    override fun onFailure(errorCode: Int) {
+                        ObserverSignals.recordCaptureDiagnostic(this@ObserverAccessibilityService, "screenshots_failed")
+                        ObservationStore.appendUiEvent(this@ObserverAccessibilityService, JSONObject()
+                            .put("timestampEpochMs", timestampEpochMs)
+                            .put("packageName", packageName)
+                            .put("eventType", "screenshot_failed")
+                            .put("screenshotErrorCode", errorCode))
+                    }
+                }
+            )
+        }.onFailure {
+            ObserverSignals.recordCaptureDiagnostic(this, "screenshots_failed")
+        }
+    }
+
     private fun <T> readNode(context: Context, defaultValue: T, read: () -> T): T =
         runCatching(read).getOrElse {
             ObserverSignals.recordCaptureDiagnostic(context, "node_property_failures")
@@ -329,5 +437,7 @@ class ObserverAccessibilityService : AccessibilityService() {
     companion object {
         private const val CONTENT_SAMPLE_INTERVAL_MS = 250L
         private const val MAX_NODES = 250
+        private const val SCREENSHOT_INTERVAL_MS = 1_200L
+        private const val MAX_SEMANTIC_TEXT_CHARS = 4_000
     }
 }
