@@ -107,23 +107,33 @@ object PcapdroidPacketParser {
         val fractionMicros = if (fileHeader.nanoTimestamps) record.timestampFraction / 1_000L
             else record.timestampFraction
         val result = baseSummary(
-            record.timestampSeconds, fractionMicros, selectedPackage, null, packetData.size
+            record.timestampSeconds, fractionMicros, selectedPackage, null, record.capturedLength
         )
+        // TCP-exported packet bytes are represented only by a short in-memory prefix.
+        // Do not materialise IP addresses or TCP sequence identifiers for this metadata path.
         return when (fileHeader.linkType) {
-            DLT_RAW -> summarizeRawIp(result, packetData)
-            DLT_EN10MB -> summarizeEthernet(result, packetData)
-            DLT_LINUX_SLL -> summarizeLinuxCooked(result, packetData, 16, 14)
-            DLT_LINUX_SLL2 -> summarizeLinuxCooked(result, packetData, 20, 0)
+            DLT_RAW -> summarizeRawIp(result, packetData, includeAddresses = false)
+            DLT_EN10MB -> summarizeEthernet(result, packetData, includeAddresses = false)
+            DLT_LINUX_SLL -> summarizeLinuxCooked(result, packetData, 16, 14, includeAddresses = false)
+            DLT_LINUX_SLL2 -> summarizeLinuxCooked(result, packetData, 20, 0, includeAddresses = false)
             else -> result.put("protocol", "linktype-${fileHeader.linkType}")
         }
     }
 
-    private fun summarizeRawIp(result: JSONObject, packet: ByteArray): JSONObject {
+    private fun summarizeRawIp(
+        result: JSONObject,
+        packet: ByteArray,
+        includeAddresses: Boolean = true
+    ): JSONObject {
         if (packet.isEmpty()) return result.put("protocol", "unknown")
-        return summarizeIp(result, packet, 0, "raw")
+        return summarizeIp(result, packet, 0, "raw", includeAddresses)
     }
 
-    private fun summarizeEthernet(result: JSONObject, frame: ByteArray): JSONObject {
+    private fun summarizeEthernet(
+        result: JSONObject,
+        frame: ByteArray,
+        includeAddresses: Boolean = true
+    ): JSONObject {
         if (frame.size < 14) return result.put("protocol", "truncated_ethernet")
         var offset = 14
         var etherType = u16(frame, 12)
@@ -133,7 +143,7 @@ object PcapdroidPacketParser {
             offset += 4
         }
         return when (etherType) {
-            0x0800, 0x86dd -> summarizeIp(result, frame, offset, "ethernet")
+            0x0800, 0x86dd -> summarizeIp(result, frame, offset, "ethernet", includeAddresses)
             0x0806 -> result.put("protocol", "arp")
             else -> result.put("protocol", "non_ip")
         }
@@ -143,13 +153,14 @@ object PcapdroidPacketParser {
         result: JSONObject,
         frame: ByteArray,
         headerLength: Int,
-        protocolOffset: Int
+        protocolOffset: Int,
+        includeAddresses: Boolean = true
     ): JSONObject {
         if (frame.size < headerLength || frame.size < protocolOffset + 2) {
             return result.put("protocol", "truncated_linux_cooked")
         }
         return when (u16(frame, protocolOffset)) {
-            0x0800, 0x86dd -> summarizeIp(result, frame, headerLength, "linux_cooked")
+            0x0800, 0x86dd -> summarizeIp(result, frame, headerLength, "linux_cooked", includeAddresses)
             0x0806 -> result.put("protocol", "arp")
             else -> result.put("protocol", "non_ip")
         }
@@ -251,16 +262,28 @@ object PcapdroidPacketParser {
         .put("uid", uid ?: JSONObject.NULL)
         .put("frameBytes", packetBytes)
 
-    private fun summarizeIp(result: JSONObject, bytes: ByteArray, offset: Int, source: String): JSONObject {
+    private fun summarizeIp(
+        result: JSONObject,
+        bytes: ByteArray,
+        offset: Int,
+        source: String,
+        includeAddresses: Boolean = true
+    ): JSONObject {
         if (bytes.size <= offset) return result.put("protocol", "truncated_ip")
         return when ((bytes[offset].toInt() ushr 4) and 0x0f) {
-            4 -> summarizeIpv4(result, bytes, offset, source)
-            6 -> summarizeIpv6(result, bytes, offset)
+            4 -> summarizeIpv4(result, bytes, offset, source, includeAddresses)
+            6 -> summarizeIpv6(result, bytes, offset, includeAddresses)
             else -> result.put("protocol", "unknown_ip_version")
         }
     }
 
-    private fun summarizeIpv4(result: JSONObject, bytes: ByteArray, offset: Int, source: String): JSONObject {
+    private fun summarizeIpv4(
+        result: JSONObject,
+        bytes: ByteArray,
+        offset: Int,
+        source: String,
+        includeAddresses: Boolean
+    ): JSONObject {
         if (bytes.size < offset + 20) return result.put("protocol", "truncated_ipv4")
         val versionAndLength = bytes[offset].toInt() and 0xff
         val ihl = (versionAndLength and 0x0f) * 4
@@ -270,21 +293,30 @@ object PcapdroidPacketParser {
         val totalLength = u16(bytes, offset + 2)
         if (totalLength < ihl) return result.put("protocol", "malformed_ipv4")
         val protocol = bytes[offset + 9].toInt() and 0xff
-        val sourceIp = address(bytes, offset + 12, 4)
-        val destinationIp = address(bytes, offset + 16, 4)
-        result.put("ipVersion", 4).put("sourceIp", sourceIp).put("destinationIp", destinationIp)
-        return summarizeTransport(result, bytes, offset + ihl, protocol, totalLength - ihl)
+        result.put("ipVersion", 4)
+        if (includeAddresses) {
+            result.put("sourceIp", address(bytes, offset + 12, 4))
+                .put("destinationIp", address(bytes, offset + 16, 4))
+        }
+        return summarizeTransport(result, bytes, offset + ihl, protocol, totalLength - ihl, includeAddresses)
     }
 
-    private fun summarizeIpv6(result: JSONObject, bytes: ByteArray, offset: Int): JSONObject {
+    private fun summarizeIpv6(
+        result: JSONObject,
+        bytes: ByteArray,
+        offset: Int,
+        includeAddresses: Boolean
+    ): JSONObject {
         if (bytes.size < offset + 40) return result.put("protocol", "truncated_ipv6")
         val nextHeader = bytes[offset + 6].toInt() and 0xff
         val payloadLength = u16(bytes, offset + 4)
-        val sourceIp = address(bytes, offset + 8, 16)
-        val destinationIp = address(bytes, offset + 24, 16)
-        result.put("ipVersion", 6).put("sourceIp", sourceIp).put("destinationIp", destinationIp)
-        // Extension headers are retained in the PCAP; summary stops at the next-header value.
-        return summarizeTransport(result, bytes, offset + 40, nextHeader, payloadLength)
+        result.put("ipVersion", 6)
+        if (includeAddresses) {
+            result.put("sourceIp", address(bytes, offset + 8, 16))
+                .put("destinationIp", address(bytes, offset + 24, 16))
+        }
+        // Extension headers are not traversed on this metadata-only path.
+        return summarizeTransport(result, bytes, offset + 40, nextHeader, payloadLength, includeAddresses)
     }
 
     private fun summarizeTransport(
@@ -292,7 +324,8 @@ object PcapdroidPacketParser {
         bytes: ByteArray,
         offset: Int,
         protocolNumber: Int,
-        payloadLength: Int
+        payloadLength: Int,
+        includeSequence: Boolean = true
     ): JSONObject {
         val protocol = when (protocolNumber) {
             6 -> "tcp"
@@ -307,9 +340,9 @@ object PcapdroidPacketParser {
             if (headerLength >= 20 && bytes.size >= offset + headerLength) {
                 result.put("sourcePort", u16(bytes, offset))
                     .put("destinationPort", u16(bytes, offset + 2))
-                    .put("tcpSequence", u32(bytes, offset + 4))
                     .put("tcpFlags", bytes[offset + 13].toInt() and 0xff)
                     .put("payloadBytes", (payloadLength - headerLength).coerceAtLeast(0))
+                if (includeSequence) result.put("tcpSequence", u32(bytes, offset + 4))
             }
         } else if (protocolNumber == 17 && bytes.size >= offset + 8) {
             result.put("sourcePort", u16(bytes, offset))
