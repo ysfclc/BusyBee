@@ -3,23 +3,24 @@ package com.ysfclc.appobserver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import org.json.JSONObject
 
 class PcapdroidStatusReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action != ACTION_CAPTURE_STATUS) return
 
-        // This receiver must be exported for PCAPdroid to notify us. Do not trust
-        // an arbitrary app's spoofed "capture stopped" broadcast.
-        val senderUid = getSendingUid()
-        val trustedSender = listOf(
-            "com.emanuelef.remote_capture",
-            "com.emanuelef.remote_capture.debug"
-        ).any { packageName ->
-            runCatching { context.packageManager.getPackageUid(packageName, 0) == senderUid }
-                .getOrDefault(false)
-        }
-        if (!trustedSender) return
+        // This receiver must be exported for PCAPdroid to notify us. Android 14+
+        // exposes the original sender identity; on older versions we ignore the
+        // optional broadcast rather than trust an unauthenticated stop signal.
+        if (Build.VERSION.SDK_INT < 34) return
+        val senderPackage = getSentFromPackage()
+        val senderUid = getSentFromUid()
+        if (senderPackage !in TRUSTED_PACKAGES) return
+        val installedUid = runCatching {
+            context.packageManager.getPackageUid(senderPackage!!, 0)
+        }.getOrNull()
+        if (installedUid == null || installedUid != senderUid) return
 
         val running = intent.getBooleanExtra("running", true)
         ObservationStore.appendSessionEvent(context, JSONObject()
@@ -37,5 +38,9 @@ class PcapdroidStatusReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_CAPTURE_STATUS = "com.emanuelef.remote_capture.CaptureStatus"
+        private val TRUSTED_PACKAGES = setOf(
+            "com.emanuelef.remote_capture",
+            "com.emanuelef.remote_capture.debug"
+        )
     }
 }
