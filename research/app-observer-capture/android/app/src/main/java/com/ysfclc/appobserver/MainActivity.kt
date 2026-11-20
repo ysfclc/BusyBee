@@ -205,7 +205,7 @@ class MainActivity : Activity() {
             ObservationStore.markPcapdroidUnavailable(this, "PCAPdroid is not installed")
             Toast.makeText(this, "UI observation started. Install PCAPdroid to add network capture.", Toast.LENGTH_LONG).show()
         } else {
-            window.decorView.postDelayed({ launchPcapdroidStart(app, id) }, 800L)
+            waitForReceiverAndStart(app, id, 0)
         }
         refresh()
     }
@@ -218,7 +218,7 @@ class MainActivity : Activity() {
             .put("targetPackage", app.packageName)
             .put("sessionId", sessionId))
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setClassName(pcapdroidPackage!!, PCAPDROID_CAPTURE_ACTIVITY)
+            setClassName(packageName, PCAPDROID_CAPTURE_ACTIVITY)
             putExtra("action", "start")
             putExtra("broadcast_receiver", PcapdroidStatusReceiver::class.java.name)
             putExtra("pcap_dump_mode", "tcp_exporter")
