@@ -611,7 +611,21 @@ class MainActivity : Activity() {
             " snapshots · " + writeFailures + " write failures · " + pipelineFailures + " processing failures"
         val screenshots = captureCounters.optLong("screenshots_stored")
         val screenshotFailures = captureCounters.optLong("screenshots_failed")
-        val visualSummary = "Screenshots: " + screenshots + " saved · " + screenshotFailures + " failed"
+        val analysisAttempts = captureCounters.optLong("screen_analysis_attempts")
+        val ocrSuccesses = captureCounters.optLong("screen_ocr_successes")
+        val ocrFailures = captureCounters.optLong("screen_ocr_failures")
+        val imageLabelSuccesses = captureCounters.optLong("screen_image_label_successes")
+        val imageLabelFailures = captureCounters.optLong("screen_image_label_failures")
+        val insightWrites = captureCounters.optLong("screen_insights_written")
+        val analysisFailures = captureCounters.optLong("screen_analysis_failures")
+        val statesReused = captureCounters.optLong("screen_states_reused")
+        val statesCreated = captureCounters.optLong("screen_states_created")
+        val visualSummary = "Screenshots: " + screenshots + " saved · " + screenshotFailures + " failed" +
+            "\\nMachine analysis: " + analysisAttempts + " attempted · " + insightWrites + " insights saved · " +
+            analysisFailures + " failed" +
+            "\\nOCR: " + ocrSuccesses + " passed / " + ocrFailures + " failed · image labels: " +
+            imageLabelSuccesses + " passed / " + imageLabelFailures + " failed" +
+            "\\nLearned states: " + statesCreated + " new · " + statesReused + " reused"
         reportPreview.text = listOf(
             "Android " + android.optString("release") + " · API " + android.optInt("apiLevel"),
             "Accessibility: " + accessibilityText,
