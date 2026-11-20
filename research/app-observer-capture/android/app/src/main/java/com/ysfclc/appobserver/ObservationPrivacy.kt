@@ -24,7 +24,7 @@ object ObservationPrivacy {
         "text", "title", "contentdescription", "textlines", "payload", "rawpayload",
         "authorization", "cookie", "cookies", "headers", "sourceip", "destinationip",
         "tcpsequence", "url", "uri", "domain", "email", "phone", "token", "password",
-        "secret", "body", "message", "clipboard", "screenshot", "rawpacket", "packetdata"
+        "secret", "body", "message", "value", "hint", "hinttext", "editablevalue", "clipboard", "screenshot", "rawpacket", "packetdata"
     )
 
     fun safeNetworkMetadata(input: JSONObject): JSONObject {
