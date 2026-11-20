@@ -4,7 +4,6 @@ import android.app.Activity
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
@@ -145,14 +144,20 @@ class SemanticRuleActivity : Activity() {
 
     private fun mapToBitmapRect(viewRect: RectF): Rect? {
         if (bitmapWidth <= 0 || bitmapHeight <= 0) return null
-        val inverse = Matrix()
-        if (!screenshot.imageMatrix.invert(inverse)) return null
-        val points = floatArrayOf(viewRect.left, viewRect.top, viewRect.right, viewRect.bottom)
-        inverse.mapPoints(points)
-        val left = points[0].coerceIn(0f, bitmapWidth.toFloat()).toInt()
-        val top = points[1].coerceIn(0f, bitmapHeight.toFloat()).toInt()
-        val right = points[2].coerceIn(0f, bitmapWidth.toFloat()).toInt()
-        val bottom = points[3].coerceIn(0f, bitmapHeight.toFloat()).toInt()
+        // ImageView uses FIT_CENTER; map coordinates using the same letterboxed transform
+        // that the screenshot viewer draws, rather than ImageView.imageMatrix (which is
+        // not the draw matrix for non-MATRIX scale types).
+        val viewWidth = screenshot.width.toFloat()
+        val viewHeight = screenshot.height.toFloat()
+        if (viewWidth <= 0f || viewHeight <= 0f) return null
+        val scale = minOf(viewWidth / bitmapWidth, viewHeight / bitmapHeight)
+        if (!scale.isFinite() || scale <= 0f) return null
+        val leftInset = (viewWidth - bitmapWidth * scale) / 2f
+        val topInset = (viewHeight - bitmapHeight * scale) / 2f
+        val left = ((viewRect.left - leftInset) / scale).coerceIn(0f, bitmapWidth.toFloat()).toInt()
+        val top = ((viewRect.top - topInset) / scale).coerceIn(0f, bitmapHeight.toFloat()).toInt()
+        val right = ((viewRect.right - leftInset) / scale).coerceIn(0f, bitmapWidth.toFloat()).toInt()
+        val bottom = ((viewRect.bottom - topInset) / scale).coerceIn(0f, bitmapHeight.toFloat()).toInt()
         return Rect(left, top, right, bottom).takeIf { it.width() >= 4 && it.height() >= 4 }
     }
 
