@@ -16,6 +16,15 @@ object ObserverSignals {
     private const val PREFS = "app_observer_signals"
     private const val STARTED = "session_started_at"
     private const val PREFIX = "signal."
+    private const val CAPTURE_PREFIX = "capture."
+    private val captureCounterNames = setOf(
+        "events_received", "events_without_package", "events_target_mismatch",
+        "events_target_match", "content_events_throttled", "root_unavailable",
+        "root_package_mismatch", "root_acquired", "root_package_read_failures",
+        "node_property_failures", "child_access_failures", "hierarchy_snapshots",
+        "empty_hierarchies", "unchanged_structure_events", "ui_write_attempts",
+        "ui_write_successes", "ui_write_failures", "pipeline_failures"
+    )
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -27,6 +36,36 @@ object ObserverSignals {
     fun sessionStartedAt(context: Context): Long {
         ensureSession(context)
         return prefs(context).getLong(STARTED, 0L)
+    }
+
+    fun resetCaptureDiagnostics(context: Context) {
+        val p = prefs(context)
+        synchronized(ObserverSignals::class.java) {
+            val edit = p.edit()
+            p.all.keys.filter { it.startsWith(CAPTURE_PREFIX) }.forEach(edit::remove)
+            captureCounterNames.forEach { edit.putLong(CAPTURE_PREFIX + it, 0L) }
+            edit.apply()
+        }
+    }
+
+    fun recordCaptureDiagnostic(context: Context, name: String) {
+        if (name !in captureCounterNames) return
+        val p = prefs(context)
+        synchronized(ObserverSignals::class.java) {
+            val key = CAPTURE_PREFIX + name
+            p.edit().putLong(key, p.getLong(key, 0L) + 1L).apply()
+        }
+    }
+
+    fun captureDiagnostics(context: Context): JSONObject {
+        val p = prefs(context)
+        val counters = JSONObject()
+        captureCounterNames.sorted().forEach { name ->
+            counters.put(name, p.getLong(CAPTURE_PREFIX + name, 0L))
+        }
+        return JSONObject()
+            .put("schema", "ui-capture-diagnostics/v1")
+            .put("counters", counters)
     }
 
     fun recordNotification(context: Context, pkg: String, category: String?, actions: Int, ongoing: Boolean, group: Boolean) {
