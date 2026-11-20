@@ -31,19 +31,22 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 
 ## App Observation research subtrack
 
-**Status:** generic privacy-first recorder, live evidence viewer and exact structural matching implemented and CI-verified; physical-device acceptance, semantic classification and automation execution remain open.
+**Status:** generic recorder and structural matcher implemented; screenshot-first visual evidence and user-defined semantic rules are now in implementation/CI validation. Physical-device acceptance, automatic visual semantics, behaviour learning and automation remain open.
 
 - Dynamically discover installed launchable apps; do not hardcode provider packages.
-- Select one target app per explicit session and record structure-only UI evidence; App Observer itself is available as a self-test target.
-- Render recent UI evidence on-device: control tree, resource IDs, bounds, boolean states and event timeline.
-- Fingerprint and group repeated exact UI structures without collecting text or pixel screenshots.
-- Record interaction source-node signatures and pre/post UI structure.
-- Record notification envelope metadata only.
-- Optionally correlate minimised network metadata from PCAPdroid, never raw addresses or payloads.
-- Build a behaviour classifier that learns repeatable screen states and transitions from correlated evidence.
+- Select one target app per explicit session and record UI structure; App Observer itself remains a self-test target.
+- Capture actual full-display screenshots at meaningful Accessibility events, link each screenshot to its event, and render the screenshot on-device.
+- Make screenshots the visual ground truth. Let the user draw regions, name what each region means, select app/system-surface scope, and choose visual-only, Accessibility-text or notification-text payload sources.
+- Keep semantic payloads in a separate, timestamped stream linked by screenshot ID and rule ID. Read content only from explicitly authorised regions; preserve visual-only as the default.
+- Persist meaning rules across sessions and same-signed app updates; include rules, screenshots and semantic payloads in user-requested export/import bundles.
+- Use Android system APIs for what they expose; clearly mark secure windows, unavailable content, inaccessible custom views and unsupported system surfaces instead of inventing their meaning.
+- Keep PCAPdroid packet evidence metadata-only and separate from application payloads.
+- Build visual/semantic classification that distinguishes screenshots, user-authored rules and model-inferred labels; measure repeatability and confidence before promoting a reusable pattern.
 - Promote verified patterns into generic reusable skills with app-specific capability profiles.
-- Keep observation, pattern learning and action execution separate. Read-only observation and structural matching are the current deliverables; semantic learning and action automation require their own evidence, security, policy and verification gates.
-- Physical-device acceptance for App Observer self-test and representative third-party apps remains an explicit open gate.
+- Keep observation, pattern learning and action execution separate. Read-only observation and user-defined region semantics are the current deliverables; automation requires its own evidence, security, policy and verification gates.
+- Persistent release package/signing identity is a gate: after the one-time migration, updates must use the same package and private signing key. Never publish an ephemeral-debug-signed APK as a release.
+- Physical-device acceptance for screenshots, semantic payload linkage and App Observer self-test remains an explicit open gate.
+
 
 ## Phase 3 — Driver Data Mirror (first real product capability)
 
