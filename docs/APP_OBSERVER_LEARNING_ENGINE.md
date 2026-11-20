@@ -1,6 +1,6 @@
 # App Observer — Behaviour Learning and Privacy Baseline
 
-**Status:** Approved product and engineering direction. Generic privacy-first recorder source and CI build are implemented and verified (2026-11-20). Physical-device acceptance, pattern classification and automation execution remain future work.
+**Status:** Approved product and engineering direction. Generic privacy-first recorder, on-device structural evidence viewer, exact structural fingerprints and App Observer self-test target are implemented and CI-verified (2026-11-20). Physical-device acceptance, semantic pattern classification and automation execution remain future work.
 
 ## 1. Product objective
 
@@ -20,9 +20,9 @@ The intended downstream outcome is an application behaviour model: what states e
 
 ## 2. No provider allowlist
 
-The app picker is populated dynamically from installed applications that expose a launcher activity to Android's package-visibility query. It excludes App Observer itself, but does not special-case Uber, Bolt, Waze or Google Maps.
+The app picker is populated dynamically from installed applications that expose a launcher activity to Android's package-visibility query. It does not special-case Uber, Bolt, Waze or Google Maps. App Observer is appended as an explicit self-test target so the recorder can observe its own UI.
 
-The user selects one target package and manually starts one session. The AccessibilityService can receive system events broadly, but the recorder processes and stores events only when their package matches the selected target.
+The user selects one target package (or the explicit App Observer self-test target) and manually starts one session. The AccessibilityService can receive system events broadly, but the recorder processes and stores events only when their package matches the selected target.
 
 We deliberately do not request the restricted QUERY_ALL_PACKAGES permission. Therefore hidden, disabled, non-launchable and some system components will not appear. This is a package-discovery boundary, not an app-family restriction. A user can refresh the picker after installing an app.
 
@@ -39,6 +39,7 @@ Persist only structural fields:
 - Parent index, depth, child index and child count.
 - Bounds and boolean state: clickable, scrollable, editable, password, enabled, selected and checked.
 - For interaction events, the source node's structural signature when Android exposes it.
+- A versioned SHA-256 structural fingerprint over hierarchy indexes, node classes, resource IDs and boolean control states. The fingerprint excludes text, descriptions, editable values and pixel bounds; it groups structurally equivalent trees but does not assert semantic screen identity.
 
 Do not read or store AccessibilityNodeInfo text, content descriptions, hint text, editable contents, typed values or clipboard state. Do not collect screenshots or screen recordings. Password and editable controls are represented by structural flags only.
 
@@ -120,6 +121,8 @@ No automation executor is included in this observer build. Android platform poli
 - App picker discovers ordinary launchable apps without a hardcoded provider list.
 - Only the selected app's UI and notification evidence is written.
 - UI records preserve structural hierarchy and interaction source signatures without text.
+- The on-device live viewer renders recent UI events, the latest visible control tree, resource IDs, bounds, boolean control states, source-node metadata and repeated structural fingerprints.
+- The app picker includes an explicit App Observer self-test target; target filtering is verified by unit tests.
 - Network records contain only allowlisted metadata, with no address or payload fields.
 - No network.pcap is created or included in exports.
 - Legacy evidence is sanitised before export.
@@ -146,19 +149,21 @@ Only after learning gate passes:
 ## 8. Current implementation status
 
 Implemented in the App Observer capture project:
-- Dynamic launchable-app picker rather than a four-provider hardcoded catalogue.
+- Dynamic launchable-app picker rather than a provider-specific catalogue, plus explicit App Observer self-test target.
 - Selected-package filtering in the Accessibility and notification listeners.
 - Structure-only accessibility snapshots with hierarchy indexes and interaction source-node evidence.
+- Versioned SHA-256 fingerprints for exact structural matching; screen text, descriptions, editable values and pixel bounds are excluded.
+- On-device live viewer for UI structure, repeated fingerprints, recent events and the separate network metadata timeline.
 - Notification envelope metadata without titles or bodies.
 - PCAPdroid TCP stream inspection with only allowlisted header metadata persisted.
 - No raw packet/PCAP file persistence; no full-payload or TLS-decryption request.
 - Private local session storage and export-time sanitisation.
 
 Not yet implemented or device-verified:
-- Automated state fingerprint clustering and behaviour classification.
+- Semantic state classification and behaviour learning; a structural fingerprint match is not semantic screen understanding.
 - Semantic correlation engine across UI/network evidence.
 - Reusable automation skills or action executor.
-- Physical-device acceptance across a representative set of apps (CI APK artifact 14616602770, SHA-256 115e4186f2b59b25a6a0ae51ba4389bebbcf1ec926c0ac42b0e6b28ea4645bdf; device capture not yet tested).
+- Physical-device acceptance across a representative set of apps. CI run #113 passed for source commit `38742a72d6e79c97f8cfab16b02ab3b6907f1012`; viewer artifact ID `14618502708`, package `com.ysfclc.appobserver.capture.generic.viewer.debug`, APK SHA-256 `581456f1a934a3e1a814070531a912e108f30df0ce141dbd040dc10340a23e8d`. Device capture and PCAPdroid packet delivery remain untested.
 - Per-app coverage report and false-positive evaluation.
 
 This status must be preserved: building the recorder does not mean app understanding or automation has been completed.
