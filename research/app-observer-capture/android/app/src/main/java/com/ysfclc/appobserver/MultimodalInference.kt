@@ -45,7 +45,10 @@ data class LearningEvidence(
     val networkBytes: Long,
     val networkProtocols: List<String>,
     val networkPorts: List<Int>,
-    val authorisedText: List<String>
+    val authorisedText: List<String>,
+    val accessibilityTreeMatched: Boolean = false,
+    val notificationListenerConnected: Boolean = false,
+    val networkStreamAvailable: Boolean = false
 )
 
 data class NormalisedRegion(
