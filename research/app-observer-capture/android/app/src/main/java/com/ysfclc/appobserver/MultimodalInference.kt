@@ -15,6 +15,15 @@ data class OcrLineEvidence(
 
 data class VisualLabelEvidence(val label: String, val confidence: Float)
 
+data class AccessibilityElementEvidence(
+    val className: String,
+    val resourceId: String,
+    val region: NormalisedRegion?,
+    val clickable: Boolean,
+    val scrollable: Boolean,
+    val editable: Boolean
+)
+
 data class LearningEvidence(
     val packageName: String,
     val screenshotId: String,
@@ -25,6 +34,7 @@ data class LearningEvidence(
     val visualLabels: List<VisualLabelEvidence>,
     val accessibilityClasses: List<String>,
     val resourceIds: List<String>,
+    val accessibilityElements: List<AccessibilityElementEvidence>,
     val clickableCount: Int,
     val scrollableCount: Int,
     val editableCount: Int,
@@ -255,6 +265,7 @@ object MultimodalInference {
             val corroboration = 1f + min(3, max(0, coverage - 1)) * 0.075f
             val confidence = (base * corroboration).coerceIn(0.05f, 0.97f)
             val region = mergeRegion(candidate.lines, evidence.width, evidence.height)
+                ?: structuralRegion(concept, evidence.accessibilityElements)
             ConceptHypothesis(
                 concept, confidence, candidate.score,
                 candidate.sources.sorted(), region
@@ -314,6 +325,45 @@ object MultimodalInference {
             }
         }
         return result.entries.take(12).map { it.key to it.value }
+    }
+
+    private fun structuralRegion(
+        concept: String,
+        elements: List<AccessibilityElementEvidence>
+    ): NormalisedRegion? {
+        val selected = elements.filter { element ->
+            val className = element.className.lowercase(Locale.ROOT)
+            val id = element.resourceId.lowercase(Locale.ROOT)
+            when (concept) {
+                "map_view" -> className.contains("map") || id.contains("map") ||
+                    id.contains("navigation_canvas")
+                "price_or_fare" -> listOf("price", "fare", "amount", "earning", "total", "cost")
+                    .any(id::contains)
+                "chat_conversation" -> className.contains("recyclerview") ||
+                    className.contains("listview") || id.contains("conversation") || id.contains("message_list")
+                "service_offer" -> element.clickable &&
+                    listOf("accept", "offer", "request", "pickup", "confirm").any(id::contains)
+                "search_interface" -> element.editable ||
+                    id.contains("search") || id.contains("query")
+                "form_or_input", "authentication" -> element.editable
+                "list_or_feed" -> element.scrollable ||
+                    className.contains("recyclerview") || className.contains("listview")
+                "confirmation_result" -> listOf("success", "confirmation", "completed", "result")
+                    .any(id::contains)
+                "route_summary" -> listOf("route", "distance", "duration", "arrival", "eta")
+                    .any(id::contains)
+                "payment" -> listOf("payment", "payout", "card", "bank", "wallet")
+                    .any(id::contains)
+                else -> false
+            }
+        }.mapNotNull { it.region }
+        if (selected.isEmpty()) return null
+        return NormalisedRegion(
+            selected.minOf { it.left }.coerceIn(0f, 1f),
+            selected.minOf { it.top }.coerceIn(0f, 1f),
+            selected.maxOf { it.right }.coerceIn(0f, 1f),
+            selected.maxOf { it.bottom }.coerceIn(0f, 1f)
+        )
     }
 
     private fun mergeRegion(lines: List<OcrLineEvidence>, width: Int, height: Int): NormalisedRegion? {
