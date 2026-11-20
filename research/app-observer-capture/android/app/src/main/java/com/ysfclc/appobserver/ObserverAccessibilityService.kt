@@ -2,6 +2,8 @@ package com.ysfclc.appobserver
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Build
@@ -50,13 +52,22 @@ class ObserverAccessibilityService : AccessibilityService() {
             return
         }
 
+        val sessionId = ObservationStore.activeSessionId(this)
         if (!AppCatalog.isSessionTarget(packageName, ObservationStore.activePackage(this))) {
             ObserverSignals.recordCaptureDiagnostic(this, "events_target_mismatch")
+            if (sessionId != null && SemanticRuleStore.hasSystemSurfaceRules(this) &&
+                isSystemPackage(packageName) && shouldCaptureScreenshot(event.eventType)) {
+                // Only system/updated-system packages are eligible here. Other installed apps
+                // remain outside the selected session and are never screenshotted.
+                requestScreenshot(
+                    sessionId, SemanticRuleStore.SYSTEM_SURFACE_PACKAGE,
+                    event.eventType, System.currentTimeMillis()
+                )
+            }
             return
         }
         ObserverSignals.recordCaptureDiagnostic(this, "events_target_match")
 
-        val sessionId = ObservationStore.activeSessionId(this)
         if (sessionId != observedSessionId) {
             // A new session must always receive its own initial full snapshot, even when
             // the selected app's structure matches the preceding session.
@@ -288,6 +299,18 @@ class ObserverAccessibilityService : AccessibilityService() {
         ObserverSignals.recordAccessibility(this, packageName, eventType, shape)
     }
 
+    private fun isSystemPackage(packageName: String): Boolean = runCatching {
+        val flags = if (Build.VERSION.SDK_INT >= 33) {
+            packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0))
+                .flags
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getApplicationInfo(packageName, 0).flags
+        }
+        (flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
+            (flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+    }.getOrDefault(false)
+
     private fun shouldCaptureScreenshot(eventType: Int): Boolean =
         eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             eventType == AccessibilityEvent.TYPE_VIEW_CLICKED ||
@@ -443,8 +466,11 @@ class ObserverAccessibilityService : AccessibilityService() {
             val service = activeInstance ?: return
             val sessionId = ObservationStore.activeSessionId(context) ?: return
             if (ObservationStore.activePackage(context) != packageName) return
+            val screenshotScope = if (SemanticRuleStore.hasSystemSurfaceRules(context)) {
+                SemanticRuleStore.SYSTEM_SURFACE_PACKAGE
+            } else packageName
             service.requestScreenshot(
-                sessionId, packageName,
+                sessionId, screenshotScope,
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
                 System.currentTimeMillis()
             )
