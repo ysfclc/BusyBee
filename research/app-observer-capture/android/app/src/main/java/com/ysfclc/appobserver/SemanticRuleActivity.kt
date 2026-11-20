@@ -29,6 +29,7 @@ class SemanticRuleActivity : Activity() {
     private lateinit var overlay: SelectionOverlay
     private lateinit var labelInput: EditText
     private lateinit var sourceSpinner: Spinner
+    private lateinit var scopeSpinner: Spinner
     private var bitmapWidth = 0
     private var bitmapHeight = 0
     private var selectedRegion: Rect? = null
@@ -89,8 +90,15 @@ class SemanticRuleActivity : Activity() {
         ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
         root.addView(sourceSpinner)
 
+        scopeSpinner = Spinner(this)
+        scopeSpinner.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_item,
+            listOf("Scope: selected app", "Scope: Android system surfaces (status bar / notification shade)")
+        ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        root.addView(scopeSpinner)
+
         root.addView(TextView(this).apply {
-            text = "Content is never read unless you choose one of the two explicit content sources. Visual-only rules retain the screenshot and region label without extracting text. Password fields are always excluded."
+            text = "Content is never read unless you choose one of the two explicit content sources. Visual-only rules retain the screenshot and region label without extracting text. Password fields are always excluded. System-surface text comes from notification listener rules; the observer does not scrape all system windows."
             textSize = 12f
             setTextColor(Color.rgb(255, 202, 121))
             setPadding(0, dp(8), 0, dp(10))
@@ -159,9 +167,17 @@ class SemanticRuleActivity : Activity() {
             Toast.makeText(this, "Draw a region on the screenshot first.", Toast.LENGTH_SHORT).show()
             return
         }
+        val rulePackage = if (scopeSpinner.selectedItemPosition == 1) {
+            SemanticRuleStore.SYSTEM_SURFACE_PACKAGE
+        } else targetPackage
+        if (rulePackage == SemanticRuleStore.SYSTEM_SURFACE_PACKAGE &&
+            source == SemanticRule.SOURCE_ACCESSIBILITY_TEXT) {
+            Toast.makeText(this, "System surfaces currently support visual rules or linked notification payloads.", Toast.LENGTH_LONG).show()
+            return
+        }
         runCatching {
             SemanticRuleStore.add(
-                this, targetPackage, labelInput.text.toString(), source,
+                this, rulePackage, labelInput.text.toString(), source,
                 region!!, bitmapWidth, bitmapHeight, screenshotId
             )
         }.onSuccess {
