@@ -20,8 +20,8 @@ import java.net.SocketTimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Receives PCAPdroid's TCP Exporter (pcap-over-IP) on loopback only.
- * The incoming byte stream is a classic-PCAP global header followed by record headers and packet bytes.
+ * Receives PCAPdroid's TCP Exporter on loopback only. Packet bytes are inspected in memory
+ * to extract allowlisted headers; raw packets and application payloads are never persisted.
  */
 class PcapdroidCaptureService : Service() {
     @Volatile private var serverSocket: ServerSocket? = null
@@ -68,7 +68,6 @@ class PcapdroidCaptureService : Service() {
 
     private fun receivePcapStream() {
         val directory = ObservationStore.activeDirectory(this) ?: return
-        val pcapFile = File(directory, "network.pcap")
         var packets = 0L
         var bytes = 0L
         try {
@@ -116,54 +115,49 @@ class PcapdroidCaptureService : Service() {
                         .put("byteOrder", fileHeader.byteOrder.toString())
                         .put("nanoTimestamps", fileHeader.nanoTimestamps))
 
-                    FileOutputStream(pcapFile, false).use { output ->
-                        output.write(globalHeaderBytes)
-                        FileOutputStream(File(directory, "network-events.jsonl"), false)
-                            .bufferedWriter(Charsets.UTF_8).use { networkIndex ->
-                                while (!stopping.get()) {
-                                    val recordBytes = readExact(input, RECORD_HEADER_BYTES) ?: break
-                                    val record = PcapdroidPacketParser.parseRecordHeader(
-                                        recordBytes, fileHeader.byteOrder
-                                    ) ?: throw IOException("Invalid PCAP record header")
-                                    val packetData = readExact(input, record.capturedLength)
-                                        ?: throw EOFException("TCP stream ended inside a PCAP packet")
-
-                                    output.write(recordBytes)
-                                    output.write(packetData)
-                                    val selectedPackage = ObservationStore.activePackage(this)
-                                        ?: "selected-app"
-                                    val summary = PcapdroidPacketParser.summarizePcapPacket(
+                    FileOutputStream(File(directory, "network-events.jsonl"), false)
+                        .bufferedWriter(Charsets.UTF_8).use { networkIndex ->
+                            while (!stopping.get()) {
+                                val recordBytes = readExact(input, RECORD_HEADER_BYTES) ?: break
+                                val record = PcapdroidPacketParser.parseRecordHeader(
+                                    recordBytes, fileHeader.byteOrder
+                                ) ?: throw IOException("Invalid PCAP record header")
+                                // Packet bytes are transient: inspect protocol/header fields, then discard.
+                                val packetData = readExact(input, record.capturedLength)
+                                    ?: throw EOFException("TCP stream ended inside a packet")
+                                val selectedPackage = ObservationStore.activePackage(this)
+                                    ?: "selected-app"
+                                val summary = ObservationPrivacy.safeNetworkMetadata(
+                                    PcapdroidPacketParser.summarizePcapPacket(
                                         packetData, fileHeader, record, selectedPackage
                                     )
-                                    networkIndex.append(summary.toString()).append('\n')
-                                    packets++
-                                    bytes += packetData.size
-                                    receivedPackets = packets
-                                    receivedBytes = bytes
-                                    // Flush every packet so live status and evidence are truthful.
-                                    output.flush()
-                                    networkIndex.flush()
-                                    receiverState = "receiving"
-                                    if (packets == 1L || packets % 8L == 0L) {
-                                        ObservationStore.appendSessionEvent(this, JSONObject()
-                                            .put("type", "pcap_packet_received")
-                                            .put("timestampEpochMs", System.currentTimeMillis())
-                                            .put("packetCount", packets)
-                                            .put("packetBytes", packetData.size)
-                                            .put("totalPacketBytes", bytes)
-                                            .put("protocol", summary.optString("protocol", "unknown")))
-                                        updateNotification("Captured $packets packets · ${bytes / 1024} KB")
-                                    }
-                                }
-                                output.flush()
+                                )
+                                networkIndex.append(summary.toString()).append('\n')
+                                packets++
+                                bytes += packetData.size
+                                receivedPackets = packets
+                                receivedBytes = bytes
                                 networkIndex.flush()
+                                receiverState = "receiving"
+                                if (packets == 1L || packets % 8L == 0L) {
+                                    ObservationStore.appendSessionEvent(this, JSONObject()
+                                        .put("type", "network_metadata_received")
+                                        .put("timestampEpochMs", System.currentTimeMillis())
+                                        .put("packetCount", packets)
+                                        .put("packetBytesInspected", packetData.size)
+                                        .put("totalPacketBytesInspected", bytes)
+                                        .put("protocol", summary.optString("protocol", "unknown")))
+                                    updateNotification("Observed $packets packet headers · ${bytes / 1024} KB inspected")
+                                }
                             }
-                    }
+                            networkIndex.flush()
+                        }
                     ObservationStore.appendSessionEvent(this, JSONObject()
                         .put("type", "pcapdroid_tcp_stream_closed")
                         .put("timestampEpochMs", System.currentTimeMillis())
-                        .put("packetsWritten", packets)
-                        .put("packetBytesWritten", bytes)
+                        .put("packetHeadersInspected", packets)
+                        .put("packetBytesInspected", bytes)
+                        .put("rawPacketPersistence", false)
                         .put("linkType", fileHeader.linkType))
                 }
             }
@@ -183,9 +177,10 @@ class PcapdroidCaptureService : Service() {
             ObservationStore.appendSessionEvent(this, JSONObject()
                 .put("type", "pcapdroid_tcp_receiver_stopped")
                 .put("timestampEpochMs", System.currentTimeMillis())
-                .put("packetsWritten", packets)
-                .put("packetBytesWritten", bytes))
-            if (!stopping.get()) updateNotification("TCP receiver stopped · $packets packets saved")
+                .put("packetHeadersInspected", packets)
+                .put("packetBytesInspected", bytes)
+                .put("rawPacketPersistence", false))
+            if (!stopping.get()) updateNotification("TCP receiver stopped · $packets metadata records retained")
             finishReason?.let(::finalizeSession)
         }
     }
