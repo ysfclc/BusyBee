@@ -4,7 +4,7 @@ App Observer is a generic, read-only Android behaviour recorder. It is not limit
 
 ## Current evidence sources
 
-- Full-display screenshots requested through the Android Accessibility screenshot API (Android 11/API 30+), rate-limited to roughly 1.2 seconds after meaningful UI events.
+- Full-display screenshots requested through the Android Accessibility screenshot API (Android 11/API 30+), rate-limited to roughly 1.2 seconds after meaningful UI events, with one bounded retry when Android reports a short interval.
 - Accessibility hierarchy and structural event metadata for the selected app.
 - User-authored screenshot-region meaning rules.
 - Notification envelope metadata by default; notification content only when a user rule explicitly selects notification_text.
