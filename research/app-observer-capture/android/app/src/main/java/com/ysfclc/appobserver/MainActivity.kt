@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     private var selectedScreenshotIndex = -1
     private lateinit var semanticRulesPreview: TextView
     private lateinit var semanticPayloadPreview: TextView
+    private lateinit var machineUnderstandingPreview: TextView
     private var displayedScreenshotPath: String? = null
     private lateinit var appSpinner: Spinner
     private lateinit var appAdapter: ArrayAdapter<ObservedApp>
@@ -216,6 +217,20 @@ class MainActivity : Activity() {
             })
             semanticPayloadPreview = label("No authorised payloads yet.", 12f, Color.WHITE, false)
             addView(semanticPayloadPreview)
+        })
+
+        root.addView(section("MACHINE-LEARNED APP UNDERSTANDING"))
+        root.addView(card().apply {
+            addView(label("MULTI-SOURCE SCREEN IDENTIFICATION", 12f, ACCENT, true))
+            machineUnderstandingPreview = label(
+                ScreenUnderstandingService.preview(this@MainActivity),
+                12f, Color.WHITE, false
+            ).apply { setPadding(0, dp(8), 0, dp(8)) }
+            addView(machineUnderstandingPreview)
+            addView(label(
+                "The device analyses screenshots with on-device OCR and image labelling, then correlates Accessibility structure, interactions, authorised notification content and nearby network activity. Repeated screens and transitions become persistent learned states. Raw OCR text is not saved.",
+                11f, MUTED, false
+            ).apply { setPadding(0, dp(8), 0, 0) })
         })
 
         root.addView(section("CAPTURED DATA · LIVE VIEW"))
@@ -614,6 +629,9 @@ class MainActivity : Activity() {
         }
         uiEvidencePreview.text = EvidencePreview.ui(uiFile, uiCount)
         networkEvidencePreview.text = EvidencePreview.network(networkFile, networkCount)
+        if (::machineUnderstandingPreview.isInitialized) {
+            machineUnderstandingPreview.text = ScreenUnderstandingService.preview(this)
+        }
         if (::screenshotPreview.isInitialized) {
             val previousPath = displayedScreenshotPath
             val wasFollowingLatest = screenshotHistory.isEmpty() ||
