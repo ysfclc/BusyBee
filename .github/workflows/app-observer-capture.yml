@@ -79,6 +79,10 @@ jobs:
           set -euo pipefail
           APK="research/app-observer-capture/android/app/build/outputs/apk/release/app-release-unsigned.apk"
           test -s "$APK"
+          ALIGNED="$RUNNER_TEMP/app-release-aligned-unsigned.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -p 4 "$APK" "$ALIGNED"
+          mv "$ALIGNED" "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture' versionCode='7' versionName='0.4.0-visual-rules'"
           sha256sum "$APK" | tee research/app-observer-capture/android/app/build/outputs/apk/release/SHA256SUMS
 
