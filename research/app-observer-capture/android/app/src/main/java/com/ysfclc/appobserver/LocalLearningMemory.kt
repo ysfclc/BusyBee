@@ -6,6 +6,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
+import java.security.MessageDigest
 import kotlin.math.exp
 
 data class LearnedState(
@@ -215,8 +216,19 @@ object LocalLearningMemory {
     fun importJson(context: Context, incoming: JSONObject) = synchronized(lock) {
         if (incoming.optString("schema") != SCHEMA) return@synchronized
         val current = read(context)
+        val fingerprint = MessageDigest.getInstance("SHA-256")
+            .digest(incoming.toString().toByteArray(Charsets.UTF_8))
+            .joinToString("") { byte -> "%02x".format(byte) }
+        val imported = current.optJSONArray("importFingerprints") ?: JSONArray().also {
+            current.put("importFingerprints", it)
+        }
+        for (index in 0 until imported.length()) {
+            if (imported.optString(index) == fingerprint) return@synchronized
+        }
         mergeTraining(current, incoming)
         mergeStates(current, incoming)
+        imported.put(fingerprint)
+        while (imported.length() > 64) imported.remove(0)
         current.put("schema", SCHEMA).put("importedAtEpochMs", System.currentTimeMillis())
         write(context, current)
     }
