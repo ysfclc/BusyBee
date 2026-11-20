@@ -75,30 +75,29 @@ class ObserverAccessibilityService : AccessibilityService() {
             if (node.isScrollable) scrollable++
             if (node.isPassword) passwordFields++
 
-            if (isVisible) {
-                val bounds = Rect()
-                runCatching { node.getBoundsInScreen(bounds) }
-                nodes.put(JSONObject()
-                    .put("index", nodeIndex)
-                    .put("parentIndex", pending.parentIndex)
-                    .put("depth", pending.depth)
-                    .put("childIndex", pending.childIndex)
-                    .put("className", node.className?.toString()?.take(120) ?: JSONObject.NULL)
-                    .put("viewId", node.viewIdResourceName?.take(180) ?: JSONObject.NULL)
-                    .put("clickable", node.isClickable)
-                    .put("scrollable", node.isScrollable)
-                    .put("editable", node.isEditable)
-                    .put("password", node.isPassword)
-                    .put("enabled", node.isEnabled)
-                    .put("selected", node.isSelected)
-                    .put("checked", node.isChecked)
-                    .put("childCount", node.childCount)
-                    .put("bounds", JSONObject()
-                        .put("left", bounds.left)
-                        .put("top", bounds.top)
-                        .put("right", bounds.right)
-                        .put("bottom", bounds.bottom)))
-            }
+            val bounds = Rect()
+            runCatching { node.getBoundsInScreen(bounds) }
+            nodes.put(JSONObject()
+                .put("index", nodeIndex)
+                .put("parentIndex", pending.parentIndex)
+                .put("depth", pending.depth)
+                .put("childIndex", pending.childIndex)
+                .put("visible", isVisible)
+                .put("className", node.className?.toString()?.take(120) ?: JSONObject.NULL)
+                .put("viewId", node.viewIdResourceName?.take(180) ?: JSONObject.NULL)
+                .put("clickable", node.isClickable)
+                .put("scrollable", node.isScrollable)
+                .put("editable", node.isEditable)
+                .put("password", node.isPassword)
+                .put("enabled", node.isEnabled)
+                .put("selected", node.isSelected)
+                .put("checked", node.isChecked)
+                .put("childCount", node.childCount)
+                .put("bounds", JSONObject()
+                    .put("left", bounds.left)
+                    .put("top", bounds.top)
+                    .put("right", bounds.right)
+                    .put("bottom", bounds.bottom)))
 
             val children = node.childCount
             for (index in 0 until children) {
@@ -110,7 +109,7 @@ class ObserverAccessibilityService : AccessibilityService() {
         }
 
         val shape = WindowShape(count, clickable, editable, scrollable, visible, passwordFields)
-        val fingerprint = (eventName + "|" + (event.className?.toString() ?: "") + "|" + nodes.toString()).hashCode()
+        val fingerprint = ((event.className?.toString() ?: "") + "|" + nodes.toString()).hashCode()
         val shouldWriteSnapshot = lastFingerprint[packageName] != fingerprint ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED ||
