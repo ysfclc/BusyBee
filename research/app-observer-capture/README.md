@@ -1,14 +1,18 @@
 # App Observer — Generic Behaviour Recorder
 
-App Observer is a separate Android research recorder for BusyBee engineering. It observes any user-selected app that Android exposes through the launcher-app query; there is no Uber/Bolt/Waze/Maps allowlist. App Observer itself is excluded from the target list.
+App Observer is a separate Android research recorder for BusyBee engineering. It observes any user-selected app that Android exposes through the launcher-app query; there is no Uber/Bolt/Waze/Maps allowlist. An explicit **App Observer (self-test)** target is also available to verify the recorder against its own UI.
 
-## What it records
+## What it records and renders
 
 - One explicitly selected app per manually started session.
 - Read-only Accessibility event timeline and structure-only UI snapshots.
+- An on-device live evidence viewer showing the latest visible control tree, resource IDs, bounds, control flags and recent event timeline.
+- Structural screen fingerprints that group repeat captures of the same hierarchy/control pattern. These are structural matches, not semantic screen understanding.
 - Interaction source-node structure where Android exposes it.
 - Notification envelope metadata for the selected app, without notification content.
-- Optional PCAPdroid TCP-exporter packet-header metadata: time, app identifier, IP version, protocol, ports, flags and byte counts.
+- Optional PCAPdroid TCP-exporter packet-header metadata: time, app identifier, IP version, protocol, ports, flags and byte counts, shown as a readable timeline.
+
+After starting a session, switch to the selected target app and use it normally, then return to App Observer to see live evidence. UI structure capture is independent of PCAPdroid; network metadata appears only after PCAPdroid has been approved and packet headers are actually received.
 
 ## Privacy baseline
 
@@ -20,30 +24,31 @@ Data stays in App Observer's private storage until the user explicitly exports t
 
 ## Android app discovery
 
-The picker queries installed apps with a MAIN / LAUNCHER activity. This avoids the restricted QUERY_ALL_PACKAGES permission. Hidden, disabled and non-launchable packages are therefore outside the picker. The AccessibilityService does not use a fixed package filter; the active session's selected package is checked in code before evidence is written.
+The picker queries installed apps with a MAIN / LAUNCHER activity. This avoids the restricted QUERY_ALL_PACKAGES permission. Hidden, disabled and non-launchable packages are therefore outside the picker. App Observer itself is added explicitly as a self-test target at the bottom of the list. The AccessibilityService checks the selected package before evidence is written.
 
 ## Observation flow
 
 1. Install App Observer and optionally PCAPdroid.
 2. Enable App Observer's read-only Accessibility service.
 3. Optionally enable notification access for notification envelope metadata.
-4. Select any app shown in the dynamic picker.
+4. Select any app shown in the dynamic picker, or choose App Observer (self-test).
 5. Start a session and approve PCAPdroid's capture-consent prompt if available.
-6. Use the selected app normally. No actions are performed by App Observer.
-7. Stop the session and optionally export the privacy-minimised evidence ZIP.
+6. Switch to the selected app and use it normally. No actions are performed by App Observer.
+7. Return to App Observer to inspect the latest structural evidence and repeated fingerprints.
+8. Stop the session and optionally export the privacy-minimised evidence ZIP.
 
 ## Evidence layout
 
 - session.json: selected target, Android API, session mode and privacy flags.
 - events.jsonl: receiver and session lifecycle.
-- ui-events.jsonl: structure-only UI and notification metadata.
+- ui-events.jsonl: structure-only UI and notification metadata, including structural fingerprints.
 - network-events.jsonl: allowlisted packet-header metadata only.
 - device-capability-report.json: minimal Android access/capability report.
 - PRIVACY-AND-REVIEW.txt: export privacy summary.
 
 ## Scope boundary
 
-This is an observation instrument for a future state-transition classifier. It does not yet classify behaviour, learn semantic business events, or execute reusable automations. It never taps, swipes, types, replays network requests or controls the target app.
+This is an observation instrument and a first exact-structure matching aid for a future state-transition classifier. It does not yet classify semantic behaviour, learn business events, infer the meaning of controls, or execute reusable automations. A matching fingerprint means the captured hierarchy and control-state pattern match, not that the screen's business meaning is understood. It never taps, swipes, types, replays network requests or controls the target app.
 
 ## Build
 
