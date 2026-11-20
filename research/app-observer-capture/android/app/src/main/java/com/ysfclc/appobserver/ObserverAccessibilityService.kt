@@ -307,7 +307,13 @@ class ObserverAccessibilityService : AccessibilityService() {
         ObserverSignals.recordAccessibility(this, packageName, eventType, shape)
     }
 
-    private fun isSystemPackage(packageName: String): Boolean = runCatching {
+    private fun isSystemPackage(packageName: String): Boolean {
+        // AOSP and common Android OEMs use this package for the status bar and notification
+        // shade. Check it directly before querying package metadata, which may be hidden by
+        // Android package-visibility filtering on some builds.
+        if (packageName == "com.android.systemui" ||
+            packageName.startsWith("com.android.systemui:")) return true
+        return runCatching {
         val flags = if (Build.VERSION.SDK_INT >= 33) {
             packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0))
                 .flags
@@ -317,7 +323,8 @@ class ObserverAccessibilityService : AccessibilityService() {
         }
         (flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
             (flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-    }.getOrDefault(false)
+        }.getOrDefault(false)
+    }
 
     private fun shouldCaptureScreenshot(eventType: Int): Boolean =
         eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
