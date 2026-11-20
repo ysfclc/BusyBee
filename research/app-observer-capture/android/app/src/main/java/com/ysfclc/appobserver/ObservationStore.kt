@@ -114,25 +114,34 @@ object ObservationStore {
         return directory.takeIf { it.isDirectory }
     }
 
-    fun latestScreenshot(context: Context): StoredScreenshot? {
-        val directory = latestDirectory(context) ?: return null
+    fun screenshots(context: Context, limit: Int = 80): List<StoredScreenshot> {
+        if (limit <= 0) return emptyList()
+        val directory = latestDirectory(context) ?: return emptyList()
         val index = File(directory, "screenshots/index.jsonl")
-        if (!index.isFile) return null
+        if (!index.isFile) return emptyList()
         return runCatching {
-            val record = index.useLines { lines ->
-                lines.filter { it.isNotBlank() }.lastOrNull()?.let(::JSONObject)
-            } ?: return@runCatching null
-            val relative = record.optString("file")
-            if (!relative.matches(Regex("screenshots/[A-Za-z0-9_-]+\\.jpg"))) return@runCatching null
-            val image = File(directory, relative)
-            if (!image.isFile) return@runCatching null
-            StoredScreenshot(
-                record.optString("screenshotId"), image,
-                record.optInt("width"), record.optInt("height"),
-                record.optLong("timestampEpochMs"), record.optString("packageName")
-            )
-        }.getOrNull()
+            val records = index.useLines { lines ->
+                lines.filter { it.isNotBlank() }.toList().takeLast(limit)
+            }
+            records.mapNotNull { line ->
+                runCatching {
+                    val record = JSONObject(line)
+                    val relative = record.optString("file")
+                    if (!relative.matches(Regex("screenshots/[A-Za-z0-9_-]+\\.jpg"))) return@runCatching null
+                    val image = File(directory, relative)
+                    if (!image.isFile) return@runCatching null
+                    StoredScreenshot(
+                        record.optString("screenshotId"), image,
+                        record.optInt("width"), record.optInt("height"),
+                        record.optLong("timestampEpochMs"), record.optString("packageName")
+                    )
+                }.getOrNull()
+            }
+        }.getOrDefault(emptyList())
     }
+
+    fun latestScreenshot(context: Context): StoredScreenshot? =
+        screenshots(context, limit = 1).lastOrNull()
 
     fun storeScreenshot(
         context: Context,
