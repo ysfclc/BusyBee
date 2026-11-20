@@ -29,7 +29,7 @@ The inference engine combines:
 - Notification categories/counts and notification text only where an explicit rule has already authorised it.
 - Packet count, byte volume, protocol and port patterns from the nearby eight-second observation window.
 
-The result is a set of candidate concepts (for example chat, price/fare, map, route summary, service offer, trip status, confirmation, search, list/feed, form, authentication, payment or profile) with confidence, evidence-source names and OCR-derived region bounds. Selected currency amounts are retained only when the price/fare hypothesis is sufficiently strong. Raw OCR lines are not persisted.
+The result is a set of candidate concepts (for example chat, price/fare, map, route summary, service offer, trip status, confirmation, search, list/feed, form, authentication, payment, navigation controls, cards or profile) with provisional evidence scores, evidence-source names and machine-localised region bounds from OCR or Accessibility geometry. The screenshot viewer draws machine regions in blue and optional user-authored regions in green. Selected currency amounts are retained only when the price/fare hypothesis is sufficiently strong. Raw OCR lines are not persisted.
 
 A persistent local state learner clusters recurring screens using privacy-safe feature vectors, counts repeated observations and records transitions associated with the preceding interaction. A correction workflow can train a per-app classifier from these sanitised features. Network timing is corroborating evidence, not proof that a remote operation succeeded.
 
