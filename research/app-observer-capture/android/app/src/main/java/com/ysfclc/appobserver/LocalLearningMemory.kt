@@ -7,6 +7,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 import java.security.MessageDigest
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.Locale
 import kotlin.math.exp
 
@@ -386,8 +389,18 @@ object LocalLearningMemory {
     private fun write(context: Context, value: JSONObject) {
         val file = File(context.filesDir, FILE_NAME)
         val temp = File(context.filesDir, "$FILE_NAME.tmp")
-        FileOutputStream(temp, false).bufferedWriter(Charsets.UTF_8).use { it.write(value.toString()) }
-        if (file.exists()) file.delete()
-        check(temp.renameTo(file)) { "Could not commit the on-device learning model." }
+        FileOutputStream(temp, false).bufferedWriter(Charsets.UTF_8).use { writer ->
+            writer.write(value.toString())
+            writer.flush()
+        }
+        try {
+            Files.move(
+                temp.toPath(), file.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
     }
 }
