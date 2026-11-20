@@ -385,6 +385,7 @@ class ObserverAccessibilityService : AccessibilityService() {
                         bitmap.recycle()
                         if (stored != null) {
                             ObserverSignals.recordCaptureDiagnostic(this@ObserverAccessibilityService, "screenshots_stored")
+                            ScreenUnderstandingService.analyse(this@ObserverAccessibilityService, sessionId, stored)
                         } else {
                             ObserverSignals.recordCaptureDiagnostic(this@ObserverAccessibilityService, "screenshots_failed")
                         }
