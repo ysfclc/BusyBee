@@ -23,7 +23,8 @@ object ObserverSignals {
         "root_package_mismatch", "root_acquired", "root_package_read_failures",
         "node_property_failures", "child_access_failures", "hierarchy_snapshots",
         "empty_hierarchies", "unchanged_structure_events", "ui_write_attempts",
-        "ui_write_successes", "ui_write_failures", "pipeline_failures"
+        "ui_write_successes", "ui_write_failures", "pipeline_failures",
+        "screenshots_attempted", "screenshots_stored", "screenshots_failed", "screenshots_rate_limited"
     )
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
