@@ -25,10 +25,10 @@ object AppCatalog {
         val resolved = if (Build.VERSION.SDK_INT >= 33) {
             packageManager.queryIntentActivities(
                 launcherIntent,
-                PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
+                PackageManager.ResolveInfoFlags.of(0L)
             )
         } else {
-            packageManager.queryIntentActivities(launcherIntent, PackageManager.MATCH_DEFAULT_ONLY)
+            packageManager.queryIntentActivities(launcherIntent, 0)
         }
 
         return resolved.mapNotNull { result ->
