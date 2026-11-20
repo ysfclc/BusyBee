@@ -101,7 +101,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -p 4 "$APK" "$ALIGNED"
           mv "$ALIGNED" "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture' versionCode='7' versionName='0.4.0-visual-rules'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture' versionCode='8' versionName='0.5.0-multimodal'"
           sha256sum "$APK" | tee research/app-observer-capture/android/app/build/outputs/apk/release/SHA256SUMS
 
       - name: Upload unsigned stable release candidate (for offline persistent signing only)
@@ -145,7 +145,7 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apk-signature.txt"
           grep -F "Signer #1 certificate SHA-256 digest: 6c268b04e8deef08ffd000a22cbdf21ec4ab47a816838a59e6fa71ce18bcec6a" "$RUNNER_TEMP/apk-signature.txt"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture' versionCode='7' versionName='0.4.0-visual-rules'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture' versionCode='8' versionName='0.5.0-multimodal'"
           sha256sum "$APK" | tee research/app-observer-capture/android/app/build/outputs/apk/release/SHA256SUMS
 
       - name: Upload persistent release APK
