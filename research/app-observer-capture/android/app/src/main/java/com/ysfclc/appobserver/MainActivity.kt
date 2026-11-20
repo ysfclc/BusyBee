@@ -420,7 +420,10 @@ class MainActivity : Activity() {
         screenshotRuleOverlay.configure(
             selected.width,
             selected.height,
-            SemanticRuleStore.all(this).filter { it.packageName == selected.packageName }
+            SemanticRuleStore.all(this).filter {
+                it.packageName == selected.packageName &&
+                    it.matchesScreenLayout(selected.width, selected.height)
+            }
         )
     }
 
