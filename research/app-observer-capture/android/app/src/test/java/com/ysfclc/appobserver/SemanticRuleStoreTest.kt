@@ -39,6 +39,22 @@ class SemanticRuleStoreTest {
     }
 
     @Test
+    fun screenshotRuleDoesNotMatchOppositeOrientation() {
+        val portrait = rule().copy(screenAspectRatio = 9f / 19.5f)
+        assertTrue(portrait.matchesScreenLayout(1080, 2340))
+        assertFalse(portrait.matchesScreenLayout(2340, 1080))
+    }
+
+    @Test
+    fun legacyRuleWithoutAspectRatioRemainsImportable() {
+        val legacy = rule().toJson().apply { remove("screenAspectRatio") }
+        val restored = SemanticRule.fromJson(legacy)
+        assertTrue(restored != null)
+        assertTrue(restored!!.matchesScreenLayout(1080, 2340))
+        assertTrue(restored.matchesScreenLayout(2340, 1080))
+    }
+
+    @Test
     fun malformedOrEmptyRulesAreRejected() {
         assertTrue(SemanticRule.fromJson(JSONObject().put("label", "empty")) == null)
     }
@@ -52,6 +68,7 @@ class SemanticRuleStoreTest {
         top = 0.2f,
         right = 0.8f,
         bottom = 0.8f,
+        screenAspectRatio = 1f,
         screenshotId = "shot-1",
         createdAtEpochMs = 1L
     )
