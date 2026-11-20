@@ -32,6 +32,8 @@ import java.util.Locale
 class MainActivity : Activity() {
     private lateinit var reportPreview: TextView
     private lateinit var sessionStatus: TextView
+    private lateinit var uiEvidencePreview: TextView
+    private lateinit var networkEvidencePreview: TextView
     private lateinit var appSpinner: Spinner
     private lateinit var appAdapter: ArrayAdapter<ObservedApp>
     private var pcapdroidPackage: String? = null
@@ -106,7 +108,7 @@ class MainActivity : Activity() {
             appSpinner.adapter = appAdapter
             addView(appSpinner)
             addView(label(
-                "The list is discovered dynamically from installed apps with launcher activities. Hidden and non-launchable packages are not enumerated.",
+                "Apps are discovered dynamically. The final option, App Observer (self-test), lets you verify capture against this app's own UI. Matching compares package-scoped UI structure, not your personal identity or account.",
                 11f, MUTED, false
             ).apply { setPadding(0, dp(8), 0, 0) })
         })
@@ -150,6 +152,24 @@ class MainActivity : Activity() {
             addView(action("STOP OBSERVATION") { stopResearchSession() })
             addView(action("EXPORT PRIVACY-MINIMISED EVIDENCE ZIP") { exportEvidenceBundle() })
             addView(action("REFRESH STATUS") { refresh() })
+            addView(label(
+                "After starting, switch to the selected target app and use it normally. Return here to inspect live UI structure and packet-header evidence.",
+                11f, MUTED, false
+            ).apply { setPadding(0, dp(8), 0, 0) })
+        })
+
+        root.addView(section("CAPTURED DATA · LIVE VIEW"))
+        root.addView(card().apply {
+            addView(label("UI STRUCTURE & REPEATED SCREEN MATCHES", 12f, ACCENT, true))
+            uiEvidencePreview = label("No UI evidence yet.", 12f, Color.WHITE, false).apply {
+                setPadding(0, dp(8), 0, dp(14))
+            }
+            addView(uiEvidencePreview)
+            addView(label("NETWORK METADATA TIMELINE", 12f, ACCENT, true))
+            networkEvidencePreview = label("No network metadata yet.", 12f, Color.WHITE, false).apply {
+                setPadding(0, dp(8), 0, 0)
+            }
+            addView(networkEvidencePreview)
         })
 
         root.addView(section("CAPABILITY REPORT"))
@@ -378,17 +398,22 @@ class MainActivity : Activity() {
             "Android " + android.optString("release") + " · API " + android.optInt("apiLevel"),
             "Accessibility: " + accessibilityText,
             "Notification metadata: " + notificationText,
-            "Target discovery: dynamic launchable-app list"
+            "Target discovery: dynamic launchable-app list + explicit self-test"
         ).joinToString("\n")
 
         val active = ObservationStore.hasActiveSession(this)
         val directory = ObservationStore.latestDirectory(this)
-        val uiCount = countLines(directory?.let { File(it, "ui-events.jsonl") })
-        val networkCount = countLines(directory?.let { File(it, "network-events.jsonl") })
+        val uiFile = directory?.let { File(it, "ui-events.jsonl") }
+        val networkFile = directory?.let { File(it, "network-events.jsonl") }
+        val uiCount = countLines(uiFile)
+        val networkCount = countLines(networkFile)
         val activeTarget = ObservationStore.activePackage(this)
         val observedTarget = activeTarget ?: directory?.let {
             runCatching { JSONObject(File(it, "session.json").readText()).optString("targetPackage") }.getOrNull()
         }
+        uiEvidencePreview.text = EvidencePreview.ui(uiFile, uiCount)
+        networkEvidencePreview.text = EvidencePreview.network(networkFile, networkCount)
+
         sessionStatus.text = if (active) {
             "OBSERVING · " + (observedTarget ?: "selected app") +
                 "\nUI structure events: " + uiCount + " · network metadata events: " + networkCount +
