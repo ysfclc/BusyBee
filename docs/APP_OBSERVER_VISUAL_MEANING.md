@@ -27,7 +27,7 @@ The user opens the latest screenshot, draws a rectangle over a region and define
    - accessibility_text: read Accessibility node text only when the node's centre falls inside the user-selected region; password nodes and editable input fields are always excluded.
    - notification_text: link content from NotificationListenerService for notifications posted by the selected app. This requires the notification-listener permission and a rule explicitly selecting this source.
 
-Rules use normalised screenshot coordinates and a stable rule ID, package/scope, category, payload source, screenshot origin ID and creation time. They are stored separately from session evidence, so they are reusable across sessions and are included in export/import bundles.
+Rules use normalised screenshot coordinates, the source screenshot's aspect ratio, and a stable rule ID, package/scope, category, payload source, screenshot origin ID and creation time. A portrait rule is not applied to a landscape capture; older imported rules without aspect-ratio metadata remain compatible. They are stored separately from session evidence, so they are reusable across sessions and are included in export/import bundles.
 
 System-surface rules do not enable broad scraping of other installed apps. They only permit screenshots triggered by Android system/updated-system package events; they do not store those packages' Accessibility trees or node text. Notification text associated with a system-surface rule still comes from the selected app's notification listener events.
 
