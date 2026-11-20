@@ -126,10 +126,10 @@ class PcapdroidCaptureService : Service() {
                                 val prefixLength = minOf(record.capturedLength, MAX_PACKET_HEADER_BYTES)
                                 val packetPrefix = readExact(input, prefixLength)
                                     ?: throw EOFException("TCP stream ended inside a packet header")
-                                discardExactly(input, record.capturedLength - prefixLength)
-                                val selectedPackage = ObservationStore.activePackage(this)
-                                    ?: "selected-app"
                                 val summary = try {
+                                    discardExactly(input, record.capturedLength - prefixLength)
+                                    val selectedPackage = ObservationStore.activePackage(this)
+                                        ?: "selected-app"
                                     ObservationPrivacy.safeNetworkMetadata(
                                         PcapdroidPacketParser.summarizePcapPacket(
                                             packetPrefix, fileHeader, record, selectedPackage
@@ -203,6 +203,7 @@ class PcapdroidCaptureService : Service() {
             val count = input.read(result, offset, size - offset)
             if (count < 0) {
                 if (offset == 0) return null
+                result.fill(0)
                 throw EOFException("Unexpected EOF after $offset of $size bytes")
             }
             if (count == 0) continue
