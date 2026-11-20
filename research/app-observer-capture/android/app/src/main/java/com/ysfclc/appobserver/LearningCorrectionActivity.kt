@@ -141,7 +141,7 @@ class LearningCorrectionActivity : Activity() {
         }
         root.addView(customConceptInput)
         root.addView(TextView(this).apply {
-            text = "Custom concepts become learnable labels for this app. The local model starts using them after it has examples from at least two different categories."
+            text = "Custom concepts become learnable labels for this app. The classifier starts using them after two reviewed examples per category across at least two categories."
             textSize = 11f
             setTextColor(Color.LTGRAY)
             setPadding(0, dp(4), 0, dp(10))
