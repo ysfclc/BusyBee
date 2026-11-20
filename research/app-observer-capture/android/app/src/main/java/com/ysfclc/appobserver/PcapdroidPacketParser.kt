@@ -256,11 +256,15 @@ object PcapdroidPacketParser {
         appName: String,
         uid: Int?,
         packetBytes: Int
-    ) = JSONObject()
-        .put("timestampEpochMs", seconds * 1000L + micros / 1000L)
-        .put("appName", appName)
-        .put("uid", uid ?: JSONObject.NULL)
-        .put("frameBytes", packetBytes)
+    ): JSONObject {
+        val result = JSONObject()
+            .put("timestampEpochMs", seconds * 1000L + micros / 1000L)
+            .put("appName", appName)
+            .put("frameBytes", packetBytes)
+        // Omit UID entirely when the metadata-only path has no UID rather than storing null.
+        uid?.let { result.put("uid", it) }
+        return result
+    }
 
     private fun summarizeIp(
         result: JSONObject,
