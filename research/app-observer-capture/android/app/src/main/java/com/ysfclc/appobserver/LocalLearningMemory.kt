@@ -150,7 +150,7 @@ object LocalLearningMemory {
         val featureCounts = label.optJSONObject("featureCounts")
             ?: JSONObject().also { label.put("featureCounts", it) }
         label.put("documents", label.optInt("documents") + 1)
-        features.distinct().take(MAX_FEATURES_PER_STATE).forEach { feature ->
+        safeFeatureList(features).forEach { feature ->
             featureCounts.put(feature, featureCounts.optInt(feature) + 1)
         }
         app.put("totalDocuments", app.optInt("totalDocuments") + 1)
@@ -206,6 +206,12 @@ object LocalLearningMemory {
 
     private fun isValidConceptLabel(label: String): Boolean =
         label.matches(Regex("[a-z0-9][a-z0-9_]{0,47}"))
+
+    private fun isValidFeature(feature: String): Boolean =
+        feature.matches(Regex("(ocr|vision|ui|event|notification|network|layout):[a-z0-9_]{1,48}"))
+
+    private fun safeFeatureList(features: Iterable<String>): List<String> =
+        features.filter(::isValidFeature).distinct().take(MAX_FEATURES_PER_STATE).sorted()
 
     fun summary(context: Context): String = synchronized(lock) {
         val root = read(context)
@@ -269,7 +275,12 @@ object LocalLearningMemory {
                     ?: JSONObject().also { targetLabel.put("featureCounts", it) }
                 val sourceCounts = sourceLabel.optJSONObject("featureCounts") ?: continue
                 for (feature in sourceCounts.keys()) {
-                    targetCounts.put(feature, targetCounts.optInt(feature) + sourceCounts.optInt(feature))
+                    if (!isValidFeature(feature)) continue
+                    targetCounts.put(
+                        feature,
+                        (targetCounts.optInt(feature) + sourceCounts.optInt(feature).coerceIn(0, 1_000_000))
+                            .coerceAtMost(1_000_000)
+                    )
                 }
             }
         }
@@ -286,7 +297,26 @@ object LocalLearningMemory {
             val sourceStates = sourceApp.optJSONArray("states") ?: JSONArray()
             for (index in 0 until sourceStates.length()) {
                 val state = sourceStates.optJSONObject(index) ?: continue
-                if (state.optString("stateId") !in knownIds) targetStates.put(state)
+                val stateId = state.optString("stateId")
+                if (!stateId.matches(Regex("state-[A-Za-z0-9-]{1,40}")) || stateId in knownIds) continue
+                val safeVotes = JSONObject()
+                val rawVotes = state.optJSONObject("labelVotes") ?: JSONObject()
+                for (label in rawVotes.keys()) {
+                    if (isValidConceptLabel(label)) safeVotes.put(label, rawVotes.optInt(label).coerceAtLeast(0))
+                }
+                val safeState = JSONObject()
+                    .put("stateId", stateId)
+                    .put("createdAtEpochMs", state.optLong("createdAtEpochMs").coerceAtLeast(0L))
+                    .put("lastSeenAtEpochMs", state.optLong("lastSeenAtEpochMs").coerceAtLeast(0L))
+                    .put("occurrences", state.optInt("occurrences", 1).coerceIn(1, 1_000_000))
+                    .put("features", JSONArray(safeFeatureList(state.optJSONArray("features").let { array ->
+                        if (array == null) emptyList() else buildList {
+                            for (featureIndex in 0 until array.length()) add(array.optString(featureIndex))
+                        }
+                    })))
+                    .put("labelVotes", safeVotes)
+                targetStates.put(safeState)
+                knownIds.plus(stateId)
             }
             while (targetStates.length() > MAX_STATES_PER_APP) targetStates.remove(0)
             val targetTransitions = targetApp.optJSONArray("transitions") ?: JSONArray().also { targetApp.put("transitions", it) }
