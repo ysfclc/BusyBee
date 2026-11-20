@@ -100,6 +100,55 @@ class PcapdroidPacketParserTest {
         assertTrue(PcapdroidPacketParser.isGlobalHeader(header, header.size))
     }
 
+
+    @Test
+    fun parsesClassicPcapTcpExporterGlobalHeader() {
+        val raw = PcapdroidPacketParser.globalHeader(PcapdroidPacketParser.DLT_RAW)
+        val parsed = PcapdroidPacketParser.parseGlobalHeader(raw)
+        assertNotNull(parsed)
+        assertEquals(ByteOrder.LITTLE_ENDIAN, parsed!!.byteOrder)
+        assertEquals(PcapdroidPacketParser.DLT_RAW, parsed.linkType)
+        assertEquals(false, parsed.nanoTimestamps)
+    }
+
+    @Test
+    fun parsesTcpExporterRecordHeaderAndRejectsOversizedRecord() {
+        val raw = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+            .putInt(1_700_000_000)
+            .putInt(250_000)
+            .putInt(64)
+            .putInt(80)
+            .array()
+        val parsed = PcapdroidPacketParser.parseRecordHeader(raw, ByteOrder.LITTLE_ENDIAN)
+        assertNotNull(parsed)
+        assertEquals(64, parsed!!.capturedLength)
+        assertEquals(80, parsed.originalLength)
+        val invalid = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+            .putInt(1).putInt(0).putInt(32 * 1024 * 1024).putInt(32 * 1024 * 1024).array()
+        assertNull(PcapdroidPacketParser.parseRecordHeader(invalid, ByteOrder.LITTLE_ENDIAN))
+    }
+
+    @Test
+    fun summarizesTcpExporterRawIpRecordForSelectedPackage() {
+        val packet = udpIpv4Packet()
+        val global = PcapdroidPacketParser.parseGlobalHeader(
+            PcapdroidPacketParser.globalHeader(PcapdroidPacketParser.DLT_RAW)
+        )!!
+        val recordBytes = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+            .putInt(1_700_000_000).putInt(250_000)
+            .putInt(packet.size).putInt(packet.size).array()
+        val record = PcapdroidPacketParser.parseRecordHeader(recordBytes, global.byteOrder)!!
+        val summary = PcapdroidPacketParser.summarizePcapPacket(
+            packet, global, record, "ee.mtakso.driver"
+        )
+        assertEquals("ee.mtakso.driver", summary.getString("appName"))
+        assertEquals("udp", summary.getString("protocol"))
+        assertEquals("1.1.1.1", summary.getString("sourceIp"))
+        assertEquals("8.8.8.8", summary.getString("destinationIp"))
+        assertEquals(1234, summary.getInt("sourcePort"))
+        assertEquals(53, summary.getInt("destinationPort"))
+    }
+
     private fun ethernetUdpIpv4Frame(): ByteArray {
         val ip = udpIpv4Packet()
         return ByteArray(14).apply {
