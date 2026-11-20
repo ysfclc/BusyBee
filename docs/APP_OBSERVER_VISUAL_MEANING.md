@@ -2,9 +2,9 @@
 
 ## Product principle
 
-A screenshot is the visual ground truth for a captured moment. Accessibility hierarchy, notification events and network timing are evidence linked to that image; none of those sources should silently decide what a region means.
+A screenshot is the visual ground truth for a captured moment, but the user does not have to explain it. The machine analyses the image with on-device OCR and image labelling, then fuses the result with Accessibility structure, interactions, notifications and nearby network timing to identify candidate concepts and screen states.
 
-The user names regions and chooses which additional evidence may be attached. A rule can be applied again in later sessions for the same app. Categories are user-defined and are not limited to a fixed list such as chat, notification bar, price, map, offer, button or status.
+User-authored regions are optional feedback and explicit permission controls for additional Accessibility/notification text. They are not the primary classification mechanism. Machine hypotheses retain confidence and source provenance so an OCR clue, an Accessibility match, a notification signal and a network correlation remain distinguishable.
 
 ## Screenshot capture
 
@@ -16,9 +16,26 @@ The user names regions and chooses which additional evidence may be attached. A 
 - Android can refuse or redact screenshots for secure windows, protected content, unsupported display surfaces or platform restrictions. A missing screenshot is an explicit capture failure, not proof that a screen was blank.
 - The screenshot API and Accessibility hierarchy are separate sources. A screenshot can be available even when a window does not expose useful Accessibility nodes.
 
-## Meaning-rule authoring
+## On-device multimodal understanding
 
-The user opens the latest screenshot, draws a rectangle over a region and defines:
+Every stored screenshot is analysed locally by bundled ML Kit OCR and image labelling. Text lines overlapping Accessibility nodes marked editable or password are excluded. OCR text exists only in memory for the inference pass; arbitrary recognised strings are discarded and not stored.
+
+The inference engine combines:
+
+- OCR phrase/layout cues and currency patterns.
+- Whole-screen image labels.
+- Accessibility classes, resource IDs, control density and scroll/edit structure.
+- The interaction event and source-node evidence nearest to the screenshot.
+- Notification categories/counts and notification text only where an explicit rule has already authorised it.
+- Packet count, byte volume, protocol and port patterns from the nearby eight-second observation window.
+
+The result is a set of candidate concepts (for example chat, price/fare, map, route summary, service offer, trip status, confirmation, search, list/feed, form, authentication, payment or profile) with confidence, evidence-source names and OCR-derived region bounds. Selected currency amounts are retained only when the price/fare hypothesis is sufficiently strong. Raw OCR lines are not persisted.
+
+A persistent local state learner clusters recurring screens using privacy-safe feature vectors, counts repeated observations and records transitions associated with the preceding interaction. A correction workflow can train a per-app classifier from these sanitised features. Network timing is corroborating evidence, not proof that a remote operation succeeded.
+
+## Optional meaning rules and correction feedback
+
+The machine identifies candidate meanings automatically. The user can still open a screenshot, draw a rectangle and add a region-specific permission/annotation when a result needs refinement. This is optional. A separate correction action can train the classifier for the target app from the current screen feature vector. The rule editor asks for:
 
 1. **Meaning/category:** any label chosen by the user, for example chat messages, notification bar, offer card, price, route summary, map controls or a custom label.
 2. **Scope:** the selected app or Android system surfaces such as the status bar/notification shade.
