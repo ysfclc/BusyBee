@@ -19,7 +19,7 @@ The initial stable APK was built from App Observer commit `fb697c578272b1d84914e
 
 - Package: `com.ysfclc.appobserver.capture`
 - Version: `0.4.0-visual-rules` (versionCode 7)
-- Schemes verified: v2 and v3 (the signing command also requested v1)
+- Schemes verified: v2 and v3 (the APK minimum SDK is API 26; both schemes were confirmed by Android `apksigner` verification)
 - APK SHA-256: `b0dc5ed37ff4d4241cff2df648c7564d035c73b92fcbc2ad97d3ac15b0a736b3`
 
 The CI workflow still publishes an unsigned, ZIP-aligned release candidate when the repository secrets are absent. The installable first stable APK was signed with the local persistent JKS; no ephemeral debug key was used. Future releases should be signed in CI after the four repository secrets are configured.
