@@ -81,7 +81,7 @@ object LocalLearningMemory {
         }
 
         val votes = state.optJSONObject("labelVotes") ?: JSONObject().also { state.put("labelVotes", it) }
-        predictions.filter { it.confidence >= 0.36f }.take(4).forEach { prediction ->
+        predictions.filter { it.confidence >= 0.52f }.take(4).forEach { prediction ->
             votes.put(prediction.concept, votes.optInt(prediction.concept) + 1)
         }
 
@@ -169,6 +169,7 @@ object LocalLearningMemory {
                 concept to Triple(documents, counts, total)
             }
             if (trained.isEmpty()) return@synchronized emptyMap()
+            if (trained.size < 2) return@synchronized emptyMap()
             val vocabularySize = trained.flatMap { (_, value) ->
                 value.second.keys().asSequence().toList()
             }.toSet().size.coerceAtLeast(1)
