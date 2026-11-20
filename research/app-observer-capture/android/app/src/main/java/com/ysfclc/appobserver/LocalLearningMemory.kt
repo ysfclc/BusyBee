@@ -195,8 +195,9 @@ object LocalLearningMemory {
         val training = root.optJSONObject("training") ?: JSONObject()
         var states = 0
         var transitions = 0
-        for (index in 0 until apps.length()) {
-            val app = apps.optJSONObject(apps.keys().asSequence().elementAtOrNull(index)) ?: continue
+        val appKeys = apps.keys()
+        while (appKeys.hasNext()) {
+            val app = apps.optJSONObject(appKeys.next()) ?: continue
             states += app.optJSONArray("states")?.length() ?: 0
             transitions += app.optJSONArray("transitions")?.length() ?: 0
         }
