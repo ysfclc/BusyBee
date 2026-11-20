@@ -205,12 +205,12 @@ class MainActivity : Activity() {
         }
 
         val sessionId = ObservationStore.startSession(this, app.packageName, app.label)
-        startPcapReceiverService()
         pcapdroidPackage = findPcapdroidPackage()
         if (pcapdroidPackage == null) {
             ObservationStore.markPcapdroidUnavailable(this, "PCAPdroid is not installed")
             Toast.makeText(this, "UI structure observation started. Install PCAPdroid for network metadata.", Toast.LENGTH_LONG).show()
         } else {
+            startPcapReceiverService()
             waitForReceiverAndStart(app, sessionId, 0)
         }
         refresh()
@@ -272,7 +272,7 @@ class MainActivity : Activity() {
             return
         }
         val capturePackage = pcapdroidPackage ?: findPcapdroidPackage()
-        if (capturePackage == null || !ObservationStore.isPcapdroidRunning(this)) {
+        if (capturePackage == null || !ObservationStore.hasPcapdroidCommandAccepted(this)) {
             endLocalSession("user_stopped_without_active_pcapdroid")
             return
         }
@@ -346,7 +346,7 @@ class MainActivity : Activity() {
                 if (resultCode == RESULT_OK) {
                     val versionName = data?.getStringExtra("version_name")
                     val versionCode = data?.getIntExtra("version_code", 0) ?: 0
-                    ObservationStore.markPcapdroidStarted(this, versionName, versionCode)
+                    ObservationStore.markPcapdroidCommandAccepted(this, versionName, versionCode)
                     Toast.makeText(this, "PCAPdroid accepted the command. Packet receipt is still being verified.", Toast.LENGTH_LONG).show()
                 } else {
                     ObservationStore.markPcapdroidUnavailable(this, "capture consent denied or start failed")
