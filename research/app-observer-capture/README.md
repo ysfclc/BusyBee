@@ -9,7 +9,7 @@ App Observer is a generic Android application-understanding instrument, not a pr
 - Bundled on-device OCR and image labelling, with raw OCR text discarded after inference.
 - Machine-inferred screen concepts with confidence, evidence provenance and OCR-derived region bounds.
 - Persistent per-app recurring-state clusters and interaction-linked transition counts.
-- Optional user corrections that train a local classifier from privacy-safe feature vectors.
+- Optional corrections for built-in or custom concept names, training a per-app classifier from privacy-safe feature vectors.
 - User-authored screenshot-region meaning rules as optional annotations/permissions, not prerequisites for classification.
 - Notification envelope metadata by default; notification content only when a user rule explicitly selects notification_text.
 - Optional PCAPdroid packet-header metadata only. No raw PCAP, raw addresses, TLS decryption or application payloads.
