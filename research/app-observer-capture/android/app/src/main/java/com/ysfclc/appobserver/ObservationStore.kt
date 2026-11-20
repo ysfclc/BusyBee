@@ -102,7 +102,7 @@ object ObservationStore {
     fun appendSessionEvent(context: Context, event: JSONObject) =
         appendToActive(context, "events.jsonl", event)
 
-    fun markPcapdroidStarted(context: Context, versionName: String?, versionCode: Int) {
+    fun markPcapdroidCommandAccepted(context: Context, versionName: String?, versionCode: Int) {
         updateActiveMetadata(context) { root ->
             root.getJSONObject("pcapdroid")
                 .put("status", "command_accepted")
@@ -117,7 +117,7 @@ object ObservationStore {
             .put("versionCode", versionCode))
     }
 
-    fun isPcapdroidRunning(context: Context): Boolean {
+    fun hasPcapdroidCommandAccepted(context: Context): Boolean {
         val directory = activeDirectory(context) ?: return false
         val file = File(directory, "session.json")
         if (!file.isFile) return false
