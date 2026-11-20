@@ -1,6 +1,7 @@
 package com.ysfclc.appobserver
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -143,10 +144,35 @@ class PcapdroidPacketParserTest {
         )
         assertEquals("ee.mtakso.driver", summary.getString("appName"))
         assertEquals("udp", summary.getString("protocol"))
-        assertEquals("1.1.1.1", summary.getString("sourceIp"))
-        assertEquals("8.8.8.8", summary.getString("destinationIp"))
         assertEquals(1234, summary.getInt("sourcePort"))
         assertEquals(53, summary.getInt("destinationPort"))
+        assertEquals(packet.size, summary.getInt("frameBytes"))
+        assertFalse(summary.has("sourceIp"))
+        assertFalse(summary.has("destinationIp"))
+        assertFalse(summary.has("uid"))
+        assertFalse(summary.has("tcpSequence"))
+    }
+
+    @Test
+    fun summarisesBoundedPacketPrefixUsingOriginalFrameLength() {
+        val packet = udpIpv4Packet()
+        val prefix = packet.copyOfRange(0, 28)
+        val global = PcapdroidPacketParser.parseGlobalHeader(
+            PcapdroidPacketParser.globalHeader(PcapdroidPacketParser.DLT_RAW)
+        )!!
+        val record = PcapdroidPacketParser.parseRecordHeader(
+            ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(1_700_000_000).putInt(250_000)
+                .putInt(packet.size).putInt(packet.size).array(),
+            global.byteOrder
+        )!!
+        val summary = PcapdroidPacketParser.summarizePcapPacket(
+            prefix, global, record, "com.example.app"
+        )
+        assertEquals(packet.size, summary.getInt("frameBytes"))
+        assertEquals(4, summary.getInt("payloadBytes"))
+        assertFalse(summary.has("sourceIp"))
+        assertFalse(summary.has("destinationIp"))
     }
 
     private fun ethernetUdpIpv4Frame(): ByteArray {
