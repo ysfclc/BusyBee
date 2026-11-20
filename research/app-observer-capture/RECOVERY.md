@@ -8,7 +8,7 @@ App Observer is a generic, read-only Android behaviour recorder for BusyBee engi
 - Branch: fix/app-observer-capture-0.2.1
 - Project: research/app-observer-capture/android
 - Generic debug package: com.ysfclc.appobserver.capture.generic.debug
-- Version: 0.3.0-generic-privacy (versionCode 4)
+- Version: 0.3.0-generic-privacy-debug (versionCode 4)
 - Package is intentionally distinct so it installs alongside earlier capture/survey test editions; GitHub debug signatures remain ephemeral.
 
 ## Recovery and product decisions
@@ -23,12 +23,14 @@ App Observer is a generic, read-only Android behaviour recorder for BusyBee engi
 
 ## Acceptance status
 - Isolation from BusyBee production and original survey app: preserved by project/package boundary.
-- Generic app discovery and privacy-first implementation: source changes committed; CI and runtime verification pending.
-- Earlier build evidence: PR #22 run 20 passed tests, APK build, package-ID verification, APK signature verification and artifact upload for an earlier source revision only.
-- Latest diagnostic revision before this generic-observer work failed compilation at MainActivity.kt:414; the current rewrite corrects that syntax issue, but a fresh CI pass is required.
+- Generic app discovery and privacy-first implementation: implemented in source.
+- Unit tests and APK build: passed on 2026-11-20 in GitHub Actions run [44710761141](https://github.com/ysfclc/BusyBee/actions/runs/44710761141) (run #93, commit `40bb5c5ca505363455a2fcb66b916547198f2144`). Unit tests, APK assembly, package identity verification, APK v2 signature verification and artifact upload all passed.
+- Test artifact: artifact ID `14616602770` (`app-observer-capture-test-93`); package `com.ysfclc.appobserver.capture.generic.debug`; version `0.3.0-generic-privacy-debug`; APK SHA-256 `115e4186f2b59b25a6a0ae51ba4389bebbcf1ec926c0ac42b0e6b28ea4645bdf`; signer certificate SHA-256 `813f65724bebb0f8c9947d28c7163f1e206d1aeabadf423f00c3837e8db14519`.
 - PCAPdroid interoperability on a physical Android device: not verified.
+- Actual UI event coverage across a representative set of apps: not verified.
 - Actual app behaviour classification: not implemented.
-- Reusable automation execution: not implemented.
+- Semantic UI/network correlation engine: not implemented.
+- Reusable automation skills or action executor: not implemented.
 - Real-device privacy acceptance across different OEMs/apps: not verified.
 
 Do not call this app understanding or automation complete until controlled traces have been collected, classification repeatability measured, and physical-device tests pass.
