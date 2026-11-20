@@ -113,7 +113,9 @@ class ObserverAccessibilityService : AccessibilityService() {
         val shouldWriteSnapshot = lastFingerprint[packageName] != fingerprint ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED ||
-            event.eventType == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED
+            event.eventType == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_SELECTED
         if (shouldWriteSnapshot) {
             lastFingerprint[packageName] = fingerprint
             val record = baseEvent(event, packageName, eventName, now)
