@@ -31,16 +31,19 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 
 ## App Observation research subtrack
 
-**Status:** generic privacy-first recorder implementation in progress; classification and automation execution not implemented.
+**Status:** generic privacy-first recorder, live evidence viewer and exact structural matching implemented and CI-verified; physical-device acceptance, semantic classification and automation execution remain open.
 
 - Dynamically discover installed launchable apps; do not hardcode provider packages.
-- Select one target app per explicit session and record structure-only UI evidence.
+- Select one target app per explicit session and record structure-only UI evidence; App Observer itself is available as a self-test target.
+- Render recent UI evidence on-device: control tree, resource IDs, bounds, boolean states and event timeline.
+- Fingerprint and group repeated exact UI structures without collecting text or pixel screenshots.
 - Record interaction source-node signatures and pre/post UI structure.
 - Record notification envelope metadata only.
 - Optionally correlate minimised network metadata from PCAPdroid, never raw addresses or payloads.
 - Build a behaviour classifier that learns repeatable screen states and transitions from correlated evidence.
 - Promote verified patterns into generic reusable skills with app-specific capability profiles.
-- Keep observation, pattern learning and action execution separate. Read-only observation is the current deliverable; action automation requires its own security, policy and verification gates.
+- Keep observation, pattern learning and action execution separate. Read-only observation and structural matching are the current deliverables; semantic learning and action automation require their own evidence, security, policy and verification gates.
+- Physical-device acceptance for App Observer self-test and representative third-party apps remains an explicit open gate.
 
 ## Phase 3 — Driver Data Mirror (first real product capability)
 
