@@ -1,14 +1,15 @@
 # App Observer — recovery and acceptance record
 
 ## Product boundary
-App Observer is a generic, read-only Android behaviour recorder for BusyBee engineering. It discovers launchable apps dynamically, lets the user select one target per manually started session, and retains structure-only UI evidence plus privacy-allowlisted network metadata. It is not BusyBee production code and does not replace the preserved App Observer Lab survey app.
+App Observer is a generic, read-only Android behaviour recorder for BusyBee engineering. It discovers launchable apps dynamically, lets the user select one target per manually started session, and retains structure-only UI evidence plus privacy-allowlisted network metadata. Its on-device viewer renders recent structural evidence and exact structural fingerprints; an explicit self-test target allows observation of App Observer itself. It is not BusyBee production code and does not replace the preserved App Observer Lab survey app.
 
 ## Source
 - Repository: ysfclc/BusyBee
 - Branch: fix/app-observer-capture-0.2.1
 - Project: research/app-observer-capture/android
-- Generic debug package: com.ysfclc.appobserver.capture.generic.debug
-- Version: 0.3.0-generic-privacy-debug (versionCode 4)
+- Live Viewer debug package: com.ysfclc.appobserver.capture.generic.viewer.debug
+- Version: 0.3.1-live-viewer-debug (versionCode 5)
+- Launcher label: App Observer Live Viewer
 - Package is intentionally distinct so it installs alongside earlier capture/survey test editions; GitHub debug signatures remain ephemeral.
 
 ## Recovery and product decisions
@@ -23,11 +24,11 @@ App Observer is a generic, read-only Android behaviour recorder for BusyBee engi
 
 ## Acceptance status
 - Isolation from BusyBee production and original survey app: preserved by project/package boundary.
-- Generic app discovery and privacy-first implementation: implemented in source.
-- Unit tests and APK build: passed on 2026-11-20 in GitHub Actions run [44710761141](https://github.com/ysfclc/BusyBee/actions/runs/44710761141) (run #93, commit `40bb5c5ca505363455a2fcb66b916547198f2144`). Unit tests, APK assembly, package identity verification, APK v2 signature verification and artifact upload all passed.
-- Test artifact: artifact ID `14616602770` (`app-observer-capture-test-93`); package `com.ysfclc.appobserver.capture.generic.debug`; version `0.3.0-generic-privacy-debug`; APK SHA-256 `115e4186f2b59b25a6a0ae51ba4389bebbcf1ec926c0ac42b0e6b28ea4645bdf`; signer certificate SHA-256 `813f65724bebb0f8c9947d28c7163f1e206d1aeabadf423f00c3837e8db14519`.
+- Generic app discovery, live evidence rendering, exact structural fingerprinting and self-test package filtering: implemented in source.
+- Unit tests and APK build: passed on 2026-11-20 in GitHub Actions run [44714525454](https://github.com/ysfclc/BusyBee/actions/runs/44714525454) (run #113, commit `38742a72d6e79c97f8cfab16b02ab3b6907f1012`). Unit tests, APK assembly, package identity verification, APK v2 signature verification and artifact upload all passed.
+- Test artifact: artifact ID `14618502708` (`app-observer-live-viewer-113`); package `com.ysfclc.appobserver.capture.generic.viewer.debug`; version `0.3.1-live-viewer-debug`; APK SHA-256 `581456f1a934a3e1a814070531a912e108f30df0ce141dbd040dc10340a23e8d`; signer certificate SHA-256 `d67a01986f3c5cb0266a46fc505c62e80bb7159e69ef62a84e863a0e735b014c`.
 - PCAPdroid interoperability on a physical Android device: not verified.
-- Actual UI event coverage across a representative set of apps: not verified.
+- Actual UI event coverage across a representative set of apps, including self-observation: not verified.
 - Actual app behaviour classification: not implemented.
 - Semantic UI/network correlation engine: not implemented.
 - Reusable automation skills or action executor: not implemented.
