@@ -621,11 +621,11 @@ class MainActivity : Activity() {
         val statesReused = captureCounters.optLong("screen_states_reused")
         val statesCreated = captureCounters.optLong("screen_states_created")
         val visualSummary = "Screenshots: " + screenshots + " saved · " + screenshotFailures + " failed" +
-            "\\nMachine analysis: " + analysisAttempts + " attempted · " + insightWrites + " insights saved · " +
+            "\nMachine analysis: " + analysisAttempts + " attempted · " + insightWrites + " insights saved · " +
             analysisFailures + " failed" +
-            "\\nOCR: " + ocrSuccesses + " passed / " + ocrFailures + " failed · image labels: " +
+            "\nOCR: " + ocrSuccesses + " passed / " + ocrFailures + " failed · image labels: " +
             imageLabelSuccesses + " passed / " + imageLabelFailures + " failed" +
-            "\\nLearned states: " + statesCreated + " new · " + statesReused + " reused"
+            "\nLearned states: " + statesCreated + " new · " + statesReused + " reused"
         reportPreview.text = listOf(
             "Android " + android.optString("release") + " · API " + android.optInt("apiLevel"),
             "Accessibility: " + accessibilityText,
