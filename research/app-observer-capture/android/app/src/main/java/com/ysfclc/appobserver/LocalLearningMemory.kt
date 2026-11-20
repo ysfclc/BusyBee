@@ -321,7 +321,39 @@ object LocalLearningMemory {
             while (targetStates.length() > MAX_STATES_PER_APP) targetStates.remove(0)
             val targetTransitions = targetApp.optJSONArray("transitions") ?: JSONArray().also { targetApp.put("transitions", it) }
             val sourceTransitions = sourceApp.optJSONArray("transitions") ?: JSONArray()
-            for (index in 0 until sourceTransitions.length()) targetTransitions.put(sourceTransitions.getJSONObject(index))
+            val retainedStateIds = (0 until targetStates.length())
+                .mapNotNull { targetStates.optJSONObject(it)?.optString("stateId") }.toSet()
+            for (index in 0 until sourceTransitions.length()) {
+                val sourceTransition = sourceTransitions.optJSONObject(index) ?: continue
+                val from = sourceTransition.optString("fromStateId")
+                val to = sourceTransition.optString("toStateId")
+                val trigger = sourceTransition.optString("trigger")
+                if (from !in retainedStateIds || to !in retainedStateIds ||
+                    !trigger.matches(Regex("[A-Za-z0-9_.$/:;-]{1,360}"))) continue
+                val existing = (0 until targetTransitions.length())
+                    .mapNotNull { targetTransitions.optJSONObject(it) }
+                    .firstOrNull {
+                        it.optString("fromStateId") == from &&
+                            it.optString("toStateId") == to &&
+                            it.optString("trigger") == trigger
+                    }
+                val occurrences = sourceTransition.optInt("occurrences", 1).coerceIn(1, 1_000_000)
+                if (existing != null) {
+                    existing.put("occurrences", maxOf(existing.optInt("occurrences"), occurrences))
+                        .put("lastSeenAtEpochMs", maxOf(
+                            existing.optLong("lastSeenAtEpochMs"),
+                            sourceTransition.optLong("lastSeenAtEpochMs").coerceAtLeast(0L)
+                        ))
+                } else {
+                    targetTransitions.put(JSONObject()
+                        .put("fromStateId", from)
+                        .put("toStateId", to)
+                        .put("trigger", trigger)
+                        .put("occurrences", occurrences)
+                        .put("firstSeenAtEpochMs", sourceTransition.optLong("firstSeenAtEpochMs").coerceAtLeast(0L))
+                        .put("lastSeenAtEpochMs", sourceTransition.optLong("lastSeenAtEpochMs").coerceAtLeast(0L)))
+                }
+            }
             while (targetTransitions.length() > MAX_TRANSITIONS_PER_APP) targetTransitions.remove(0)
         }
     }
