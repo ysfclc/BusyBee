@@ -447,6 +447,7 @@ object ScreenUnderstandingService {
         if (latest.isEmpty()) return "No machine analysis yet. Start a session and the on-device models will inspect each captured screen.\n$summary"
         return buildString {
             append("$summary\n\nLATEST MACHINE IDENTIFICATIONS\n")
+            append("Confidence is an uncalibrated evidence score; inspect the listed sources.\n\n")
             latest.asReversed().take(4).forEach { record ->
                 append(record.optString("analysisStatus", "pending").uppercase())
                     .append(" · ").append(record.optString("screenshotId").take(18)).append('\n')
