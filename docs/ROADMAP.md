@@ -29,6 +29,19 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 
 **Exit gate:** install/launch on device, persistent release signing and local storage/migration baseline verified.
 
+## App Observation research subtrack
+
+**Status:** generic privacy-first recorder implementation in progress; classification and automation execution not implemented.
+
+- Dynamically discover installed launchable apps; do not hardcode provider packages.
+- Select one target app per explicit session and record structure-only UI evidence.
+- Record interaction source-node signatures and pre/post UI structure.
+- Record notification envelope metadata only.
+- Optionally correlate minimised network metadata from PCAPdroid, never raw addresses or payloads.
+- Build a behaviour classifier that learns repeatable screen states and transitions from correlated evidence.
+- Promote verified patterns into generic reusable skills with app-specific capability profiles.
+- Keep observation, pattern learning and action execution separate. Read-only observation is the current deliverable; action automation requires its own security, policy and verification gates.
+
 ## Phase 3 — Driver Data Mirror (first real product capability)
 
 **Status:** first usable vertical slice implemented. Real provider-export validation, statement reconciliation and completeness review remain open. Native Provider Bridge is now the accepted architecture direction; provider-specific live access is not yet proven.
