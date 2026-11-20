@@ -123,6 +123,7 @@ class ObserverAccessibilityService : AccessibilityService() {
                 .put("snapshotChanged", true)
                 .put("nodeCount", count)
                 .put("visibleNodeCount", visible)
+                .put("treeTruncated", queue.isNotEmpty())
                 .put("nodes", nodes)
             sourceEvidence?.let { record.put("sourceNode", it) }
             ObservationStore.appendUiEvent(this, record)
