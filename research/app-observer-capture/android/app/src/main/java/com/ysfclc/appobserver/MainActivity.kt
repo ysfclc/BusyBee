@@ -193,6 +193,10 @@ class MainActivity : Activity() {
             return
         }
 
+        if (selectedAppGroup.checkedRadioButtonId == -1) {
+            Toast.makeText(this, "Install one supported target app before starting a session.", Toast.LENGTH_LONG).show()
+            return
+        }
         val app = selectedApp()
         if (!isPackageInstalled(app.packageName)) {
             Toast.makeText(this, app.label + " is not installed.", Toast.LENGTH_LONG).show()
@@ -210,21 +214,40 @@ class MainActivity : Activity() {
         refresh()
     }
 
+    private fun waitForReceiverAndStart(app: ObservedApp, sessionId: String, attempt: Int) {
+        if (!ObservationStore.hasActiveSession(this)) return
+        if (PcapdroidCaptureService.isReceiverReady()) {
+            launchPcapdroidStart(app, sessionId)
+            return
+        }
+        if (attempt >= 50) {
+            ObservationStore.markPcapdroidUnavailable(this, "Local TCP receiver did not become ready")
+            Toast.makeText(this, "Local capture receiver did not start. Stop this session and retry.", Toast.LENGTH_LONG).show()
+            refresh()
+            return
+        }
+        window.decorView.postDelayed({ waitForReceiverAndStart(app, sessionId, attempt + 1) }, 100L)
+    }
+
     private fun launchPcapdroidStart(app: ObservedApp, sessionId: String) {
         if (!ObservationStore.hasActiveSession(this)) return
+        val capturePackage = pcapdroidPackage ?: findPcapdroidPackage()
+        if (capturePackage == null) {
+            ObservationStore.markPcapdroidUnavailable(this, "PCAPdroid disappeared before capture start")
+            return
+        }
+        pcapdroidPackage = capturePackage
         ObservationStore.appendSessionEvent(this, JSONObject()
             .put("type", "pcapdroid_start_requested")
             .put("timestampEpochMs", System.currentTimeMillis())
             .put("targetPackage", app.packageName)
             .put("sessionId", sessionId))
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setClassName(packageName, PCAPDROID_CAPTURE_ACTIVITY)
+            setClassName(capturePackage, PCAPDROID_CAPTURE_ACTIVITY)
             putExtra("action", "start")
             putExtra("broadcast_receiver", PcapdroidStatusReceiver::class.java.name)
             putExtra("pcap_dump_mode", "tcp_exporter")
             putExtra("collector_host", PcapdroidCaptureService.LOOPBACK)
-            // Deprecated alias supports older PCAPdroid versions.
-            putExtra("collector_ip_address", PcapdroidCaptureService.LOOPBACK)
             putExtra("collector_port", PcapdroidCaptureService.PORT.toString())
             putExtra("app_filter", app.packageName)
             putExtra("max_dump_size", MAX_CAPTURE_BYTES)
@@ -243,7 +266,7 @@ class MainActivity : Activity() {
             Toast.makeText(this, "There is no active session.", Toast.LENGTH_SHORT).show()
             return
         }
-        val packageName = pcapdroidPackage
+        val packageName = pcapdroidPackage ?: findPcapdroidPackage()
         if (packageName == null || !ObservationStore.isPcapdroidRunning(this)) {
             endLocalSession("user_stopped_without_active_pcapdroid")
             return
