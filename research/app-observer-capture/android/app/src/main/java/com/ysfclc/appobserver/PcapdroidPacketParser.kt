@@ -5,6 +5,20 @@ import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+
+data class PcapFileHeader(
+    val byteOrder: ByteOrder,
+    val linkType: Int,
+    val nanoTimestamps: Boolean
+)
+
+data class PcapRecordHeader(
+    val timestampSeconds: Long,
+    val timestampFraction: Long,
+    val capturedLength: Int,
+    val originalLength: Int
+)
+
 data class PcapdroidPacket(
     val recordHeader: ByteArray,
     val packetData: ByteArray,
@@ -27,6 +41,9 @@ object PcapdroidPacketParser {
     private const val MAGIC = 0x01072021
     const val DLT_RAW = 101
     const val DLT_EN10MB = 1
+    const val DLT_LINUX_SLL = 113
+    const val DLT_LINUX_SLL2 = 276
+    private const val MAX_PACKET_BYTES = 16 * 1024 * 1024
 
     /** Build a classic-PCAP global header whose link type matches packetData. */
     fun globalHeader(linkType: Int): ByteArray {
@@ -44,6 +61,99 @@ object PcapdroidPacketParser {
         length == 24 && bytes.size >= 4 &&
             bytes[0] == 0xd4.toByte() && bytes[1] == 0xc3.toByte() &&
             bytes[2] == 0xb2.toByte() && bytes[3] == 0xa1.toByte()
+
+
+    /** Parse a standard 24-byte classic-PCAP global header from TCP Exporter. */
+    fun parseGlobalHeader(bytes: ByteArray): PcapFileHeader? {
+        if (bytes.size < 24) return null
+        val orderAndResolution = when {
+            bytes[0] == 0xd4.toByte() && bytes[1] == 0xc3.toByte() &&
+                bytes[2] == 0xb2.toByte() && bytes[3] == 0xa1.toByte() ->
+                ByteOrder.LITTLE_ENDIAN to false
+            bytes[0] == 0xa1.toByte() && bytes[1] == 0xb2.toByte() &&
+                bytes[2] == 0xc3.toByte() && bytes[3] == 0xd4.toByte() ->
+                ByteOrder.BIG_ENDIAN to false
+            bytes[0] == 0x4d.toByte() && bytes[1] == 0x3c.toByte() &&
+                bytes[2] == 0xb2.toByte() && bytes[3] == 0xa1.toByte() ->
+                ByteOrder.LITTLE_ENDIAN to true
+            bytes[0] == 0xa1.toByte() && bytes[1] == 0xb2.toByte() &&
+                bytes[2] == 0x3c.toByte() && bytes[3] == 0x4d.toByte() ->
+                ByteOrder.BIG_ENDIAN to true
+            else -> return null
+        }
+        val linkType = ByteBuffer.wrap(bytes, 20, 4).order(orderAndResolution.first).int and 0xffff
+        return PcapFileHeader(orderAndResolution.first, linkType, orderAndResolution.second)
+    }
+
+    /** Validate and decode one standard 16-byte classic-PCAP packet record header. */
+    fun parseRecordHeader(bytes: ByteArray, order: ByteOrder): PcapRecordHeader? {
+        if (bytes.size != RECORD_HEADER_SIZE) return null
+        val record = ByteBuffer.wrap(bytes).order(order)
+        val seconds = record.int.toLong() and 0xffffffffL
+        val fraction = record.int.toLong() and 0xffffffffL
+        val captured = record.int
+        val original = record.int
+        if (captured < 0 || captured > MAX_PACKET_BYTES || original < captured || original < 0) return null
+        return PcapRecordHeader(seconds, fraction, captured, original)
+    }
+
+    /** Build a safe metadata index entry without retaining or decoding application payload bytes. */
+    fun summarizePcapPacket(
+        packetData: ByteArray,
+        fileHeader: PcapFileHeader,
+        record: PcapRecordHeader,
+        selectedPackage: String
+    ): JSONObject {
+        val fractionMicros = if (fileHeader.nanoTimestamps) record.timestampFraction / 1_000L
+            else record.timestampFraction
+        val result = baseSummary(
+            record.timestampSeconds, fractionMicros, selectedPackage, null, packetData.size
+        )
+        return when (fileHeader.linkType) {
+            DLT_RAW -> summarizeRawIp(result, packetData)
+            DLT_EN10MB -> summarizeEthernet(result, packetData)
+            DLT_LINUX_SLL -> summarizeLinuxCooked(result, packetData, 16, 14)
+            DLT_LINUX_SLL2 -> summarizeLinuxCooked(result, packetData, 20, 0)
+            else -> result.put("protocol", "linktype-${fileHeader.linkType}")
+        }
+    }
+
+    private fun summarizeRawIp(result: JSONObject, packet: ByteArray): JSONObject {
+        if (packet.isEmpty()) return result.put("protocol", "unknown")
+        return summarizeIp(result, packet, 0, "raw")
+    }
+
+    private fun summarizeEthernet(result: JSONObject, frame: ByteArray): JSONObject {
+        if (frame.size < 14) return result.put("protocol", "truncated_ethernet")
+        var offset = 14
+        var etherType = u16(frame, 12)
+        while (etherType == 0x8100 || etherType == 0x88a8 || etherType == 0x9100) {
+            if (frame.size < offset + 4) return result.put("protocol", "truncated_vlan")
+            etherType = u16(frame, offset + 2)
+            offset += 4
+        }
+        return when (etherType) {
+            0x0800, 0x86dd -> summarizeIp(result, frame, offset, "ethernet")
+            0x0806 -> result.put("protocol", "arp")
+            else -> result.put("protocol", "non_ip")
+        }
+    }
+
+    private fun summarizeLinuxCooked(
+        result: JSONObject,
+        frame: ByteArray,
+        headerLength: Int,
+        protocolOffset: Int
+    ): JSONObject {
+        if (frame.size < headerLength || frame.size < protocolOffset + 2) {
+            return result.put("protocol", "truncated_linux_cooked")
+        }
+        return when (u16(frame, protocolOffset)) {
+            0x0800, 0x86dd -> summarizeIp(result, frame, headerLength, "linux_cooked")
+            0x0806 -> result.put("protocol", "arp")
+            else -> result.put("protocol", "non_ip")
+        }
+    }
 
     fun parse(bytes: ByteArray, length: Int, selectedPackage: String): PcapdroidPacket? {
         if (length <= RECORD_HEADER_SIZE) return null
