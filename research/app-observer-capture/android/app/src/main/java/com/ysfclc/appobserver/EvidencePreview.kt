@@ -118,6 +118,39 @@ object EvidencePreview {
         }.trimEnd()
     }
 
+    fun semanticPayloads(file: File?, totalEvents: Long, rules: List<SemanticRule>): String {
+        val records = readRecent(file, 30)
+        if (records.isEmpty()) {
+            return if (totalEvents == 0L) {
+                "No linked payloads yet. Create a meaning rule and explicitly allow Accessibility text or notification content."
+            } else {
+                "$totalEvents authorised payload records exist, but the recent evidence tail could not be read."
+            }
+        }
+        val labels = rules.associateBy { it.id }
+        return buildString {
+            append(totalEvents).append(" linked payloads · latest authorised evidence\n")
+            records.asReversed().forEach { record ->
+                val ruleId = record.optString("semanticRuleId")
+                val label = record.optString("semanticLabel").ifBlank { labels[ruleId]?.label ?: "Unlabelled region" }
+                val source = when (record.optString("source")) {
+                    "accessibility_node_text" -> "UI region"
+                    "notification_listener" -> "notification"
+                    else -> "user-authorised source"
+                }
+                append("• ").append(formatTime(record.optLong("timestampEpochMs")))
+                    .append(" · ").append(label).append(" · ").append(source).append('\n')
+                val title = record.optString("payloadTitle").takeIf { it.isNotBlank() }
+                val payload = record.optString("payloadText").takeIf { it.isNotBlank() }
+                if (title != null) append("  ").append(title.take(180)).append('\n')
+                if (payload != null) append("  ").append(payload.take(360)).append(if (payload.length > 360) "…" else "").append('\n')
+                val screenshotId = record.optString("screenshotId").takeIf { it.isNotBlank() && it != "null" }
+                if (screenshotId != null) append("  ↳ screenshot ").append(screenshotId.take(22)).append('\n')
+            }
+            append("Only content explicitly permitted by a saved meaning rule is shown here.")
+        }.trimEnd()
+    }
+
     fun network(file: File?, totalEvents: Long): String {
         val records = readRecent(file, 12)
         if (records.isEmpty()) {
