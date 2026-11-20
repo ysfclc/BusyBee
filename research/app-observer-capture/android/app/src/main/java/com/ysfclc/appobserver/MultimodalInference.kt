@@ -34,7 +34,7 @@ data class LearningEvidence(
     val visualLabels: List<VisualLabelEvidence>,
     val accessibilityClasses: List<String>,
     val resourceIds: List<String>,
-    val accessibilityElements: List<AccessibilityElementEvidence>,
+    val accessibilityElements: List<AccessibilityElementEvidence> = emptyList(),
     val clickableCount: Int,
     val scrollableCount: Int,
     val editableCount: Int,
