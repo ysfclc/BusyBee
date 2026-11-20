@@ -394,7 +394,7 @@ class MainActivity : Activity() {
                 "\nUI structure events: " + uiCount + " · network metadata events: " + networkCount +
                 "\nTCP exporter: " + PcapdroidCaptureService.liveStatus() +
                 " · packet headers inspected: " + PcapdroidCaptureService.livePackets() +
-                " · bytes inspected: " + PcapdroidCaptureService.liveBytes()
+                " · packet bytes represented: " + PcapdroidCaptureService.liveBytes()
         } else if (directory != null) {
             "LAST SESSION · " + (observedTarget ?: "selected app") +
                 "\nUI structure events: " + uiCount + " · network metadata events: " + networkCount +
