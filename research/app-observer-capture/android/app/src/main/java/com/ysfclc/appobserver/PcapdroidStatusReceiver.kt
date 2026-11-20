@@ -7,7 +7,7 @@ import org.json.JSONObject
 
 class PcapdroidStatusReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action != ACTION_CAPTURE_STATUS) return
+        if (intent?.action != ACTION_CAPTURE_STATUS) return\n        val senderUid = getSendingUid()\n        val trustedSender = listOf("com.emanuelef.remote_capture", "com.emanuelef.remote_capture.debug")\n            .any { packageName ->\n                runCatching { context.packageManager.getPackageUid(packageName, 0) == senderUid }\n                    .getOrDefault(false)\n            }\n        if (!trustedSender) return
         val running = intent.getBooleanExtra("running", true)
         ObservationStore.appendSessionEvent(context, JSONObject()
             .put("type", "pcapdroid_status_broadcast")
