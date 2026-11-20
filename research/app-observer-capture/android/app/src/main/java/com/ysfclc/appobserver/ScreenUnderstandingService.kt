@@ -14,6 +14,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.RandomAccessFile
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import kotlin.math.max
 
 /**
@@ -28,11 +29,15 @@ object ScreenUnderstandingService {
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     private val imageLabeler by lazy { ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS) }
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
+    private val analysisExecutor = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "AppObserver-Understanding").apply { isDaemon = true }
+    }
     private const val CORRELATION_WINDOW_MS = 8_000L
     private const val MAX_JSONL_TAIL_BYTES = 1_048_576L
 
     fun analyse(context: Context, sessionId: String, screenshot: StoredScreenshot) {
         if (!inFlight.add(screenshot.id)) return
+        ObserverSignals.recordCaptureDiagnostic(context, "screen_analysis_attempts")
         val bitmap = runCatching { BitmapFactory.decodeFile(screenshot.file.absolutePath) }.getOrNull()
         if (bitmap == null) {
             inFlight.remove(screenshot.id)
@@ -57,7 +62,7 @@ object ScreenUnderstandingService {
         }
 
         val tasks = listOfNotNull(textTask, labelTask)
-        Tasks.whenAllComplete(tasks).addOnCompleteListener {
+        Tasks.whenAllComplete(tasks).addOnCompleteListener(analysisExecutor) {
             try {
                 val lines = textTask?.takeIf { task -> task.isSuccessful }?.result?.textBlocks
                     ?.flatMap { block -> block.lines }
@@ -70,6 +75,12 @@ object ScreenUnderstandingService {
                     }.orEmpty()
                 val visualLabels = labelTask?.takeIf { task -> task.isSuccessful }?.result
                     ?.map { VisualLabelEvidence(it.text, it.confidence) }.orEmpty()
+                ObserverSignals.recordCaptureDiagnostic(
+                    context, if (textTask?.isSuccessful == true) "screen_ocr_successes" else "screen_ocr_failures"
+                )
+                ObserverSignals.recordCaptureDiagnostic(
+                    context, if (labelTask?.isSuccessful == true) "screen_image_label_successes" else "screen_image_label_failures"
+                )
                 val evidence = fuseSources(
                     context, sessionId, screenshot, lines, visualLabels
                 )
@@ -166,8 +177,16 @@ object ScreenUnderstandingService {
                         .put("networkProtocols", JSONArray(evidence.networkProtocols.distinct()))
                         .put("networkPortCount", evidence.networkPorts.distinct().size))
                     .put("learningFeatures", JSONArray(featureVector))
-                ObservationStore.appendUnderstanding(context, sessionId, record)
+                if (ObservationStore.appendUnderstanding(context, sessionId, record)) {
+                    ObserverSignals.recordCaptureDiagnostic(context, "screen_insights_written")
+                } else {
+                    ObserverSignals.recordCaptureDiagnostic(context, "screen_analysis_failures")
+                }
+                ObserverSignals.recordCaptureDiagnostic(
+                    context, if (state.occurrences > 1) "screen_states_reused" else "screen_states_created"
+                )
             } catch (failure: Throwable) {
+                ObserverSignals.recordCaptureDiagnostic(context, "screen_analysis_failures")
                 persistFailure(
                     context, sessionId, screenshot,
                     "analysis_pipeline_" + failure.javaClass.simpleName.take(60)
@@ -308,7 +327,7 @@ object ScreenUnderstandingService {
                 input.seek(start)
                 if (start > 0L) input.readLine()
                 val remaining = (input.length() - input.filePointer).toInt().coerceAtLeast(0)
-                ByteArray(remaining).also(input::readFully)
+                ByteArray(remaining).also { input.readFully(it) }
             }
             String(bytes, Charsets.UTF_8).lineSequence()
                 .filter { it.isNotBlank() }.takeLast(limit).mapNotNull {
@@ -323,6 +342,7 @@ object ScreenUnderstandingService {
         screenshot: StoredScreenshot,
         reason: String
     ) {
+        ObserverSignals.recordCaptureDiagnostic(context, "screen_analysis_failures")
         ObservationStore.appendUnderstanding(context, sessionId, JSONObject()
             .put("schema", "app-observer-screen-understanding/v1")
             .put("timestampEpochMs", screenshot.timestampEpochMs)
@@ -341,7 +361,7 @@ object ScreenUnderstandingService {
                 input.seek(start)
                 if (start > 0L) input.readLine()
                 val remaining = (input.length() - input.filePointer).toInt().coerceAtLeast(0)
-                ByteArray(remaining).also(input::readFully)
+                ByteArray(remaining).also { input.readFully(it) }
             }
             String(bytes, Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }
                 .takeLast(6).mapNotNull { runCatching { JSONObject(it) }.getOrNull() }.toList()
