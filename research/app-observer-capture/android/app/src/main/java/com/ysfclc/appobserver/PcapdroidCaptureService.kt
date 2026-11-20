@@ -58,6 +58,9 @@ class PcapdroidCaptureService : Service() {
         finalized.set(false)
         finishReason = null
         receiverReady = false
+        receiverState = "starting"
+        receivedPackets = 0L
+        receivedBytes = 0L
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification("Opening local TCP receiver"))
         receiverThread = Thread({ receivePcapStream() }, "AppObserver-Pcapdroid-TCP").apply { start() }
@@ -75,6 +78,7 @@ class PcapdroidCaptureService : Service() {
                 server.bind(InetSocketAddress(InetAddress.getByName(LOOPBACK), PORT), 1)
                 server.soTimeout = 1_000
                 receiverReady = true
+                receiverState = "listening"
                 ObservationStore.appendSessionEvent(this, JSONObject()
                     .put("type", "pcapdroid_tcp_receiver_ready")
                     .put("timestampEpochMs", System.currentTimeMillis())
@@ -91,6 +95,11 @@ class PcapdroidCaptureService : Service() {
                 }
                 if (accepted == null || stopping.get()) return
                 clientSocket = accepted
+                receiverState = "connected"
+                ObservationStore.appendSessionEvent(this, JSONObject()
+                    .put("type", "pcapdroid_tcp_exporter_connected")
+                    .put("timestampEpochMs", System.currentTimeMillis())
+                    .put("remoteAddress", accepted.remoteSocketAddress.toString()))
                 accepted.tcpNoDelay = true
                 accepted.keepAlive = true
                 accepted.use { client ->
@@ -99,6 +108,13 @@ class PcapdroidCaptureService : Service() {
                         ?: throw EOFException("TCP stream closed before PCAP global header")
                     val fileHeader = PcapdroidPacketParser.parseGlobalHeader(globalHeaderBytes)
                         ?: throw IOException("TCP Exporter did not send a supported classic-PCAP header")
+                    receiverState = "pcap-header"
+                    ObservationStore.appendSessionEvent(this, JSONObject()
+                        .put("type", "pcap_global_header_received")
+                        .put("timestampEpochMs", System.currentTimeMillis())
+                        .put("linkType", fileHeader.linkType)
+                        .put("byteOrder", fileHeader.byteOrder.toString())
+                        .put("nanoTimestamps", fileHeader.nanoTimestamps))
 
                     FileOutputStream(pcapFile, false).use { output ->
                         output.write(globalHeaderBytes)
@@ -122,9 +138,20 @@ class PcapdroidCaptureService : Service() {
                                     networkIndex.append(summary.toString()).append('\n')
                                     packets++
                                     bytes += packetData.size
-                                    if (packets % 24L == 0L) {
-                                        output.flush()
-                                        networkIndex.flush()
+                                    receivedPackets = packets
+                                    receivedBytes = bytes
+                                    // Flush every packet so live status and evidence are truthful.
+                                    output.flush()
+                                    networkIndex.flush()
+                                    receiverState = "receiving"
+                                    if (packets == 1L || packets % 8L == 0L) {
+                                        ObservationStore.appendSessionEvent(this, JSONObject()
+                                            .put("type", "pcap_packet_received")
+                                            .put("timestampEpochMs", System.currentTimeMillis())
+                                            .put("packetCount", packets)
+                                            .put("packetBytes", packetData.size)
+                                            .put("totalPacketBytes", bytes)
+                                            .put("protocol", summary.optString("protocol", "unknown")))
                                         updateNotification("Captured $packets packets · ${bytes / 1024} KB")
                                     }
                                 }
@@ -150,6 +177,7 @@ class PcapdroidCaptureService : Service() {
             }
         } finally {
             receiverReady = false
+            receiverState = if (stopping.get()) "stopped" else "disconnected"
             clientSocket = null
             serverSocket = null
             ObservationStore.appendSessionEvent(this, JSONObject()
@@ -250,6 +278,12 @@ class PcapdroidCaptureService : Service() {
         private const val NOTIFICATION_ID = 7512
 
         @Volatile private var receiverReady = false
+        @Volatile private var receiverState = "idle"
+        @Volatile private var receivedPackets = 0L
+        @Volatile private var receivedBytes = 0L
         fun isReceiverReady(): Boolean = receiverReady
+        fun liveStatus(): String = receiverState
+        fun livePackets(): Long = receivedPackets
+        fun liveBytes(): Long = receivedBytes
     }
 }
