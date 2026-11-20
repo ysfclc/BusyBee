@@ -5,6 +5,9 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -16,6 +19,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
@@ -37,6 +41,7 @@ class MainActivity : Activity() {
     private lateinit var uiEvidencePreview: TextView
     private lateinit var networkEvidencePreview: TextView
     private lateinit var screenshotPreview: ImageView
+    private lateinit var screenshotRuleOverlay: ScreenshotRuleOverlay
     private lateinit var screenshotCaption: TextView
     private lateinit var semanticRulesPreview: TextView
     private var displayedScreenshotPath: String? = null
@@ -169,13 +174,23 @@ class MainActivity : Activity() {
         root.addView(card().apply {
             screenshotCaption = label("No screenshots yet. Start a manual session and interact with the selected app.", 12f, MUTED, false)
             addView(screenshotCaption)
+            val screenshotFrame = FrameLayout(this@MainActivity).apply {
+                setBackgroundColor(Color.BLACK)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(320)
+                )
+            }
             screenshotPreview = ImageView(this@MainActivity).apply {
-                adjustViewBounds = true
-                maxHeight = dp(320)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 setBackgroundColor(Color.BLACK)
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+                )
             }
-            addView(screenshotPreview)
+            screenshotRuleOverlay = ScreenshotRuleOverlay(this@MainActivity)
+            screenshotFrame.addView(screenshotPreview)
+            screenshotFrame.addView(screenshotRuleOverlay)
+            addView(screenshotFrame)
             addView(action("DEFINE MEANING FROM THIS SCREENSHOT", accent = true) {
                 defineMeaningRuleFromLatestScreenshot()
             })
@@ -362,6 +377,58 @@ class MainActivity : Activity() {
             }
         }.isSuccess
 
+    private class ScreenshotRuleOverlay(context: android.content.Context) : View(context) {
+        private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x3341E6B9
+            style = Paint.Style.FILL
+        }
+        private val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(65, 230, 185)
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+        }
+        private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 30f
+            style = Paint.Style.FILL
+            setShadowLayer(4f, 1f, 1f, Color.BLACK)
+        }
+        private var bitmapWidth = 0
+        private var bitmapHeight = 0
+        private var rules: List<SemanticRule> = emptyList()
+
+        fun configure(width: Int, height: Int, rules: List<SemanticRule>) {
+            bitmapWidth = width
+            bitmapHeight = height
+            this.rules = rules
+            invalidate()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            if (bitmapWidth <= 0 || bitmapHeight <= 0) return
+            val scale = minOf(
+                width.toFloat() / bitmapWidth.toFloat(),
+                height.toFloat() / bitmapHeight.toFloat()
+            )
+            if (!scale.isFinite() || scale <= 0f) return
+            val leftInset = (width - bitmapWidth * scale) / 2f
+            val topInset = (height - bitmapHeight * scale) / 2f
+            rules.forEach { rule ->
+                val rect = RectF(
+                    leftInset + rule.left * bitmapWidth * scale,
+                    topInset + rule.top * bitmapHeight * scale,
+                    leftInset + rule.right * bitmapWidth * scale,
+                    topInset + rule.bottom * bitmapHeight * scale
+                )
+                canvas.drawRect(rect, fill)
+                canvas.drawRect(rect, border)
+                val baseline = (rect.top - 8f).coerceAtLeast(text.textSize)
+                canvas.drawText(rule.label, rect.left + 6f, baseline, text)
+            }
+        }
+    }
+
     private fun defineMeaningRuleFromLatestScreenshot() {
         val screenshot = ObservationStore.latestScreenshot(this)
         if (screenshot == null) {
@@ -511,6 +578,11 @@ class MainActivity : Activity() {
                         displayedScreenshotPath = latestScreenshot.file.absolutePath
                     }
                 }
+                screenshotRuleOverlay.configure(
+                    latestScreenshot.width,
+                    latestScreenshot.height,
+                    SemanticRuleStore.all(this).filter { it.packageName == latestScreenshot.packageName }
+                )
             }
             semanticRulesPreview.text = SemanticRuleStore.describe(this)
         }
