@@ -96,8 +96,10 @@ class ObserverAccessibilityService : AccessibilityService() {
         }
 
         val shape = WindowShape(count, clickable, editable, scrollable, visible, passwords)
-        val fingerprint = (AppCatalog.eventName(event.eventType) + "|" + textParts.joinToString("|") +
-            "|" + nodes.length()).hashCode()
+        // Fingerprint the actual bounded node snapshot, not only node count. This keeps
+        // state changes observable even when visible-text capture is disabled.
+        val fingerprint = (AppCatalog.eventName(event.eventType) + "|" +
+            (event.className?.toString() ?: "") + "|" + nodes.toString()).hashCode()
         if (lastFingerprint[pkg] != fingerprint || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             lastFingerprint[pkg] = fingerprint
             ObservationStore.appendUiEvent(this, JSONObject()
