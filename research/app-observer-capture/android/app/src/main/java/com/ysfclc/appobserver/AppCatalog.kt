@@ -12,7 +12,7 @@ data class ObservedApp(val label: String, val packageName: String) {
 /**
  * Discovers launchable applications dynamically. There is deliberately no provider allowlist.
  * Android package visibility means this returns apps exposed through the launcher-intent query,
- * not every hidden/system package on the device.
+ * not every hidden/system package on the device. App Observer is appended as an explicit self-test.
  */
 object AppCatalog {
     @Suppress("DEPRECATION")
@@ -30,7 +30,7 @@ object AppCatalog {
             packageManager.queryIntentActivities(launcherIntent, 0)
         }
 
-        return resolved.mapNotNull { result ->
+        val discovered = resolved.mapNotNull { result ->
             val activity = result.activityInfo ?: return@mapNotNull null
             val name = activity.packageName
             if (name == observerPackage || name.isBlank()) return@mapNotNull null
@@ -43,6 +43,10 @@ object AppCatalog {
                 val byLabel = first.label.compareTo(second.label, ignoreCase = true)
                 if (byLabel != 0) byLabel else first.packageName.compareTo(second.packageName)
             })
+
+        // Keep self-testing explicit and at the end so normal app targets remain the default.
+        return if (observerPackage.isBlank()) discovered
+        else discovered + ObservedApp("App Observer (self-test)", observerPackage)
     }
 
     fun isSessionTarget(packageName: String?, selectedPackage: String?): Boolean =
