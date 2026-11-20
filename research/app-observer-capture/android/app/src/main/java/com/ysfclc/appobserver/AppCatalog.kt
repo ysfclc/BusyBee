@@ -4,7 +4,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.view.accessibility.AccessibilityEvent
-import java.util.Locale
 
 data class ObservedApp(val label: String, val packageName: String) {
     override fun toString(): String = "$label · $packageName"
@@ -40,7 +39,10 @@ object AppCatalog {
                 .ifBlank { name }
             ObservedApp(label, name)
         }.distinctBy { it.packageName }
-            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }.thenBy { it.packageName })
+            .sortedWith(Comparator { first, second ->
+                val byLabel = first.label.compareTo(second.label, ignoreCase = true)
+                if (byLabel != 0) byLabel else first.packageName.compareTo(second.packageName)
+            })
     }
 
     fun isSessionTarget(packageName: String?, selectedPackage: String?): Boolean =
