@@ -347,6 +347,24 @@ object MultimodalInference {
             features += "ui:repeating_list"
         }
         if (classes.contains("mapview") || ids.contains("map")) features += "ui:map_control"
+        if (classes.contains("button")) features += "ui:button_control"
+        if (classes.contains("edittext") || classes.contains("textfield")) features += "ui:text_input_control"
+        if (classes.contains("recyclerview") || classes.contains("listview") || classes.contains("lazycolumn")) {
+            features += "ui:repeating_list"
+        }
+        if (ids.contains("price") || ids.contains("fare") || ids.contains("amount") || ids.contains("earning")) {
+            features += "ui:price_identifier"
+        }
+        if (ids.contains("accept") || ids.contains("pickup") || ids.contains("offer") || ids.contains("request")) {
+            features += "ui:action_identifier"
+        }
+        if (ids.contains("message") || ids.contains("chat") || ids.contains("conversation")) {
+            features += "ui:conversation_identifier"
+        }
+        if (ids.contains("search") || ids.contains("query")) features += "ui:search_identifier"
+        if (ids.contains("route") || ids.contains("distance") || ids.contains("duration") || ids.contains("eta")) {
+            features += "ui:route_identifier"
+        }
         if (evidence.editableCount > 0) features += "ui:editable_control"
         if (evidence.clickableCount >= 3) features += "ui:clickable_dense"
         if (evidence.scrollableCount > 0) features += "ui:scrollable"
@@ -364,14 +382,27 @@ object MultimodalInference {
             if (element.scrollable) features += "ui:scroll_region"
         }
         if (evidence.interactionType.contains("clicked")) features += "event:click"
+        if (evidence.interactionType.contains("long_clicked")) features += "event:long_click"
+        if (evidence.interactionType.contains("selected")) features += "event:selection"
+        if (evidence.interactionType.contains("focused")) features += "event:focus"
         if (evidence.interactionType.contains("scrolled")) features += "event:scroll"
         if (evidence.notificationCategories.any { it.contains("message", true) || it.contains("msg", true) }) {
             features += "notification:message"
         }
+        val notificationKinds = setOf("msg", "call", "email", "service", "alarm", "event", "navigation", "social", "status", "progress")
+        evidence.notificationCategories.map { it.lowercase(Locale.ROOT) }
+            .filter { it in notificationKinds }
+            .forEach { features += "notification:$it" }
         if (evidence.notificationCount > 0) features += "notification:present"
         if (evidence.networkPacketCount >= 3) features += "network:burst"
+        if (evidence.networkPacketCount >= 20) features += "network:high_frequency"
+        if (evidence.networkBytes >= 20_000L) features += "network:medium_volume"
+        if (evidence.networkBytes >= 200_000L) features += "network:high_volume"
         if (evidence.networkProtocols.any { it.equals("tcp", true) }) features += "network:tcp"
-        if (evidence.networkPorts.any { it == 443 || it == 80 }) features += "network:web_port"
+        if (evidence.networkProtocols.any { it.equals("udp", true) }) features += "network:udp"
+        if (evidence.networkPorts.any { it == 443 }) features += "network:port_443"
+        if (evidence.networkPorts.any { it == 80 }) features += "network:port_80"
+        if (evidence.networkPorts.any { it == 53 }) features += "network:port_53"
         return features.toList().sorted().take(48)
     }
 
