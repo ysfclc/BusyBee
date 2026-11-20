@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">App Observer</string>
-    <string name="accessibility_description">During an explicitly started research session, records a read-only UI timeline for one selected driver or navigation app. Never performs actions or reads editable/password fields.</string>
+    <string name="accessibility_description">During a manually started session, records structure-only UI evidence for the one app selected by the user. It never reads visible or typed text and cannot perform gestures or actions.</string>
 </resources>
