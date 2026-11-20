@@ -12,6 +12,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.RandomAccessFile
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
 
@@ -28,6 +29,7 @@ object ScreenUnderstandingService {
     private val imageLabeler by lazy { ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS) }
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
     private const val CORRELATION_WINDOW_MS = 8_000L
+    private const val MAX_JSONL_TAIL_BYTES = 1_048_576L
 
     fun analyse(context: Context, sessionId: String, screenshot: StoredScreenshot) {
         if (!inFlight.add(screenshot.id)) return
@@ -301,11 +303,17 @@ object ScreenUnderstandingService {
     ): List<JSONObject> {
         val file = ObservationStore.evidenceFile(context, sessionId, fileName) ?: return emptyList()
         return runCatching {
-            file.useLines { lines ->
-                lines.filter { it.isNotBlank() }.toList().takeLast(limit).mapNotNull {
-                    runCatching { JSONObject(it) }.getOrNull()
-                }
+            val bytes = RandomAccessFile(file, "r").use { input ->
+                val start = (input.length() - MAX_JSONL_TAIL_BYTES).coerceAtLeast(0L)
+                input.seek(start)
+                if (start > 0L) input.readLine()
+                val remaining = (input.length() - input.filePointer).toInt().coerceAtLeast(0)
+                ByteArray(remaining).also(input::readFully)
             }
+            String(bytes, Charsets.UTF_8).lineSequence()
+                .filter { it.isNotBlank() }.takeLast(limit).mapNotNull {
+                    runCatching { JSONObject(it) }.getOrNull()
+                }.toList()
         }.getOrDefault(emptyList())
     }
 
@@ -328,11 +336,15 @@ object ScreenUnderstandingService {
         val directory = ObservationStore.latestDirectory(context)
         val file = directory?.let { java.io.File(it, "screen-understanding.jsonl") }
         val latest = if (file?.isFile == true) runCatching {
-            file.useLines { lines ->
-                lines.filter { it.isNotBlank() }.toList().takeLast(6).mapNotNull {
-                    runCatching { JSONObject(it) }.getOrNull()
-                }
+            val bytes = RandomAccessFile(file, "r").use { input ->
+                val start = (input.length() - MAX_JSONL_TAIL_BYTES).coerceAtLeast(0L)
+                input.seek(start)
+                if (start > 0L) input.readLine()
+                val remaining = (input.length() - input.filePointer).toInt().coerceAtLeast(0)
+                ByteArray(remaining).also(input::readFully)
             }
+            String(bytes, Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }
+                .takeLast(6).mapNotNull { runCatching { JSONObject(it) }.getOrNull() }.toList()
         }.getOrDefault(emptyList()) else emptyList()
 
         val summary = LocalLearningMemory.summary(context)
