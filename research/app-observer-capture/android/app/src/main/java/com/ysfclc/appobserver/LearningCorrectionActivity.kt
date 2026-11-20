@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -126,10 +127,34 @@ class LearningCorrectionActivity : Activity() {
             setPadding(0, 0, 0, dp(6))
         })
         root.addView(picker)
+        root.addView(TextView(this).apply {
+            text = "Or teach a new concept name"
+            textSize = 12f
+            setTextColor(Color.LTGRAY)
+            setPadding(0, dp(12), 0, dp(4))
+        })
+        val customConceptInput = EditText(this).apply {
+            hint = "Custom concept (optional)"
+            setSingleLine(true)
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+        }
+        root.addView(customConceptInput)
+        root.addView(TextView(this).apply {
+            text = "Custom concepts become learnable labels for this app. The local model starts using them after it has examples from at least two different categories."
+            textSize = 11f
+            setTextColor(Color.LTGRAY)
+            setPadding(0, dp(4), 0, dp(10))
+        })
         root.addView(Button(this).apply {
             text = "SAVE CORRECTION TO LOCAL MODEL"
             setOnClickListener {
-                val concept = conceptValues[picker.selectedItemPosition]
+                val customLabel = customConceptInput.text.toString()
+                val concept = if (customLabel.isBlank()) {
+                    conceptValues[picker.selectedItemPosition]
+                } else {
+                    LocalLearningMemory.normaliseConceptLabel(customLabel)
+                }
                 runCatching {
                     LocalLearningMemory.train(this@LearningCorrectionActivity, targetPackage, concept, featureVector)
                 }.onSuccess {
