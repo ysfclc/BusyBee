@@ -180,7 +180,7 @@ object ObservationStore {
                     if (file.isFile) writeSanitisedJsonLines(zip, name, file)
                 }
 
-                val diagnostics = ObserverPrivacyReport.build(context).toString(2).toByteArray(Charsets.UTF_8)
+                val diagnostics = ObserverReport.build(context).toString(2).toByteArray(Charsets.UTF_8)
                 zip.putNextEntry(ZipEntry("device-capability-report.json"))
                 zip.write(diagnostics)
                 zip.closeEntry()
