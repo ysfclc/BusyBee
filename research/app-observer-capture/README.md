@@ -1,60 +1,49 @@
-# App Observer — Generic Behaviour Recorder
+# App Observer — Android Capture
 
-App Observer is a separate Android research recorder for BusyBee engineering. It observes any user-selected app that Android exposes through the launcher-app query; there is no Uber/Bolt/Waze/Maps allowlist. An explicit **App Observer (self-test)** target is also available to verify the recorder against its own UI.
+App Observer is a generic, read-only Android behaviour recorder. It is not limited to a predefined provider list. The user selects one launchable app and manually starts/stops each observation session.
 
-## What it records and renders
+## Current evidence sources
 
-- One explicitly selected app per manually started session.
-- Read-only Accessibility event timeline and structure-only UI snapshots.
-- An on-device live evidence viewer showing the latest visible control tree, resource IDs, bounds, control flags and recent event timeline.
-- Structural screen fingerprints that group repeat captures of the same hierarchy/control pattern. These are structural matches, not semantic screen understanding.
-- Interaction source-node structure where Android exposes it.
-- Notification envelope metadata for the selected app, without notification content.
-- Optional PCAPdroid TCP-exporter packet-header metadata: time, app identifier, IP version, protocol, ports, flags and byte counts, shown as a readable timeline.
+- Full-display screenshots requested through the Android Accessibility screenshot API (Android 11/API 30+), rate-limited to roughly 1.2 seconds after meaningful UI events.
+- Accessibility hierarchy and structural event metadata for the selected app.
+- User-authored screenshot-region meaning rules.
+- Notification envelope metadata by default; notification content only when a user rule explicitly selects notification_text.
+- Optional PCAPdroid packet-header metadata only. No raw PCAP, raw addresses, TLS decryption or application payloads.
 
-After starting a session, switch to the selected target app and use it normally, then return to App Observer to see live evidence. UI structure capture is independent of PCAPdroid; network metadata appears only after PCAPdroid has been approved and packet headers are actually received.
+Android may block screenshots of secure or protected windows. An empty or unavailable Accessibility hierarchy does not imply the screenshot is blank.
 
-## Privacy baseline
+## Meaning rules
 
-The recorder does not store visible UI text, typed values, notification titles or bodies, screenshots, clipboard data, URLs, domains, IP addresses, headers, cookies, tokens, application payloads or raw PCAP files.
+Open the latest screenshot and choose DEFINE MEANING FROM THIS SCREENSHOT. Draw a region and assign any label, for example chat, notification bar, offer card, amount, map or a custom category.
 
-Only a bounded packet-header prefix is read; the remainder is drained in a small buffer that is wiped after use. The prefix is wiped after parsing. Allowlisted header metadata is retained and all packet content is discarded. Full-payload capture and TLS decryption are always disabled. New sessions do not create network.pcap; evidence export excludes any legacy raw PCAP and sanitises JSONL fields again before sharing.
+Choose one evidence source:
+- Visual screenshot only: retain the region and meaning label; do not read text.
+- Read UI text inside this region: read Accessibility node text only for nodes whose centre falls within the region; password nodes are always excluded.
+- Link selected app notification content: read notification title/body text only for the selected app when notification access is enabled.
 
-Data stays in App Observer's private storage until the user explicitly exports the evidence ZIP. There is no upload path.
+Rules may target the selected app or Android system surfaces (for example status bar/notification shade). System-surface rules capture screenshots when Android system/updated-system packages produce relevant events. They do not collect those packages' Accessibility trees or text. Notification text remains sourced from the selected app's notification listener.
 
-## Android app discovery
+Rules are stored locally outside individual sessions and are included in exported evidence ZIPs. A user can import a prior evidence ZIP to restore earlier session records/screenshots and merge meaning rules.
 
-The picker queries installed apps with a MAIN / LAUNCHER activity. This avoids the restricted QUERY_ALL_PACKAGES permission. Hidden, disabled and non-launchable packages are therefore outside the picker. App Observer itself is added explicitly as a self-test target at the bottom of the list. The AccessibilityService checks the selected package before evidence is written.
+## Permissions
 
-## Observation flow
+1. Enable App Observer's read-only Accessibility service. Screenshot capture is part of this service configuration.
+2. Optionally enable notification access. Notification content is still not read unless a matching meaning rule explicitly allows it.
+3. Approve the manual session foreground notification on Android 13+.
+4. Install PCAPdroid only when network metadata is needed; UI screenshots and structure capture do not depend on it.
 
-1. Install App Observer and optionally PCAPdroid.
-2. Enable App Observer's read-only Accessibility service.
-3. Optionally enable notification access for notification envelope metadata.
-4. Select any app shown in the dynamic picker, or choose App Observer (self-test).
-5. Start a session and approve PCAPdroid's capture-consent prompt if available.
-6. Switch to the selected app and use it normally. No actions are performed by App Observer.
-7. Return to App Observer to inspect the latest structural evidence and repeated fingerprints.
-8. Stop the session and optionally export the privacy-minimised evidence ZIP.
+## Evidence files
 
-## Evidence layout
+- session.json: session identity, target, privacy choices and capture capabilities.
+- events.jsonl: session lifecycle, diagnostics and PCAPdroid state.
+- ui-events.jsonl: structural UI events, fingerprints and screenshot references.
+- screenshots/: JPEG screenshots and index.jsonl metadata.
+- semantic-payloads.jsonl: only content explicitly authorised by a matching meaning rule.
+- semantic-rules.json: exported user-authored rules.
+- network-events.jsonl: allowlisted packet-header metadata when PCAPdroid is active.
+- device-capability-report.json: Android/device capability snapshot.
+- PRIVACY-AND-REVIEW.txt: export review requirements.
 
-- session.json: selected target, Android API, session mode and privacy flags.
-- events.jsonl: receiver and session lifecycle.
-- ui-events.jsonl: structure-only UI and notification metadata, including structural fingerprints.
-- network-events.jsonl: allowlisted packet-header metadata only.
-- device-capability-report.json: minimal Android access/capability report.
-- PRIVACY-AND-REVIEW.txt: export privacy summary.
+## Build and release signing
 
-## Scope boundary
-
-This is an observation instrument and a first exact-structure matching aid for a future state-transition classifier. It does not yet classify semantic behaviour, learn business events, infer the meaning of controls, or execute reusable automations. A matching fingerprint means the captured hierarchy and control-state pattern match, not that the screen's business meaning is understood. It never taps, swipes, types, replays network requests or controls the target app.
-
-## Build
-
-From the repository root:
-
-    chmod +x android/gradlew
-    android/gradlew -p research/app-observer-capture/android --no-daemon testDebugUnitTest assembleDebug
-
-The live-viewer debug variant uses package ID `com.ysfclc.appobserver.capture.generic.viewer.debug` and app label **App Observer Live Viewer**. It installs beside earlier App Observer packages and is visually distinguishable in the launcher. CI debug APKs still use ephemeral signing keys; a later build may need side-by-side installation or a persistent signing setup for seamless updates.
+The release application ID is com.ysfclc.appobserver.capture. Future releases must use the same persistent release keystore and increment versionCode. Debug packages are separate and are not release updates. See docs/APP_OBSERVER_PERSISTENT_SIGNING.md.
