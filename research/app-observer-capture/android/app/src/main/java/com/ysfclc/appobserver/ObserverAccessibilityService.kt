@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.Display
 import android.os.SystemClock
 import android.util.DisplayMetrics
@@ -329,10 +331,17 @@ class ObserverAccessibilityService : AccessibilityService() {
         sessionId: String,
         packageName: String,
         eventType: Int,
-        timestampEpochMs: Long
+        timestampEpochMs: Long,
+        attempt: Int = 0
     ) {
+        if (ObservationStore.activeSessionId(this) != sessionId) return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             ObserverSignals.recordCaptureDiagnostic(this, "screenshots_failed")
+            ObservationStore.appendUiEvent(this, JSONObject()
+                .put("timestampEpochMs", timestampEpochMs)
+                .put("packageName", packageName)
+                .put("eventType", "screenshot_failed")
+                .put("screenshotFailure", "api_level_below_30"))
             return
         }
         if (SystemClock.elapsedRealtime() - lastScreenshotRequestedAt < SCREENSHOT_INTERVAL_MS) {
@@ -376,11 +385,29 @@ class ObserverAccessibilityService : AccessibilityService() {
 
                     override fun onFailure(errorCode: Int) {
                         ObserverSignals.recordCaptureDiagnostic(this@ObserverAccessibilityService, "screenshots_failed")
+                        val failureReason = when (errorCode) {
+                            AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT -> "platform_rate_limited"
+                            AccessibilityService.ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS -> "accessibility_access_unavailable"
+                            AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_DISPLAY -> "invalid_display"
+                            AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW -> "secure_window_protected"
+                            AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR -> "platform_internal_error"
+                            else -> "platform_capture_failure"
+                        }
                         ObservationStore.appendUiEvent(this@ObserverAccessibilityService, JSONObject()
                             .put("timestampEpochMs", timestampEpochMs)
                             .put("packageName", packageName)
                             .put("eventType", "screenshot_failed")
+                            .put("screenshotFailure", failureReason)
                             .put("screenshotErrorCode", errorCode))
+                        if (errorCode == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT &&
+                            attempt < MAX_SCREENSHOT_RETRIES) {
+                            ObserverSignals.recordCaptureDiagnostic(this@ObserverAccessibilityService, "screenshots_rate_limited")
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                requestScreenshot(
+                                    sessionId, packageName, eventType, timestampEpochMs, attempt + 1
+                                )
+                            }, SCREENSHOT_RETRY_DELAY_MS)
+                        }
                     }
                 }
             )
@@ -485,6 +512,8 @@ class ObserverAccessibilityService : AccessibilityService() {
         private const val CONTENT_SAMPLE_INTERVAL_MS = 250L
         private const val MAX_NODES = 250
         private const val SCREENSHOT_INTERVAL_MS = 1_200L
+        private const val MAX_SCREENSHOT_RETRIES = 1
+        private const val SCREENSHOT_RETRY_DELAY_MS = 1_800L
         private const val MAX_SEMANTIC_TEXT_CHARS = 4_000
     }
 }
