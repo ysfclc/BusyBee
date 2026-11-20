@@ -24,6 +24,18 @@ The initial stable APK was built from App Observer commit `fb697c578272b1d84914e
 
 The CI workflow still publishes an unsigned, ZIP-aligned release candidate when the repository secrets are absent. The installable first stable APK was signed with the local persistent JKS; no ephemeral debug key was used. Future releases should be signed in CI after the four repository secrets are configured.
 
+## Multimodal learning release 0.5.0
+
+The machine-first screen-understanding update was built from CI run [#265](https://github.com/ysfclc/BusyBee/actions/runs/44806697182). CI passed unit tests, debug/release compilation, and the stable package/version and ZIP-alignment checks. The CI artifact was signed locally with the same persistent JKS and Android 35 `apksigner`.
+
+- Package: `com.ysfclc.appobserver.capture`
+- Version: `0.5.0-multimodal` (versionCode 8)
+- Signature schemes verified: v2 and v3 (v1 is not present)
+- Certificate SHA-256: `6c268b04e8deef08ffd000a22cbdf21ec4ab47a816838a59e6fa71ce18bcec6a`
+- APK SHA-256: `38860db1ea4a50f9255770634d43d95c0633e717cb370f0d22505e8a432a02d8`
+
+The signing handoff and keystore remain private and are not committed. GitHub Actions signing secrets have not been configured; future automated releases still need those four repository secrets, or the candidate must be signed offline with the same JKS.
+
 ## One-time repository secrets
 
 A keystore was generated outside the public repository. It must remain private and must never be committed.
