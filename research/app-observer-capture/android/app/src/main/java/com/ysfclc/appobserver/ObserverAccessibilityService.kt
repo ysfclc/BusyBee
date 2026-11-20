@@ -34,6 +34,7 @@ class ObserverAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        activeInstance = this
         ObserverSignals.setServiceState(this, "accessibility", true)
     }
 
@@ -430,11 +431,25 @@ class ObserverAccessibilityService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onDestroy() {
+        if (activeInstance === this) activeInstance = null
         ObserverSignals.setServiceState(this, "accessibility", false)
         super.onDestroy()
     }
 
     companion object {
+        @Volatile private var activeInstance: ObserverAccessibilityService? = null
+
+        fun requestNotificationScreenshot(context: Context, packageName: String) {
+            val service = activeInstance ?: return
+            val sessionId = ObservationStore.activeSessionId(context) ?: return
+            if (ObservationStore.activePackage(context) != packageName) return
+            service.requestScreenshot(
+                sessionId, packageName,
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+                System.currentTimeMillis()
+            )
+        }
+
         private const val CONTENT_SAMPLE_INTERVAL_MS = 250L
         private const val MAX_NODES = 250
         private const val SCREENSHOT_INTERVAL_MS = 1_200L
