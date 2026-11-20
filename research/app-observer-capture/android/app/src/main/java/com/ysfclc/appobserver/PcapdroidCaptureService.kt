@@ -8,23 +8,31 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import org.json.JSONObject
+import java.io.EOFException
 import java.io.File
 import java.io.FileOutputStream
-import java.net.DatagramPacket
-import java.net.DatagramSocket
+import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.net.Socket
+import java.net.SocketException
 import java.net.SocketTimeoutException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Receives PCAPdroid's localhost UDP exporter while a user-started session is active.
- * It only binds to 127.0.0.1 and writes raw-IP or Ethernet PCAP evidence into this app's private session folder.
+ * Receives PCAPdroid's TCP Exporter (pcap-over-IP) on loopback only.
+ * The incoming byte stream is a classic-PCAP global header followed by record headers and packet bytes.
  */
 class PcapdroidCaptureService : Service() {
-    @Volatile private var receiverSocket: DatagramSocket? = null
+    @Volatile private var serverSocket: ServerSocket? = null
+    @Volatile private var clientSocket: Socket? = null
     @Volatile private var receiverThread: Thread? = null
+    @Volatile private var finishReason: String? = null
     private val stopping = AtomicBoolean(false)
+    private val finalized = AtomicBoolean(false)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -32,16 +40,13 @@ class PcapdroidCaptureService : Service() {
         when (intent?.action) {
             ACTION_START -> startReceiver()
             ACTION_STOP -> {
-                stopReceiver()
+                requestStop()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
-            ACTION_END_SESSION -> {
-                stopReceiver()
-                ObservationStore.finishSession(this, intent.getStringExtra(EXTRA_FINISH_REASON) ?: "user_stopped")
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
+            ACTION_END_SESSION -> endSession(
+                intent.getStringExtra(EXTRA_FINISH_REASON) ?: "user_stopped"
+            )
         }
         return START_NOT_STICKY
     }
@@ -53,110 +58,156 @@ class PcapdroidCaptureService : Service() {
         }
         if (receiverThread?.isAlive == true) return
         stopping.set(false)
+        finalized.set(false)
+        finishReason = null
+        receiverReady = false
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification("Waiting for PCAPdroid packets"))
-        receiverThread = Thread({ receivePackets() }, "AppObserver-Pcapdroid-UDP").apply { start() }
+        startForeground(NOTIFICATION_ID, buildNotification("Opening local TCP receiver"))
+        receiverThread = Thread({ receivePcapStream() }, "AppObserver-Pcapdroid-TCP").apply { start() }
     }
 
-    private fun receivePackets() {
+    private fun receivePcapStream() {
         val directory = ObservationStore.activeDirectory(this) ?: return
         val pcapFile = File(directory, "network.pcap")
         var packets = 0L
         var bytes = 0L
-        var pcapLinkType: Int? = null
         try {
-            DatagramSocket(null).use { socket ->
-                receiverSocket = socket
-                socket.reuseAddress = false
-                socket.soTimeout = 1_000
-                socket.bind(InetSocketAddress(InetAddress.getByName(LOOPBACK), PORT))
+            ServerSocket().use { server ->
+                serverSocket = server
+                server.reuseAddress = true
+                server.bind(InetSocketAddress(InetAddress.getByName(LOOPBACK), PORT), 1)
+                server.soTimeout = 1_000
+                receiverReady = true
                 ObservationStore.appendSessionEvent(this, JSONObject()
-                    .put("type", "pcapdroid_udp_receiver_ready")
+                    .put("type", "pcapdroid_tcp_receiver_ready")
                     .put("timestampEpochMs", System.currentTimeMillis())
                     .put("collector", "$LOOPBACK:$PORT"))
+                updateNotification("Waiting for PCAPdroid TCP Exporter")
 
-                FileOutputStream(pcapFile, false).use { output ->
-                    FileOutputStream(File(directory, "network-events.jsonl"), false)
-                        .bufferedWriter(Charsets.UTF_8).use { networkIndex ->
-                            val buffer = ByteArray(65_535)
-                            while (!stopping.get()) {
-                                val datagram = DatagramPacket(buffer, buffer.size)
-                                try {
-                                    socket.receive(datagram)
-                                } catch (_: SocketTimeoutException) {
-                                    continue
-                                }
-                                val length = datagram.length
-                                if (PcapdroidPacketParser.isGlobalHeader(buffer, length)) continue
-                                val packet = PcapdroidPacketParser.parse(
-                                    buffer,
-                                    length,
-                                    ObservationStore.activePackage(this) ?: "selected-app"
-                                ) ?: continue
+                var accepted: Socket? = null
+                while (!stopping.get() && accepted == null) {
+                    try {
+                        accepted = server.accept()
+                    } catch (_: SocketTimeoutException) {
+                        continue
+                    }
+                }
+                if (accepted == null || stopping.get()) return
+                clientSocket = accepted
+                accepted.tcpNoDelay = true
+                accepted.keepAlive = true
+                accepted.use { client ->
+                    val input = client.getInputStream()
+                    val globalHeaderBytes = readExact(input, GLOBAL_HEADER_BYTES)
+                        ?: throw EOFException("TCP stream closed before PCAP global header")
+                    val fileHeader = PcapdroidPacketParser.parseGlobalHeader(globalHeaderBytes)
+                        ?: throw IOException("TCP Exporter did not send a supported classic-PCAP header")
 
-                                if (pcapLinkType == null) {
-                                    pcapLinkType = packet.linkType
-                                    output.write(PcapdroidPacketParser.globalHeader(packet.linkType))
-                                } else if (packet.linkType != pcapLinkType) {
-                                    // Classic PCAP has one link type per file. Keep the capture valid
-                                    // and make the incompatible datagram visible in the session log.
-                                    ObservationStore.appendSessionEvent(this, JSONObject()
-                                        .put("type", "pcap_packet_link_type_mismatch")
-                                        .put("timestampEpochMs", System.currentTimeMillis())
-                                        .put("expectedLinkType", pcapLinkType)
-                                        .put("receivedLinkType", packet.linkType)
-                                        .put("packetBytes", packet.packetData.size))
-                                    continue
-                                }
+                    FileOutputStream(pcapFile, false).use { output ->
+                        output.write(globalHeaderBytes)
+                        FileOutputStream(File(directory, "network-events.jsonl"), false)
+                            .bufferedWriter(Charsets.UTF_8).use { networkIndex ->
+                                while (!stopping.get()) {
+                                    val recordBytes = readExact(input, RECORD_HEADER_BYTES) ?: break
+                                    val record = PcapdroidPacketParser.parseRecordHeader(
+                                        recordBytes, fileHeader.byteOrder
+                                    ) ?: throw IOException("Invalid PCAP record header")
+                                    val packetData = readExact(input, record.capturedLength)
+                                        ?: throw EOFException("TCP stream ended inside a PCAP packet")
 
-                                output.write(packet.recordHeader)
-                                output.write(packet.packetData)
-                                packets++
-                                bytes += packet.packetData.size
-                                networkIndex.append(packet.summary.toString()).append('\n')
-                                if (packets % 24L == 0L) {
-                                    output.flush()
-                                    networkIndex.flush()
-                                    updateNotification("Capturing: $packets packets · " + (bytes / 1024) + " KB")
+                                    output.write(recordBytes)
+                                    output.write(packetData)
+                                    val selectedPackage = ObservationStore.activePackage(this)
+                                        ?: "selected-app"
+                                    val summary = PcapdroidPacketParser.summarizePcapPacket(
+                                        packetData, fileHeader, record, selectedPackage
+                                    )
+                                    networkIndex.append(summary.toString()).append('\n')
+                                    packets++
+                                    bytes += packetData.size
+                                    if (packets % 24L == 0L) {
+                                        output.flush()
+                                        networkIndex.flush()
+                                        updateNotification("Captured $packets packets · ${bytes / 1024} KB")
+                                    }
                                 }
+                                output.flush()
+                                networkIndex.flush()
                             }
-                            if (pcapLinkType == null) {
-                                // A valid empty capture still needs a global header.
-                                output.write(PcapdroidPacketParser.globalHeader(PcapdroidPacketParser.DLT_RAW))
-                            }
-                            output.flush()
-                            networkIndex.flush()
-                        }
+                    }
+                    ObservationStore.appendSessionEvent(this, JSONObject()
+                        .put("type", "pcapdroid_tcp_stream_closed")
+                        .put("timestampEpochMs", System.currentTimeMillis())
+                        .put("packetsWritten", packets)
+                        .put("packetBytesWritten", bytes)
+                        .put("linkType", fileHeader.linkType))
                 }
             }
         } catch (error: Exception) {
             if (!stopping.get()) {
                 ObservationStore.appendSessionEvent(this, JSONObject()
-                    .put("type", "pcapdroid_receiver_error")
+                    .put("type", "pcapdroid_tcp_receiver_error")
                     .put("timestampEpochMs", System.currentTimeMillis())
                     .put("error", error.javaClass.simpleName)
                     .put("message", error.message ?: "unknown"))
             }
         } finally {
-            receiverSocket = null
+            receiverReady = false
+            clientSocket = null
+            serverSocket = null
             ObservationStore.appendSessionEvent(this, JSONObject()
-                .put("type", "pcapdroid_udp_receiver_stopped")
+                .put("type", "pcapdroid_tcp_receiver_stopped")
                 .put("timestampEpochMs", System.currentTimeMillis())
                 .put("packetsWritten", packets)
                 .put("packetBytesWritten", bytes))
-            if (!stopping.get()) updateNotification("Capture receiver stopped · $packets packets saved")
+            if (!stopping.get()) updateNotification("TCP receiver stopped · $packets packets saved")
+            finishReason?.let(::finalizeSession)
         }
     }
 
-    private fun stopReceiver() {
-        stopping.set(true)
-        receiverSocket?.close()
-        val thread = receiverThread
-        thread?.interrupt()
-        if (thread != null && thread !== Thread.currentThread()) {
-            runCatching { thread.join(1_500L) }
+    /**
+     * Read exactly the requested number of bytes. A clean EOF before any byte returns null;
+     * EOF in the middle of a PCAP structure is an error so a truncated file is never accepted silently.
+     */
+    private fun readExact(input: java.io.InputStream, size: Int): ByteArray? {
+        require(size >= 0 && size <= MAX_RECORD_BYTES) { "Invalid PCAP stream read length: $size" }
+        val result = ByteArray(size)
+        var offset = 0
+        while (offset < size) {
+            val count = input.read(result, offset, size - offset)
+            if (count < 0) {
+                if (offset == 0) return null
+                throw EOFException("Unexpected EOF after $offset of $size bytes")
+            }
+            if (count == 0) continue
+            offset += count
         }
-        receiverThread = null
+        return result
+    }
+
+    private fun endSession(reason: String) {
+        finishReason = reason
+        requestStop()
+        val thread = receiverThread
+        if (thread == null || !thread.isAlive) finalizeSession(reason)
+    }
+
+    private fun requestStop() {
+        stopping.set(true)
+        receiverReady = false
+        runCatching { clientSocket?.close() }
+        runCatching { serverSocket?.close() }
+        val thread = receiverThread
+        if (thread != null && thread !== Thread.currentThread()) {
+            runCatching { thread.join(2_500L) }
+        }
+    }
+
+    private fun finalizeSession(reason: String) {
+        if (!finalized.compareAndSet(false, true)) return
+        ObservationStore.finishSession(this, reason)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun createNotificationChannel() {
@@ -184,18 +235,24 @@ class PcapdroidCaptureService : Service() {
     }
 
     override fun onDestroy() {
-        stopReceiver()
+        requestStop()
         super.onDestroy()
     }
 
     companion object {
-        const val ACTION_START = "com.ysfclc.appobserver.action.PCAP_START"
-        const val ACTION_STOP = "com.ysfclc.appobserver.action.PCAP_STOP"
-        const val ACTION_END_SESSION = "com.ysfclc.appobserver.action.END_SESSION"
+        const val ACTION_START = "com.ysfclc.appobserver.capture.action.PCAP_START"
+        const val ACTION_STOP = "com.ysfclc.appobserver.capture.action.PCAP_STOP"
+        const val ACTION_END_SESSION = "com.ysfclc.appobserver.capture.action.END_SESSION"
         const val EXTRA_FINISH_REASON = "finish_reason"
         const val PORT = 5123
         const val LOOPBACK = "127.0.0.1"
+        private const val GLOBAL_HEADER_BYTES = 24
+        private const val RECORD_HEADER_BYTES = 16
+        private const val MAX_RECORD_BYTES = 16 * 1024 * 1024
         private const val CHANNEL_ID = "app_observer_capture"
         private const val NOTIFICATION_ID = 7512
+
+        @Volatile private var receiverReady = false
+        fun isReceiverReady(): Boolean = receiverReady
     }
 }
