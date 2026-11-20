@@ -54,23 +54,44 @@ jobs:
           set -euo pipefail
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Test source and compile debug variant (not distributed)
+      - name: Test source and build release candidate
         shell: bash
         run: |
           set -euo pipefail
           chmod +x android/gradlew
-          android/gradlew -p research/app-observer-capture/android --no-daemon --stacktrace testDebugUnitTest assembleDebug
+          android/gradlew -p research/app-observer-capture/android --no-daemon --stacktrace testDebugUnitTest testReleaseUnitTest assembleDebug assembleRelease
 
       - name: Explain persistent signing setup
         if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 == '' }}
         shell: bash
         run: |
           {
-            echo "## Persistent release APK not produced"
+            echo "## Unsigned stable release candidate produced"
             echo
-            echo "Unit tests and debug compilation ran, but no installable APK is uploaded until the persistent release-signing secrets are configured."
-            echo "Add APP_OBSERVER_KEYSTORE_BASE64, APP_OBSERVER_KEYSTORE_PASSWORD, APP_OBSERVER_KEY_ALIAS and APP_OBSERVER_KEY_PASSWORD in repository Actions secrets, then rerun this workflow."
+            echo "The permanent package and production version have been built, but this artifact is intentionally unsigned and cannot be installed yet."
+            echo "It can be signed locally with the long-lived private key. For automated future updates, add APP_OBSERVER_KEYSTORE_BASE64, APP_OBSERVER_KEYSTORE_PASSWORD, APP_OBSERVER_KEY_ALIAS and APP_OBSERVER_KEY_PASSWORD in repository Actions secrets."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify unsigned stable package and checksum
+        if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="research/app-observer-capture/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture' versionCode='7' versionName='0.4.0-visual-rules'"
+          sha256sum "$APK" | tee research/app-observer-capture/android/app/build/outputs/apk/release/SHA256SUMS
+
+      - name: Upload unsigned stable release candidate (for offline persistent signing only)
+        if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-observer-unsigned-release-candidate-${{ github.run_number }}
+          path: |
+            research/app-observer-capture/android/app/build/outputs/apk/release/app-release-unsigned.apk
+            research/app-observer-capture/android/app/build/outputs/apk/release/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Validate signing secrets and decode persistent keystore
         if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 != '' }}
