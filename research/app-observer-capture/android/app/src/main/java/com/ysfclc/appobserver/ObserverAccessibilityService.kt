@@ -1,6 +1,7 @@
 package com.ysfclc.appobserver
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.graphics.Rect
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
@@ -10,12 +11,15 @@ import org.json.JSONObject
 import java.util.ArrayDeque
 
 /**
- * Records structure-only evidence for the one package selected in the active user-started session.
- * No node text, content descriptions, editable values, screenshots or gestures are collected.
+ * Read-only, privacy-minimised UI recorder.
+ *
+ * Every stage is counted without retaining identifiers for apps other than the selected target.
+ * Node text, descriptions, typed values, screenshots and gestures are never read or stored.
  */
 class ObserverAccessibilityService : AccessibilityService() {
     private val lastContentSampleAt = mutableMapOf<String, Long>()
     private val lastFingerprint = mutableMapOf<String, String>()
+    private var observedSessionId: String? = null
 
     private data class PendingNode(
         val node: AccessibilityNodeInfo,
@@ -31,28 +35,95 @@ class ObserverAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
-        val packageName = event.packageName?.toString() ?: return
         if (!ObservationStore.hasActiveSession(this)) return
-        if (!AppCatalog.isSessionTarget(packageName, ObservationStore.activePackage(this))) return
 
+        ObserverSignals.recordCaptureDiagnostic(this, "events_received")
+        val packageName = runCatching { event.packageName?.toString() }
+            .getOrNull()?.takeIf { it.isNotBlank() }
+        if (packageName == null) {
+            ObserverSignals.recordCaptureDiagnostic(this, "events_without_package")
+            return
+        }
+
+        if (!AppCatalog.isSessionTarget(packageName, ObservationStore.activePackage(this))) {
+            ObserverSignals.recordCaptureDiagnostic(this, "events_target_mismatch")
+            return
+        }
+        ObserverSignals.recordCaptureDiagnostic(this, "events_target_match")
+
+        val sessionId = ObservationStore.activeSessionId(this)
+        if (sessionId != observedSessionId) {
+            // A new session must always receive its own initial full snapshot, even when
+            // the selected app's structure matches the preceding session.
+            lastContentSampleAt.clear()
+            lastFingerprint.clear()
+            observedSessionId = sessionId
+        }
+
+        val eventType = runCatching { event.eventType }.getOrDefault(0)
         val now = System.currentTimeMillis()
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
             val previous = lastContentSampleAt[packageName] ?: 0L
-            if (now - previous < CONTENT_SAMPLE_INTERVAL_MS) return
+            if (now - previous < CONTENT_SAMPLE_INTERVAL_MS) {
+                ObserverSignals.recordCaptureDiagnostic(this, "content_events_throttled")
+                return
+            }
             lastContentSampleAt[packageName] = now
         }
 
-        val eventName = AppCatalog.eventName(event.eventType)
-        val sourceEvidence = sourceEvidence(event.source)
+        try {
+            captureSelectedEvent(event, packageName, eventType, now)
+        } catch (failure: Throwable) {
+            ObserverSignals.recordCaptureDiagnostic(this, "pipeline_failures")
+            persistUiEvent(this, JSONObject()
+                .put("timestampEpochMs", now)
+                .put("elapsedRealtimeNanos", SystemClock.elapsedRealtimeNanos())
+                .put("packageName", packageName)
+                .put("eventType", AppCatalog.eventName(eventType))
+                .put("captureStage", "event_processing")
+                .put("captureErrorClass", failure.javaClass.simpleName.take(100))
+                .put("captureFailed", true))
+        }
+    }
+
+    private fun captureSelectedEvent(
+        event: AccessibilityEvent,
+        packageName: String,
+        eventType: Int,
+        now: Long
+    ) {
+        val eventName = AppCatalog.eventName(eventType)
+        val source = runCatching { event.source }.getOrNull()
+        val sourceRecord = sourceEvidence(source)
         val root = runCatching { rootInActiveWindow }.getOrNull()
-        if (root == null || root.packageName?.toString() != packageName) {
+
+        if (root == null) {
+            ObserverSignals.recordCaptureDiagnostic(this, "root_unavailable")
             val record = baseEvent(event, packageName, eventName, now)
                 .put("windowAvailable", false)
-            sourceEvidence?.let { record.put("sourceNode", it) }
-            ObservationStore.appendUiEvent(this, record)
-            ObserverSignals.recordAccessibility(this, packageName, event.eventType, null)
+                .put("rootFailure", "root_unavailable")
+            sourceRecord?.let { record.put("sourceNode", it) }
+            persistUiEvent(this, record)
+            ObserverSignals.recordAccessibility(this, packageName, eventType, null)
             return
         }
+
+        val rootPackage = runCatching { root.packageName?.toString() }.getOrNull()
+        if (rootPackage == null) {
+            ObserverSignals.recordCaptureDiagnostic(this, "root_package_read_failures")
+        }
+        if (rootPackage != packageName) {
+            ObserverSignals.recordCaptureDiagnostic(this, "root_package_mismatch")
+            runCatching { root.recycle() }
+            val record = baseEvent(event, packageName, eventName, now)
+                .put("windowAvailable", false)
+                .put("rootFailure", "root_package_mismatch")
+            sourceRecord?.let { record.put("sourceNode", it) }
+            persistUiEvent(this, record)
+            ObserverSignals.recordAccessibility(this, packageName, eventType, null)
+            return
+        }
+        ObserverSignals.recordCaptureDiagnostic(this, "root_acquired")
 
         val nodes = JSONArray()
         val queue = ArrayDeque<PendingNode>()
@@ -63,85 +134,137 @@ class ObserverAccessibilityService : AccessibilityService() {
         var scrollable = 0
         var visible = 0
         var passwordFields = 0
+        var treeTruncated = false
 
-        while (queue.isNotEmpty() && count < MAX_NODES) {
-            val pending = queue.removeFirst()
-            val node = pending.node
-            val nodeIndex = count++
-            val isVisible = runCatching { node.isVisibleToUser }.getOrDefault(false)
-            if (isVisible) visible++
-            if (node.isClickable) clickable++
-            if (node.isEditable) editable++
-            if (node.isScrollable) scrollable++
-            if (node.isPassword) passwordFields++
+        try {
+            while (queue.isNotEmpty() && count < MAX_NODES) {
+                val pending = queue.removeFirst()
+                val node = pending.node
+                try {
+                    val nodeIndex = count++
+                    val isVisible = readNode(this, false) { node.isVisibleToUser }
+                    val isClickable = readNode(this, false) { node.isClickable }
+                    val isEditable = readNode(this, false) { node.isEditable }
+                    val isScrollable = readNode(this, false) { node.isScrollable }
+                    val isPassword = readNode(this, false) { node.isPassword }
+                    val isEnabled = readNode(this, false) { node.isEnabled }
+                    val isSelected = readNode(this, false) { node.isSelected }
+                    val isChecked = readNode(this, false) { node.isChecked }
+                    val className = readNode(this, null as String?) {
+                        node.className?.toString()?.take(120)
+                    }
+                    val viewId = readNode(this, null as String?) {
+                        node.viewIdResourceName?.take(180)
+                    }
+                    val childCount = readNode(this, 0) { node.childCount }.coerceIn(0, 100)
+                    val bounds = Rect()
+                    readNode(this, false) {
+                        node.getBoundsInScreen(bounds)
+                        true
+                    }
 
-            val bounds = Rect()
-            runCatching { node.getBoundsInScreen(bounds) }
-            nodes.put(JSONObject()
-                .put("index", nodeIndex)
-                .put("parentIndex", pending.parentIndex)
-                .put("depth", pending.depth)
-                .put("childIndex", pending.childIndex)
-                .put("visible", isVisible)
-                .put("className", node.className?.toString()?.take(120) ?: JSONObject.NULL)
-                .put("viewId", node.viewIdResourceName?.take(180) ?: JSONObject.NULL)
-                .put("clickable", node.isClickable)
-                .put("scrollable", node.isScrollable)
-                .put("editable", node.isEditable)
-                .put("password", node.isPassword)
-                .put("enabled", node.isEnabled)
-                .put("selected", node.isSelected)
-                .put("checked", node.isChecked)
-                .put("childCount", node.childCount)
-                .put("bounds", JSONObject()
-                    .put("left", bounds.left)
-                    .put("top", bounds.top)
-                    .put("right", bounds.right)
-                    .put("bottom", bounds.bottom)))
+                    if (isVisible) visible++
+                    if (isClickable) clickable++
+                    if (isEditable) editable++
+                    if (isScrollable) scrollable++
+                    if (isPassword) passwordFields++
 
-            val children = node.childCount
-            for (index in 0 until children) {
-                runCatching { node.getChild(index) }.getOrNull()?.let {
-                    queue.add(PendingNode(it, nodeIndex, pending.depth + 1, index))
+                    nodes.put(JSONObject()
+                        .put("index", nodeIndex)
+                        .put("parentIndex", pending.parentIndex)
+                        .put("depth", pending.depth)
+                        .put("childIndex", pending.childIndex)
+                        .put("visible", isVisible)
+                        .put("className", className ?: JSONObject.NULL)
+                        .put("viewId", viewId ?: JSONObject.NULL)
+                        .put("clickable", isClickable)
+                        .put("scrollable", isScrollable)
+                        .put("editable", isEditable)
+                        .put("password", isPassword)
+                        .put("enabled", isEnabled)
+                        .put("selected", isSelected)
+                        .put("checked", isChecked)
+                        .put("childCount", childCount)
+                        .put("bounds", JSONObject()
+                            .put("left", bounds.left)
+                            .put("top", bounds.top)
+                            .put("right", bounds.right)
+                            .put("bottom", bounds.bottom)))
+
+                    for (index in 0 until childCount) {
+                        val child = runCatching { node.getChild(index) }.getOrNull()
+                        if (child != null) {
+                            queue.add(PendingNode(child, nodeIndex, pending.depth + 1, index))
+                        } else {
+                            ObserverSignals.recordCaptureDiagnostic(this, "child_access_failures")
+                        }
+                    }
+                } finally {
+                    runCatching { node.recycle() }
                 }
             }
-            runCatching { node.recycle() }
+            treeTruncated = queue.isNotEmpty()
+        } finally {
+            // Nodes already queued when the traversal cap is reached must also be released.
+            while (queue.isNotEmpty()) {
+                runCatching { queue.removeFirst().node.recycle() }
+            }
         }
 
+        if (count == 0) ObserverSignals.recordCaptureDiagnostic(this, "empty_hierarchies")
         val shape = WindowShape(count, clickable, editable, scrollable, visible, passwordFields)
-        val structureFingerprint = UiStructureMatcher.fingerprint(nodes)
-        val shouldWriteSnapshot = lastFingerprint[packageName] != structureFingerprint ||
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-            event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED ||
-            event.eventType == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED ||
-            event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED ||
-            event.eventType == AccessibilityEvent.TYPE_VIEW_SELECTED
+        val fingerprint = UiStructureMatcher.fingerprint(nodes)
+        val shouldWriteSnapshot = lastFingerprint[packageName] != fingerprint ||
+            eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_CLICKED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_SELECTED
+
         if (shouldWriteSnapshot) {
-            lastFingerprint[packageName] = structureFingerprint
+            lastFingerprint[packageName] = fingerprint
             val record = baseEvent(event, packageName, eventName, now)
                 .put("windowAvailable", true)
                 .put("snapshotChanged", true)
-                .put("structureFingerprint", structureFingerprint)
+                .put("structureFingerprint", fingerprint)
                 .put("fingerprintVersion", UiStructureMatcher.VERSION)
                 .put("nodeCount", count)
                 .put("visibleNodeCount", visible)
-                .put("treeTruncated", queue.isNotEmpty())
+                .put("treeTruncated", treeTruncated)
                 .put("nodes", nodes)
-            sourceEvidence?.let { record.put("sourceNode", it) }
-            ObservationStore.appendUiEvent(this, record)
-        } else if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
-            event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
-            // Keep event timing even when the structural fingerprint is unchanged.
-            ObservationStore.appendUiEvent(this, baseEvent(event, packageName, eventName, now)
+            sourceRecord?.let { record.put("sourceNode", it) }
+            ObserverSignals.recordCaptureDiagnostic(this, "hierarchy_snapshots")
+            persistUiEvent(this, record)
+        } else if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
+            eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
+            ObserverSignals.recordCaptureDiagnostic(this, "unchanged_structure_events")
+            persistUiEvent(this, baseEvent(event, packageName, eventName, now)
                 .put("windowAvailable", true)
                 .put("snapshotChanged", false)
-                .put("structureFingerprint", structureFingerprint)
+                .put("structureFingerprint", fingerprint)
                 .put("fingerprintVersion", UiStructureMatcher.VERSION)
                 .put("nodeCount", count)
                 .put("visibleNodeCount", visible))
         }
 
-        ObserverSignals.recordAccessibility(this, packageName, event.eventType, shape)
+        ObserverSignals.recordAccessibility(this, packageName, eventType, shape)
+    }
+
+    private fun <T> readNode(context: Context, defaultValue: T, read: () -> T): T =
+        runCatching(read).getOrElse {
+            ObserverSignals.recordCaptureDiagnostic(context, "node_property_failures")
+            defaultValue
+        }
+
+    private fun persistUiEvent(context: Context, record: JSONObject) {
+        ObserverSignals.recordCaptureDiagnostic(context, "ui_write_attempts")
+        val result = runCatching { ObservationStore.appendUiEvent(context, record) }
+        if (result.isSuccess) {
+            ObserverSignals.recordCaptureDiagnostic(context, "ui_write_successes")
+        } else {
+            ObserverSignals.recordCaptureDiagnostic(context, "ui_write_failures")
+        }
     }
 
     private fun baseEvent(
@@ -152,37 +275,46 @@ class ObserverAccessibilityService : AccessibilityService() {
     ): JSONObject = JSONObject()
         .put("timestampEpochMs", wallTime)
         .put("elapsedRealtimeNanos", SystemClock.elapsedRealtimeNanos())
-        .put("eventTimeUptimeMs", event.eventTime)
+        .put("eventTimeUptimeMs", runCatching { event.eventTime }.getOrDefault(0L))
         .put("packageName", packageName)
         .put("eventType", eventName)
-        .put("windowId", event.windowId)
-        .put("windowClassName", event.className?.toString()?.take(180) ?: JSONObject.NULL)
-        .put("contentChangeTypes", event.contentChangeTypes)
-        .put("scrollX", event.scrollX)
-        .put("scrollY", event.scrollY)
-        .put("maxScrollX", event.maxScrollX)
-        .put("maxScrollY", event.maxScrollY)
-        .put("itemCount", event.itemCount)
-        .put("fromIndex", event.fromIndex)
-        .put("toIndex", event.toIndex)
+        .put("windowId", runCatching { event.windowId }.getOrDefault(-1))
+        .put("windowClassName", runCatching { event.className?.toString()?.take(180) }.getOrNull() ?: JSONObject.NULL)
+        .put("contentChangeTypes", runCatching { event.contentChangeTypes }.getOrDefault(0))
+        .put("scrollX", runCatching { event.scrollX }.getOrDefault(0))
+        .put("scrollY", runCatching { event.scrollY }.getOrDefault(0))
+        .put("maxScrollX", runCatching { event.maxScrollX }.getOrDefault(0))
+        .put("maxScrollY", runCatching { event.maxScrollY }.getOrDefault(0))
+        .put("itemCount", runCatching { event.itemCount }.getOrDefault(0))
+        .put("fromIndex", runCatching { event.fromIndex }.getOrDefault(-1))
+        .put("toIndex", runCatching { event.toIndex }.getOrDefault(-1))
 
-    /** Deliberately reads structural properties only; never accesses node text or descriptions. */
+    /** Reads only structural properties from the event source; the source node is always released. */
     private fun sourceEvidence(node: AccessibilityNodeInfo?): JSONObject? {
         node ?: return null
-        return runCatching {
+        return try {
             val bounds = Rect()
-            node.getBoundsInScreen(bounds)
+            readNode(this, false) {
+                node.getBoundsInScreen(bounds)
+                true
+            }
             JSONObject()
-                .put("className", node.className?.toString()?.take(120) ?: JSONObject.NULL)
-                .put("viewId", node.viewIdResourceName?.take(180) ?: JSONObject.NULL)
-                .put("clickable", node.isClickable)
-                .put("enabled", node.isEnabled)
-                .put("selected", node.isSelected)
-                .put("checked", node.isChecked)
+                .put("className", readNode(this, null as String?) {
+                    node.className?.toString()?.take(120)
+                } ?: JSONObject.NULL)
+                .put("viewId", readNode(this, null as String?) {
+                    node.viewIdResourceName?.take(180)
+                } ?: JSONObject.NULL)
+                .put("clickable", readNode(this, false) { node.isClickable })
+                .put("enabled", readNode(this, false) { node.isEnabled })
+                .put("selected", readNode(this, false) { node.isSelected })
+                .put("checked", readNode(this, false) { node.isChecked })
                 .put("bounds", JSONObject()
                     .put("left", bounds.left).put("top", bounds.top)
                     .put("right", bounds.right).put("bottom", bounds.bottom))
-        }.getOrNull().also { runCatching { node.recycle() } }
+        } finally {
+            runCatching { node.recycle() }
+        }
     }
 
     override fun onInterrupt() = Unit
