@@ -7,7 +7,7 @@ App Observer is a generic Android application-understanding instrument, not a pr
 - Full-display screenshots requested through the Android Accessibility screenshot API (Android 11/API 30+), rate-limited to roughly 1.2 seconds after meaningful UI events, with one bounded retry when Android reports a short interval.
 - Accessibility hierarchy and structural event metadata for the selected app.
 - Bundled on-device OCR and image labelling, with raw OCR text discarded after inference.
-- Machine-inferred screen concepts with confidence, evidence provenance and OCR-derived region bounds.
+- Machine-inferred screen concepts with provisional evidence scores, source provenance and regions from OCR/Accessibility bounds, overlaid in blue on the source screenshot.
 - Persistent per-app recurring-state clusters and interaction-linked transition counts.
 - Optional corrections for built-in or custom concept names, training a per-app classifier from privacy-safe feature vectors.
 - User-authored screenshot-region meaning rules as optional annotations/permissions, not prerequisites for classification.
