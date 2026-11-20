@@ -1,5 +1,7 @@
 package com.ysfclc.appobserver
 
+import android.view.accessibility.AccessibilityEvent
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -14,6 +16,11 @@ class AppCatalogTest {
         assertFalse(AppCatalog.isSessionTarget("com.whatsapp", "com.instagram.android"))
         assertFalse(AppCatalog.isSessionTarget(null, "com.whatsapp"))
         assertFalse(AppCatalog.isSessionTarget("com.whatsapp", null))
+    }
+
+    @Test
+    fun textChangeEventsAreClassifiedWithoutCapturingText() {
+        assertEquals("view_text_changed", AppCatalog.eventName(AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED))
     }
 
     @Test
