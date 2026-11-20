@@ -7,6 +7,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 import java.security.MessageDigest
+import java.util.Locale
 import kotlin.math.exp
 
 data class LearnedState(
@@ -135,16 +136,17 @@ object LocalLearningMemory {
         concept: String,
         features: List<String>
     ) = synchronized(lock) {
-        require(concept in MultimodalInference.concepts) { "Unsupported concept." }
+        val safeConcept = normaliseConceptLabel(concept)
+        require(safeConcept.isNotBlank()) { "Enter a valid screen concept label." }
         require(packageName.isNotBlank()) { "Target app is missing." }
         val root = read(context)
         val training = root.optJSONObject("training") ?: JSONObject().also { root.put("training", it) }
         val app = training.optJSONObject(packageName) ?: JSONObject().also { training.put(packageName, it) }
         val classes = app.optJSONObject("classes") ?: JSONObject().also { app.put("classes", it) }
-        val label = classes.optJSONObject(concept) ?: JSONObject()
+        val label = classes.optJSONObject(safeConcept) ?: JSONObject()
             .put("documents", 0)
             .put("featureCounts", JSONObject())
-            .also { classes.put(concept, it) }
+            .also { classes.put(safeConcept, it) }
         val featureCounts = label.optJSONObject("featureCounts")
             ?: JSONObject().also { label.put("featureCounts", it) }
         label.put("documents", label.optInt("documents") + 1)
@@ -161,7 +163,8 @@ object LocalLearningMemory {
             val root = read(context)
             val app = root.optJSONObject("training")?.optJSONObject(packageName) ?: return@synchronized emptyMap()
             val classes = app.optJSONObject("classes") ?: return@synchronized emptyMap()
-            val trained = MultimodalInference.concepts.mapNotNull { concept ->
+            val trainedLabels = classes.keys().asSequence().toList().sorted()
+            val trained = trainedLabels.mapNotNull { concept ->
                 val record = classes.optJSONObject(concept) ?: return@mapNotNull null
                 val documents = record.optInt("documents")
                 if (documents < 2) return@mapNotNull null
@@ -190,6 +193,16 @@ object LocalLearningMemory {
             val total = expScores.values.sum().coerceAtLeast(1e-12)
             expScores.mapValues { (it.value / total).toFloat() }
         }
+
+    fun normaliseConceptLabel(label: String): String =
+        label.trim().lowercase(Locale.ROOT)
+            .replace('ı', 'i').replace('ş', 's').replace('ğ', 'g')
+            .replace('ü', 'u').replace('ö', 'o').replace('ç', 'c')
+            .replace('ł', 'l').replace('ą', 'a').replace('ę', 'e')
+            .replace('ś', 's').replace('ć', 'c').replace('ż', 'z')
+            .replace('ź', 'z').replace('ń', 'n').replace('ó', 'o')
+            .replace(Regex("[^a-z0-9]+"), "_")
+            .trim('_').take(48)
 
     fun summary(context: Context): String = synchronized(lock) {
         val root = read(context)
