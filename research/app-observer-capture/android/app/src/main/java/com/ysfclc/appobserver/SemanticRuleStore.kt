@@ -16,14 +16,22 @@ data class SemanticRule(
     val top: Float,
     val right: Float,
     val bottom: Float,
+    val screenAspectRatio: Float,
     val screenshotId: String,
     val createdAtEpochMs: Long
 ) {
     val capturesAccessibilityText: Boolean get() = payloadSource == SOURCE_ACCESSIBILITY_TEXT
     val capturesNotificationText: Boolean get() = payloadSource == SOURCE_NOTIFICATION_TEXT
 
-    fun containsScreenPoint(x: Float, y: Float, screenWidth: Int, screenHeight: Int): Boolean {
+    fun matchesScreenLayout(screenWidth: Int, screenHeight: Int, tolerance: Float = 0.12f): Boolean {
         if (screenWidth <= 0 || screenHeight <= 0) return false
+        if (screenAspectRatio <= 0f) return true
+        val actual = screenWidth.toFloat() / screenHeight.toFloat()
+        return kotlin.math.abs(actual - screenAspectRatio) <= screenAspectRatio * tolerance
+    }
+
+    fun containsScreenPoint(x: Float, y: Float, screenWidth: Int, screenHeight: Int): Boolean {
+        if (!matchesScreenLayout(screenWidth, screenHeight)) return false
         val nx = x / screenWidth.toFloat()
         val ny = y / screenHeight.toFloat()
         return nx >= left && nx <= right && ny >= top && ny <= bottom
@@ -34,6 +42,7 @@ data class SemanticRule(
         .put("payloadSource", payloadSource)
         .put("left", left.toDouble()).put("top", top.toDouble())
         .put("right", right.toDouble()).put("bottom", bottom.toDouble())
+        .put("screenAspectRatio", screenAspectRatio.toDouble())
         .put("screenshotId", screenshotId).put("createdAtEpochMs", createdAtEpochMs)
 
     companion object {
@@ -51,6 +60,7 @@ data class SemanticRule(
                 top = value.getDouble("top").toFloat().coerceIn(0f, 1f),
                 right = value.getDouble("right").toFloat().coerceIn(0f, 1f),
                 bottom = value.getDouble("bottom").toFloat().coerceIn(0f, 1f),
+                screenAspectRatio = value.optDouble("screenAspectRatio", 0.0).toFloat(),
                 screenshotId = value.optString("screenshotId"),
                 createdAtEpochMs = value.optLong("createdAtEpochMs")
             ).takeIf {
@@ -114,13 +124,15 @@ object SemanticRuleStore {
         val rule = SemanticRule(
             id = UUID.randomUUID().toString(), packageName = packageName, label = safeLabel,
             payloadSource = payloadSource, left = left, top = top, right = right, bottom = bottom,
+            screenAspectRatio = screenshotWidth.toFloat() / screenshotHeight.toFloat(),
             screenshotId = screenshotId, createdAtEpochMs = System.currentTimeMillis()
         )
         val updated = (all(context).filterNot {
             it.packageName == rule.packageName && it.label.equals(rule.label, ignoreCase = true) &&
                 it.payloadSource == rule.payloadSource &&
                 kotlin.math.abs(it.left - rule.left) < 0.02f &&
-                kotlin.math.abs(it.top - rule.top) < 0.02f
+                kotlin.math.abs(it.top - rule.top) < 0.02f &&
+                kotlin.math.abs(it.screenAspectRatio - rule.screenAspectRatio) < 0.02f
         } + rule).takeLast(MAX_RULES)
         persist(context, updated)
         return rule
