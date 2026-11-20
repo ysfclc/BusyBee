@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -14,6 +15,7 @@ import android.provider.Settings
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
@@ -34,6 +36,10 @@ class MainActivity : Activity() {
     private lateinit var sessionStatus: TextView
     private lateinit var uiEvidencePreview: TextView
     private lateinit var networkEvidencePreview: TextView
+    private lateinit var screenshotPreview: ImageView
+    private lateinit var screenshotCaption: TextView
+    private lateinit var semanticRulesPreview: TextView
+    private var displayedScreenshotPath: String? = null
     private lateinit var appSpinner: Spinner
     private lateinit var appAdapter: ArrayAdapter<ObservedApp>
     private var pcapdroidPackage: String? = null
@@ -81,7 +87,7 @@ class MainActivity : Activity() {
 
         root.addView(label("APP OBSERVER", 27f, Color.WHITE, true))
         root.addView(label(
-            "Generic Android app behaviour recorder · structure + metadata only",
+            "Generic Android app behaviour recorder · visual ground truth + meaning rules",
             14f, MUTED, false
         ).apply { setPadding(0, dp(6), 0, dp(14)) })
 
@@ -115,13 +121,13 @@ class MainActivity : Activity() {
 
         root.addView(section("PRIVACY BY DEFAULT"))
         root.addView(card().apply {
-            addView(statusLine("Visible UI text and typed values", false))
-            addView(statusLine("Notification titles and bodies", false))
-            addView(statusLine("Screenshots and clipboard contents", false))
-            addView(statusLine("Network payloads and TLS decryption", false))
+            addView(statusLine("Full visual screenshots during a manual session", true))
+            addView(statusLine("Text outside user-defined meaning regions", false))
+            addView(statusLine("Text inside explicitly authorised regions", true))
+            addView(statusLine("Clipboard, raw network payloads and TLS decryption", false))
             addView(statusLine("Raw IP addresses and raw PCAP files", false))
             addView(label(
-                "Stored: UI structure (control class, resource ID, hierarchy, bounds and state flags), notification envelope metadata, and packet-header metadata (protocol, ports, sizes and timing). Packet bytes are inspected in memory and discarded. Evidence stays in private app storage until you explicitly export it.",
+                "Screenshots are visual ground truth and can contain sensitive information visible on screen. Text payloads are read only inside regions where you create an explicit rule. Rules, screenshots and evidence remain in private app storage until you export them.",
                 11f, MUTED, false
             ).apply { setPadding(0, dp(10), 0, 0) })
         })
@@ -137,7 +143,7 @@ class MainActivity : Activity() {
                 openSettings(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
             })
             addView(label(
-                "Accessibility receives events for Android apps, but this recorder filters them to the one package selected for the active session. It cannot perform gestures.",
+                "Accessibility is used for structure, screenshots and only the content regions you explicitly authorise. The observer cannot tap, swipe, type or perform app actions.",
                 11f, MUTED, false
             ).apply { setPadding(0, dp(8), 0, 0) })
         })
@@ -150,12 +156,34 @@ class MainActivity : Activity() {
             addView(sessionStatus)
             addView(action("START OBSERVATION", accent = true) { startResearchSession() })
             addView(action("STOP OBSERVATION") { stopResearchSession() })
-            addView(action("EXPORT PRIVACY-MINIMISED EVIDENCE ZIP") { exportEvidenceBundle() })
+            addView(action("EXPORT EVIDENCE + SCREENSHOTS + RULES") { exportEvidenceBundle() })
+            addView(action("IMPORT PREVIOUS APP EVIDENCE ZIP") { importPreviousEvidence() })
             addView(action("REFRESH STATUS") { refresh() })
             addView(label(
-                "After starting, switch to the selected target app and use it normally. Return here to inspect live UI structure and packet-header evidence.",
+                "After starting, switch to the selected target app and use it normally. Screenshots are captured at meaningful UI events. Return here to inspect and annotate the actual screen.",
                 11f, MUTED, false
             ).apply { setPadding(0, dp(8), 0, 0) })
+        })
+
+        root.addView(section("VISUAL GROUND TRUTH · ACTUAL SCREENSHOTS"))
+        root.addView(card().apply {
+            screenshotCaption = label("No screenshots yet. Start a manual session and interact with the selected app.", 12f, MUTED, false)
+            addView(screenshotCaption)
+            screenshotPreview = ImageView(this@MainActivity).apply {
+                adjustViewBounds = true
+                maxHeight = dp(320)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setBackgroundColor(Color.BLACK)
+            }
+            addView(screenshotPreview)
+            addView(action("DEFINE MEANING FROM THIS SCREENSHOT", accent = true) {
+                defineMeaningRuleFromLatestScreenshot()
+            })
+            addView(label("PRESERVED MEANING RULES", 12f, ACCENT, true).apply {
+                setPadding(0, dp(14), 0, dp(4))
+            })
+            semanticRulesPreview = label("No meaning rules yet.", 12f, Color.WHITE, false)
+            addView(semanticRulesPreview)
         })
 
         root.addView(section("CAPTURED DATA · LIVE VIEW"))
@@ -334,6 +362,30 @@ class MainActivity : Activity() {
             }
         }.isSuccess
 
+    private fun defineMeaningRuleFromLatestScreenshot() {
+        val screenshot = ObservationStore.latestScreenshot(this)
+        if (screenshot == null) {
+            Toast.makeText(this, "Capture a screenshot first.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val target = ObservationStore.activePackage(this) ?: screenshot.packageName
+        val intent = Intent(this, SemanticRuleActivity::class.java).apply {
+            putExtra(SemanticRuleActivity.EXTRA_IMAGE_PATH, screenshot.file.absolutePath)
+            putExtra(SemanticRuleActivity.EXTRA_PACKAGE, target)
+            putExtra(SemanticRuleActivity.EXTRA_SCREENSHOT_ID, screenshot.id)
+        }
+        startActivityForResult(intent, REQUEST_RULE_EDITOR)
+    }
+
+    private fun importPreviousEvidence() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/zip"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivityForResult(intent, REQUEST_IMPORT)
+    }
+
     private fun exportEvidenceBundle() {
         val directory = ObservationStore.latestDirectory(this)
         if (directory == null) {
@@ -381,8 +433,22 @@ class MainActivity : Activity() {
                 if (resultCode != RESULT_OK) return
                 val uri: Uri = data?.data ?: return
                 runCatching { ObservationStore.exportBundle(this, uri) }
-                    .onSuccess { Toast.makeText(this, "Privacy-minimised evidence ZIP exported.", Toast.LENGTH_LONG).show() }
+                    .onSuccess { Toast.makeText(this, "Evidence ZIP with screenshots, rules and authorised payloads exported.", Toast.LENGTH_LONG).show() }
                     .onFailure { Toast.makeText(this, "Export failed: " + it.message, Toast.LENGTH_LONG).show() }
+            }
+            REQUEST_IMPORT -> {
+                if (resultCode != RESULT_OK) return
+                val uri: Uri = data?.data ?: return
+                runCatching { ObservationStore.importBundle(this, uri) }
+                    .onSuccess {
+                        displayedScreenshotPath = null
+                        refresh()
+                        Toast.makeText(this, "Previous session and meaning rules imported.", Toast.LENGTH_LONG).show()
+                    }
+                    .onFailure { Toast.makeText(this, "Import failed: " + it.message, Toast.LENGTH_LONG).show() }
+            }
+            REQUEST_RULE_EDITOR -> {
+                if (resultCode == RESULT_OK) refresh()
             }
         }
     }
@@ -405,12 +471,16 @@ class MainActivity : Activity() {
         val pipelineSummary = "UI pipeline: " + received + " events · " + matched +
             " target matches · " + roots + " roots · " + snapshots +
             " snapshots · " + writeFailures + " write failures · " + pipelineFailures + " processing failures"
+        val screenshots = captureCounters.optLong("screenshots_stored")
+        val screenshotFailures = captureCounters.optLong("screenshots_failed")
+        val visualSummary = "Screenshots: " + screenshots + " saved · " + screenshotFailures + " failed"
         reportPreview.text = listOf(
             "Android " + android.optString("release") + " · API " + android.optInt("apiLevel"),
             "Accessibility: " + accessibilityText,
             "Notification metadata: " + notificationText,
             "Target discovery: dynamic launchable-app list + explicit self-test",
-            pipelineSummary
+            pipelineSummary,
+            visualSummary
         ).joinToString("\n")
 
         val active = ObservationStore.hasActiveSession(this)
@@ -425,6 +495,25 @@ class MainActivity : Activity() {
         }
         uiEvidencePreview.text = EvidencePreview.ui(uiFile, uiCount)
         networkEvidencePreview.text = EvidencePreview.network(networkFile, networkCount)
+        if (::screenshotPreview.isInitialized) {
+            val latestScreenshot = ObservationStore.latestScreenshot(this)
+            if (latestScreenshot == null) {
+                screenshotCaption.text = "No screenshots yet. Start a session, switch to the selected app and interact with it."
+            } else {
+                screenshotCaption.text = latestScreenshot.packageName + " · " +
+                    latestScreenshot.width + "×" + latestScreenshot.height +
+                    " · " + SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                        .format(Date(latestScreenshot.timestampEpochMs))
+                if (displayedScreenshotPath != latestScreenshot.file.absolutePath) {
+                    val bitmap = BitmapFactory.decodeFile(latestScreenshot.file.absolutePath)
+                    if (bitmap != null) {
+                        screenshotPreview.setImageBitmap(bitmap)
+                        displayedScreenshotPath = latestScreenshot.file.absolutePath
+                    }
+                }
+            }
+            semanticRulesPreview.text = SemanticRuleStore.describe(this)
+        }
 
         sessionStatus.text = if (active) {
             "OBSERVING · " + (observedTarget ?: "selected app") +
@@ -519,6 +608,8 @@ class MainActivity : Activity() {
         private const val REQUEST_PCAP_STOP = 7152
         private const val REQUEST_EXPORT = 7153
         private const val REQUEST_NOTIFICATIONS = 7154
+        private const val REQUEST_IMPORT = 7155
+        private const val REQUEST_RULE_EDITOR = 7156
         private const val PCAPDROID_CAPTURE_ACTIVITY = "com.emanuelef.remote_capture.activities.CaptureCtrl"
         private const val MAX_CAPTURE_BYTES = 52_428_800
         private val ACCENT = Color.rgb(86, 225, 185)
