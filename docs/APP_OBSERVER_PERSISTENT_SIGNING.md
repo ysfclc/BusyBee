@@ -1,0 +1,37 @@
+# App Observer — Persistent Release Signing
+
+## Permanent Android identity
+
+The first stable release is configured as:
+
+- Application ID: com.ysfclc.appobserver.capture
+- Version: 0.4.0-visual-rules (versionCode 7)
+- Signing: one dedicated persistent RSA release key
+- Certificate SHA-256: 6c268b04e8deef08ffd000a22cbdf21ec4ab47a816838a59e6fa71ce18bcec6a
+
+Do not change the application ID or replace this signing key after the first stable release is installed. Future release APKs must use the same key and increment versionCode. Debug builds keep a separate .generic.viewer.diagnostics.debug package and are never distributed as release updates.
+
+The earlier 0.3.x viewer APKs used ephemeral GitHub runner debug certificates and different debug package IDs. Android does not permit a differently signed APK to update those packages. The stable release is therefore a one-time side-by-side migration; do not uninstall the earlier apps during migration.
+
+## One-time repository secrets
+
+A keystore was generated outside the public repository. It must remain private and must never be committed.
+
+In GitHub, open ysfclc/BusyBee → Settings → Secrets and variables → Actions and create these repository secrets using the supplied private secrets handoff file:
+
+- APP_OBSERVER_KEYSTORE_BASE64
+- APP_OBSERVER_KEYSTORE_PASSWORD
+- APP_OBSERVER_KEY_ALIAS
+- APP_OBSERVER_KEY_PASSWORD
+
+The workflow decodes the keystore only into the runner's temporary directory, builds the release variant, verifies the exact certificate fingerprint and package identity, and uploads the signed release APK. The workflow will still run source tests and debug compilation without these secrets, but it deliberately will not upload an installable APK.
+
+## Backup and loss prevention
+
+Keep two secure backups of the JKS keystore and password. Anyone who can access the private key can sign an APK that Android treats as an update to this app. Do not upload the keystore or password to the public repository, an issue, a pull request, or a public release asset. If the key is lost, the installed package cannot receive normal signed updates with a replacement key; the user would need a different package identity and another migration.
+
+## Existing evidence and app migration
+
+Before moving from an earlier debug package, export its latest evidence ZIP from that app. Install the first stable release alongside the older app, then use IMPORT PREVIOUS APP EVIDENCE ZIP in the stable release. This imports old JSONL session evidence and screenshots and merges valid semantic rules. Keep the old app and exported ZIP until the import has been inspected.
+
+After the first stable release is installed, future signed releases with the same package and key install as updates; they preserve app-private session evidence, screenshots and meaning rules without uninstalling the app.

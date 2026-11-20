@@ -105,3 +105,27 @@
 - Live provider adapters are added only after access, terms, compatibility and field coverage are validated.
 
 **Design record:** [Native Provider Bridge](NATIVE_PROVIDER_BRIDGE.md).
+
+## ADR-011 — Generic privacy-first App Observer
+
+**Status:** Accepted — research recorder implementation in progress.
+
+**Decision:**
+- App Observer is a general-purpose, read-only Android behaviour research instrument, not a provider-specific recorder.
+- Discover launchable applications dynamically through Android package visibility; do not maintain an Uber/Bolt/Waze/Maps allowlist and do not request QUERY_ALL_PACKAGES.
+- Observe only one manually selected target package per explicit session.
+- Record structural UI evidence and interaction source-node signatures, not displayed/typed text or content descriptions.
+- Record notification envelope metadata only, never notification body/title/reply/action content.
+- When PCAPdroid is used, retain only an allowlisted set of packet-header metadata. Disable full-payload capture and TLS decryption. Never persist raw IP addresses, domains, application payloads or raw PCAP files.
+- Store evidence locally and sanitise legacy records again at export.
+- Keep the recorder read-only. Behaviour classification and reusable automation execution are separate future capabilities; no action executor or request replay is part of this decision.
+
+**Reason:** Reusable app understanding requires evidence across application categories, but collecting content creates avoidable privacy and security risk. Structural state, interaction metadata and minimised network timing/shape evidence are sufficient to begin building and validating behaviour models without collecting message contents, account details or network payloads.
+
+**Consequences:**
+- App discovery is limited to launchable apps visible through Android package visibility; hidden and non-launchable packages are not enumerated.
+- Every session is explicitly scoped to a selected package.
+- A future classifier must correlate pre-state, interaction, post-state and optional network/notification evidence; a single trace is not enough to promote a reusable skill.
+- A future automation engine must separately validate preconditions, action methods, postconditions, permissions, Android policy and human confirmation for consequential tasks.
+
+**Design record:** [App Observer — Behaviour Learning and Privacy Baseline](APP_OBSERVER_LEARNING_ENGINE.md).

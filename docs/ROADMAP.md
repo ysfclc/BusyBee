@@ -29,6 +29,25 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 
 **Exit gate:** install/launch on device, persistent release signing and local storage/migration baseline verified.
 
+## App Observation research subtrack
+
+**Status:** generic recorder and structural matcher implemented; screenshot-first visual evidence and user-defined semantic rules are now in implementation/CI validation. Physical-device acceptance, automatic visual semantics, behaviour learning and automation remain open.
+
+- Dynamically discover installed launchable apps; do not hardcode provider packages.
+- Select one target app per explicit session and record UI structure; App Observer itself remains a self-test target.
+- Capture actual full-display screenshots at meaningful Accessibility events, link each screenshot to its event, and render the screenshot on-device.
+- Make screenshots the visual ground truth. Let the user draw regions, name what each region means, select app/system-surface scope, and choose visual-only, Accessibility-text or notification-text payload sources.
+- Keep semantic payloads in a separate, timestamped stream linked by screenshot ID and rule ID. Read content only from explicitly authorised regions; preserve visual-only as the default.
+- Persist meaning rules across sessions and same-signed app updates; include rules, screenshots and semantic payloads in user-requested export/import bundles.
+- Use Android system APIs for what they expose; clearly mark secure windows, unavailable content, inaccessible custom views and unsupported system surfaces instead of inventing their meaning.
+- Keep PCAPdroid packet evidence metadata-only and separate from application payloads.
+- Build visual/semantic classification that distinguishes screenshots, user-authored rules and model-inferred labels; measure repeatability and confidence before promoting a reusable pattern.
+- Promote verified patterns into generic reusable skills with app-specific capability profiles.
+- Keep observation, pattern learning and action execution separate. Read-only observation and user-defined region semantics are the current deliverables; automation requires its own evidence, security, policy and verification gates.
+- Persistent release package/signing identity is a gate: after the one-time migration, updates must use the same package and private signing key. Never publish an ephemeral-debug-signed APK as a release.
+- Physical-device acceptance for screenshots, semantic payload linkage and App Observer self-test remains an explicit open gate.
+
+
 ## Phase 3 — Driver Data Mirror (first real product capability)
 
 **Status:** first usable vertical slice implemented. Real provider-export validation, statement reconciliation and completeness review remain open. Native Provider Bridge is now the accepted architecture direction; provider-specific live access is not yet proven.

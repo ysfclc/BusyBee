@@ -137,3 +137,11 @@ These checks establish that the sources exist and what access path is documented
 **Important:** these are instrumentation mechanisms, not Uber/Bolt data sources or provider APIs. Current Uber/Bolt app compatibility, permissions, terms, field coverage and stability are unverified. VPN packet metadata, notifications and screen/OCR capture remain separate capabilities and must not be represented as equivalent to process-level plaintext observation.
 
 See [Platform Activity Integration](PLATFORM_ACTIVITY_INTEGRATION.md) and [Plaintext Observer POC design](PLAINTEXT_OBSERVER_POC.md).
+
+## 10. Generic app-behaviour observation
+
+| Source | Potential capabilities | Access path | Status | Boundary |
+|---|---|---|---|---|
+| User-selected Android app | UI structure, interaction events, notification envelope metadata and coarse network timing/shape | Dynamic launcher-app discovery; Accessibility and optional notification listener; optional PCAPdroid TCP exporter | Research recorder implementation in progress | One app per explicit session; no displayed/typed text, notification content, screenshots, clipboard, IP addresses, domains, application payloads or raw PCAP. Read-only only. |
+
+The observer deliberately has no Uber/Bolt/Waze/Maps package allowlist. It discovers launchable applications through Android package visibility rather than requesting unrestricted package inventory. It is an evidence collector for a future behaviour classifier, not itself an automation executor or provider integration.
