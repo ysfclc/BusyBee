@@ -1,6 +1,6 @@
 # App Observer — Behaviour Learning and Privacy Baseline
 
-**Status:** Approved product and engineering direction. A generic structure-only recorder is being implemented in the research branch. Pattern classification and automation execution are future work.
+**Status:** Approved product and engineering direction. Generic privacy-first recorder source and CI build are implemented and verified (2026-11-20). Physical-device acceptance, pattern classification and automation execution remain future work.
 
 ## 1. Product objective
 
@@ -158,7 +158,7 @@ Not yet implemented or device-verified:
 - Automated state fingerprint clustering and behaviour classification.
 - Semantic correlation engine across UI/network evidence.
 - Reusable automation skills or action executor.
-- Physical-device acceptance across a representative set of apps.
+- Physical-device acceptance across a representative set of apps (CI APK artifact 14616602770, SHA-256 115e4186f2b59b25a6a0ae51ba4389bebbcf1ec926c0ac42b0e6b28ea4645bdf; device capture not yet tested).
 - Per-app coverage report and false-positive evaluation.
 
 This status must be preserved: building the recorder does not mean app understanding or automation has been completed.
