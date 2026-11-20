@@ -137,7 +137,7 @@ object LocalLearningMemory {
         features: List<String>
     ) = synchronized(lock) {
         val safeConcept = normaliseConceptLabel(concept)
-        require(safeConcept.isNotBlank()) { "Enter a valid screen concept label." }
+        require(isValidConceptLabel(safeConcept)) { "Enter a valid screen concept label." }
         require(packageName.isNotBlank()) { "Target app is missing." }
         val root = read(context)
         val training = root.optJSONObject("training") ?: JSONObject().also { root.put("training", it) }
@@ -204,6 +204,9 @@ object LocalLearningMemory {
             .replace(Regex("[^a-z0-9]+"), "_")
             .trim('_').take(48)
 
+    private fun isValidConceptLabel(label: String): Boolean =
+        label.matches(Regex("[a-z0-9][a-z0-9_]{0,47}"))
+
     fun summary(context: Context): String = synchronized(lock) {
         val root = read(context)
         val apps = root.optJSONObject("apps") ?: JSONObject()
@@ -256,6 +259,7 @@ object LocalLearningMemory {
             val targetClasses = targetApp.optJSONObject("classes") ?: JSONObject().also { targetApp.put("classes", it) }
             val sourceClasses = sourceApp.optJSONObject("classes") ?: continue
             for (concept in sourceClasses.keys()) {
+                if (!isValidConceptLabel(concept)) continue
                 val sourceLabel = sourceClasses.optJSONObject(concept) ?: continue
                 val targetLabel = targetClasses.optJSONObject(concept) ?: JSONObject()
                     .put("documents", 0).put("featureCounts", JSONObject())
