@@ -120,11 +120,20 @@ class ObserverAccessibilityService : AccessibilityService() {
             lastFingerprint[packageName] = fingerprint
             val record = baseEvent(event, packageName, eventName, now)
                 .put("windowAvailable", true)
+                .put("snapshotChanged", true)
                 .put("nodeCount", count)
                 .put("visibleNodeCount", visible)
                 .put("nodes", nodes)
             sourceEvidence?.let { record.put("sourceNode", it) }
             ObservationStore.appendUiEvent(this, record)
+        } else if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            // Keep the event and timing evidence even when the structure fingerprint is unchanged.
+            ObservationStore.appendUiEvent(this, baseEvent(event, packageName, eventName, now)
+                .put("windowAvailable", true)
+                .put("snapshotChanged", false)
+                .put("nodeCount", count)
+                .put("visibleNodeCount", visible))
         }
 
         ObserverSignals.recordAccessibility(this, packageName, event.eventType, shape)
@@ -144,6 +153,13 @@ class ObserverAccessibilityService : AccessibilityService() {
         .put("windowId", event.windowId)
         .put("windowClassName", event.className?.toString()?.take(180) ?: JSONObject.NULL)
         .put("contentChangeTypes", event.contentChangeTypes)
+        .put("scrollX", event.scrollX)
+        .put("scrollY", event.scrollY)
+        .put("maxScrollX", event.maxScrollX)
+        .put("maxScrollY", event.maxScrollY)
+        .put("itemCount", event.itemCount)
+        .put("fromIndex", event.fromIndex)
+        .put("toIndex", event.toIndex)
 
     /** Deliberately reads structural properties only; never accesses node text or descriptions. */
     private fun sourceEvidence(node: AccessibilityNodeInfo?): JSONObject? {
