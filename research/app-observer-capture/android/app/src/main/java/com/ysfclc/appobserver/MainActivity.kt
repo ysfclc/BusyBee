@@ -248,6 +248,8 @@ class MainActivity : Activity() {
             putExtra("broadcast_receiver", PcapdroidStatusReceiver::class.java.name)
             putExtra("pcap_dump_mode", "tcp_exporter")
             putExtra("collector_host", PcapdroidCaptureService.LOOPBACK)
+            // Legacy alias keeps TCP Exporter compatible with versions predating collector_host.
+            putExtra("collector_ip_address", PcapdroidCaptureService.LOOPBACK)
             putExtra("collector_port", PcapdroidCaptureService.PORT.toString())
             putExtra("app_filter", app.packageName)
             putExtra("max_dump_size", MAX_CAPTURE_BYTES)
