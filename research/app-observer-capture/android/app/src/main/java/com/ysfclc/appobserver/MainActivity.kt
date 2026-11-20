@@ -201,6 +201,10 @@ class MainActivity : Activity() {
             addView(screenshotFrame)
             screenshotNavigation = label("No screenshot selected.", 11f, MUTED, false)
             addView(screenshotNavigation)
+            addView(label(
+                "BLUE = MACHINE IDENTIFICATION · GREEN = YOUR SAVED MEANING RULES",
+                10f, MUTED, false
+            ).apply { setPadding(0, dp(5), 0, dp(5)) })
             addView(rowOfActions(
                 action("PREVIOUS SCREEN") { selectScreenshot(-1) },
                 action("NEXT SCREEN") { selectScreenshot(1) }
@@ -506,18 +510,6 @@ class MainActivity : Activity() {
             if (!scale.isFinite() || scale <= 0f) return
             val leftInset = (width - bitmapWidth * scale) / 2f
             val topInset = (height - bitmapHeight * scale) / 2f
-            rules.forEach { rule ->
-                val rect = RectF(
-                    leftInset + rule.left * bitmapWidth * scale,
-                    topInset + rule.top * bitmapHeight * scale,
-                    leftInset + rule.right * bitmapWidth * scale,
-                    topInset + rule.bottom * bitmapHeight * scale
-                )
-                canvas.drawRect(rect, fill)
-                canvas.drawRect(rect, border)
-                val baseline = (rect.top - 8f).coerceAtLeast(text.textSize)
-                canvas.drawText(rule.label, rect.left + 6f, baseline, text)
-            }
             machineRegions.forEach { machine ->
                 val region = machine.region
                 val rect = RectF(
@@ -532,6 +524,18 @@ class MainActivity : Activity() {
                 val label = machine.label.take(28) + " · " + percentage + "%"
                 val baseline = (rect.top - 7f).coerceAtLeast(machineText.textSize)
                 canvas.drawText(label, rect.left + 6f, baseline, machineText)
+            }
+            rules.forEach { rule ->
+                val rect = RectF(
+                    leftInset + rule.left * bitmapWidth * scale,
+                    topInset + rule.top * bitmapHeight * scale,
+                    leftInset + rule.right * bitmapWidth * scale,
+                    topInset + rule.bottom * bitmapHeight * scale
+                )
+                canvas.drawRect(rect, fill)
+                canvas.drawRect(rect, border)
+                val baseline = (rect.top - 8f).coerceAtLeast(text.textSize)
+                canvas.drawText(rule.label, rect.left + 6f, baseline, text)
             }
         }
     }
