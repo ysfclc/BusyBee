@@ -71,7 +71,11 @@ object MultimodalInference {
         "chat_conversation", "price_or_fare", "map_view", "route_summary",
         "service_offer", "trip_status", "confirmation_result", "search_interface",
         "list_or_feed", "form_or_input", "authentication", "payment",
-        "notification_surface", "profile_or_account"
+        "notification_surface", "profile_or_account", "dashboard",
+        "product_details", "order_details", "navigation", "settings",
+        "media_player", "calendar_or_schedule", "document_or_receipt",
+        "booking_or_reservation", "support_or_help", "error_or_warning",
+        "other_or_unknown"
     )
 
     private val phrases = mapOf(
@@ -136,7 +140,19 @@ object MultimodalInference {
         "profile_or_account" to listOf(
             "profile", "account", "settings", "ustawienia", "konto", "profil",
             "hesap", "profilim", "ayarlar"
-        )
+        ),
+        "dashboard" to listOf("dashboard", "overview", "home", "summary", "panel", "pulpit", "özet", "ana sayfa"),
+        "product_details" to listOf("product details", "product information", "specifications", "opis produktu", "szczegóły produktu", "ürün detayları"),
+        "order_details" to listOf("order details", "order history", "order number", "zamówienie", "szczegóły zamówienia", "sipariş detayları"),
+        "navigation" to listOf("navigation", "directions", "turn left", "turn right", "skręć", "nawigacja", "sola dön", "sağa dön"),
+        "settings" to listOf("settings", "preferences", "ustawienia", "preferencje", "ayarlar", "tercihler"),
+        "media_player" to listOf("now playing", "playback", "playlist", "playing", "odtwarzanie", "lista odtwarzania", "çalıyor", "çalma listesi"),
+        "calendar_or_schedule" to listOf("calendar", "schedule", "appointment", "today", "tomorrow", "kalendarz", "harmonogram", "termin", "takvim", "randevu"),
+        "document_or_receipt" to listOf("receipt", "invoice", "document", "download pdf", "paragon", "faktura", "dokument", "makbuz", "fatura", "belge"),
+        "booking_or_reservation" to listOf("booking", "reservation", "book now", "check in", "rezerwacja", "zarezerwuj", "rezervasyon", "şimdi ayırt"),
+        "support_or_help" to listOf("help", "support", "contact us", "customer service", "pomoc", "kontakt", "yardım", "destek"),
+        "error_or_warning" to listOf("error", "warning", "failed", "try again", "błąd", "ostrzeżenie", "niepowodzenie", "hata", "uyarı", "tekrar deneyin"),
+        "other_or_unknown" to emptyList()
     )
 
     private val moneyPattern = Regex(
