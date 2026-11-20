@@ -89,13 +89,29 @@ object ScreenUnderstandingService {
                 val learned = LocalLearningMemory.learnedProbabilities(
                     context, evidence.packageName, featureVector
                 )
-                val predictions = rawPredictions.map { guess ->
-                    val trainedProbability = learned[guess.concept]
-                    if (trainedProbability == null) guess else guess.copy(
-                        confidence = (guess.confidence * 0.82f + trainedProbability * 0.18f)
-                            .coerceIn(0.03f, 0.98f)
-                    )
-                }.sortedByDescending { it.confidence }
+                val heuristicByConcept = rawPredictions.associateBy { it.concept }
+                val predictions = (rawPredictions.map { it.concept } + learned.keys).distinct()
+                    .mapNotNull { concept ->
+                        val heuristic = heuristicByConcept[concept]
+                        val learnedProbability = learned[concept]
+                        when {
+                            heuristic != null && learnedProbability != null -> heuristic.copy(
+                                confidence = (heuristic.confidence * 0.78f + learnedProbability * 0.22f)
+                                    .coerceIn(0.03f, 0.98f),
+                                sources = (heuristic.sources + "local_feedback_model").distinct().sorted()
+                            )
+                            heuristic != null -> heuristic
+                            learnedProbability != null && learnedProbability >= 0.20f ->
+                                ConceptHypothesis(
+                                    concept = concept,
+                                    confidence = (0.30f + learnedProbability * 0.55f).coerceIn(0.30f, 0.88f),
+                                    score = learnedProbability * 4f,
+                                    sources = listOf("local_feedback_model"),
+                                    region = null
+                                )
+                            else -> null
+                        }
+                    }.sortedByDescending { it.confidence }
                 val state = LocalLearningMemory.observe(
                     context, evidence.packageName, featureVector, predictions,
                     evidence.timestampEpochMs,
@@ -271,6 +287,13 @@ object ScreenUnderstandingService {
                     "view_focused", "window_state_changed", "window_content_changed"
                 )
         }
+        val interactionSource = recentUi?.optJSONObject("sourceNode")
+        interactionSource?.optString("className")
+            ?.takeIf { it.isNotBlank() && it != "null" }?.let(accessibilityClasses::add)
+        interactionSource?.optString("viewId")
+            ?.takeIf { it.isNotBlank() && it != "null" }?.let(resourceIds::add)
+        val interactionSourceClass = interactionSource?.optString("className").orEmpty()
+        val interactionSourceId = interactionSource?.optString("viewId").orEmpty()
         val network = readRecords(context, sessionId, "network-events.jsonl", 500).filter {
             it.optLong("timestampEpochMs") in from..to
         }
@@ -303,7 +326,11 @@ object ScreenUnderstandingService {
             clickableCount = clickable,
             scrollableCount = scrollable,
             editableCount = editable,
-            interactionType = recentUi?.optString("eventType").orEmpty(),
+            interactionType = listOf(
+                recentUi?.optString("eventType").orEmpty(),
+                interactionSourceClass,
+                interactionSourceId
+            ).filter { it.isNotBlank() && it != "null" }.joinToString(" "),
             notificationCategories = notificationCategories,
             notificationCount = notifications.size,
             networkPacketCount = packets,
