@@ -35,7 +35,7 @@ A persistent local state learner clusters recurring screens using privacy-safe f
 
 ## Optional meaning rules and correction feedback
 
-The machine identifies candidate meanings automatically. The user can still open a screenshot, draw a rectangle and add a region-specific permission/annotation when a result needs refinement. This is optional. A separate correction action can train the classifier for the target app from the current screen feature vector. The rule editor asks for:
+The machine identifies candidate meanings automatically. The user can still open a screenshot, draw a rectangle and add a region-specific permission/annotation when a result needs refinement. This is optional. A separate correction action can train the classifier for the target app from the current screen feature vector, using built-in or custom concept names. The trained model can later identify custom concepts from their learned multimodal feature patterns. The rule editor asks for:
 
 1. **Meaning/category:** any label chosen by the user, for example chat messages, notification bar, offer card, price, route summary, map controls or a custom label.
 2. **Scope:** the selected app or Android system surfaces such as the status bar/notification shade.
