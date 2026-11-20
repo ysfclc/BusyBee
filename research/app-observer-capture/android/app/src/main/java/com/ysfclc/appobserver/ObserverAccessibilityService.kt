@@ -15,7 +15,7 @@ import java.util.ArrayDeque
  */
 class ObserverAccessibilityService : AccessibilityService() {
     private val lastContentSampleAt = mutableMapOf<String, Long>()
-    private val lastFingerprint = mutableMapOf<String, Int>()
+    private val lastFingerprint = mutableMapOf<String, String>()
 
     private data class PendingNode(
         val node: AccessibilityNodeInfo,
@@ -109,18 +109,20 @@ class ObserverAccessibilityService : AccessibilityService() {
         }
 
         val shape = WindowShape(count, clickable, editable, scrollable, visible, passwordFields)
-        val fingerprint = ((event.className?.toString() ?: "") + "|" + nodes.toString()).hashCode()
-        val shouldWriteSnapshot = lastFingerprint[packageName] != fingerprint ||
+        val structureFingerprint = UiStructureMatcher.fingerprint(nodes)
+        val shouldWriteSnapshot = lastFingerprint[packageName] != structureFingerprint ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED ||
             event.eventType == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED ||
             event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED ||
             event.eventType == AccessibilityEvent.TYPE_VIEW_SELECTED
         if (shouldWriteSnapshot) {
-            lastFingerprint[packageName] = fingerprint
+            lastFingerprint[packageName] = structureFingerprint
             val record = baseEvent(event, packageName, eventName, now)
                 .put("windowAvailable", true)
                 .put("snapshotChanged", true)
+                .put("structureFingerprint", structureFingerprint)
+                .put("fingerprintVersion", UiStructureMatcher.VERSION)
                 .put("nodeCount", count)
                 .put("visibleNodeCount", visible)
                 .put("treeTruncated", queue.isNotEmpty())
@@ -129,10 +131,12 @@ class ObserverAccessibilityService : AccessibilityService() {
             ObservationStore.appendUiEvent(this, record)
         } else if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
-            // Keep the event and timing evidence even when the structure fingerprint is unchanged.
+            // Keep event timing even when the structural fingerprint is unchanged.
             ObservationStore.appendUiEvent(this, baseEvent(event, packageName, eventName, now)
                 .put("windowAvailable", true)
                 .put("snapshotChanged", false)
+                .put("structureFingerprint", structureFingerprint)
+                .put("fingerprintVersion", UiStructureMatcher.VERSION)
                 .put("nodeCount", count)
                 .put("visibleNodeCount", visible))
         }
