@@ -38,6 +38,17 @@ class ObservationPrivacyTest {
     }
 
     @Test
+    fun userAuthorisedSemanticPayloadSurvivesExportSanitising() {
+        val payload = JSONObject()
+            .put("semanticLabel", "chat")
+            .put("source", "accessibility_node_text")
+            .put("payloadText", "A message from the region the user explicitly selected")
+        val safe = ObservationPrivacy.sanitizeForExport(payload)
+        assertEquals("chat", safe.getString("semanticLabel"))
+        assertEquals("A message from the region the user explicitly selected", safe.getString("payloadText"))
+    }
+
+    @Test
     fun exportSanitiserRemovesSensitiveFieldsRecursively() {
         val legacy = JSONObject()
             .put("eventType", "view_clicked")
