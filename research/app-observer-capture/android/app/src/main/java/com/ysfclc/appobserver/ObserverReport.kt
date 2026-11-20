@@ -28,7 +28,7 @@ object ObserverReport {
         )
 
         return JSONObject()
-            .put("schema", "app-observer-capability-report/v2")
+            .put("schema", "app-observer-capability-report/v3")
             .put("generatedAt", iso(System.currentTimeMillis()))
             .put("android", JSONObject()
                 .put("release", Build.VERSION.RELEASE)
@@ -45,7 +45,9 @@ object ObserverReport {
                 .put("networkEvidence", "packet_header_metadata_only_when_pcapdroid_is_available")
                 .put("rawPacketPersistence", false)
                 .put("applicationPayloadCapture", false)
+                .put("selfObservation", "manual_selected_target_accessibility_test")
                 .put("inProcessObservation", "not_implemented"))
+            .put("uiCaptureDiagnostics", ObserverSignals.captureDiagnostics(context))
             .put("privacy", JSONObject()
                 .put("localOnly", true)
                 .put("noOutboundUpload", true)

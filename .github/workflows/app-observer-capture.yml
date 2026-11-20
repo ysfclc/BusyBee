@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/app-observer-capture-0.2.1
+      - fix/app-observer-ui-diagnostics-0.2.2
     paths:
       - 'research/app-observer-capture/**'
       - '.github/workflows/app-observer-capture.yml'

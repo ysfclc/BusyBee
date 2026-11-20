@@ -60,6 +60,7 @@ object AppCatalog {
         AccessibilityEvent.TYPE_VIEW_LONG_CLICKED -> "view_long_clicked"
         AccessibilityEvent.TYPE_VIEW_SELECTED -> "view_selected"
         AccessibilityEvent.TYPE_VIEW_FOCUSED -> "view_focused"
+        AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> "view_text_changed"
         else -> "other"
     }
 

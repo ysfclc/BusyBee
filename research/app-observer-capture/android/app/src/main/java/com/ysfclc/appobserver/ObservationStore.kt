@@ -24,6 +24,7 @@ object ObservationStore {
 
     fun startSession(context: Context, packageName: String, label: String): String {
         synchronized(lock) {
+            ObserverSignals.resetCaptureDiagnostics(context)
             val id = System.currentTimeMillis().toString() + "-" + UUID.randomUUID().toString().take(8)
             val directory = sessionDirectory(context, id)
             check(directory.mkdirs() || directory.isDirectory) { "Could not create session directory" }
@@ -156,6 +157,10 @@ object ObservationStore {
                     .put("metadataFileBytes", if (networkIndex.isFile) networkIndex.length() else 0L))
                 writeJson(metadataFile, root)
             }
+            appendLine(File(directory, "events.jsonl"), JSONObject()
+                .put("type", "ui_capture_diagnostics")
+                .put("timestampEpochMs", now)
+                .put("diagnostics", ObserverSignals.captureDiagnostics(context)))
             appendLine(File(directory, "events.jsonl"), JSONObject()
                 .put("type", "session_finished")
                 .put("timestampEpochMs", now)
