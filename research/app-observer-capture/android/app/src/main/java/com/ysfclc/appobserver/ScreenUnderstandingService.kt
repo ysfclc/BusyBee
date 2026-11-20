@@ -329,10 +329,11 @@ object ScreenUnderstandingService {
                 val remaining = (input.length() - input.filePointer).toInt().coerceAtLeast(0)
                 ByteArray(remaining).also { input.readFully(it) }
             }
-            String(bytes, Charsets.UTF_8).lineSequence()
-                .filter { it.isNotBlank() }.takeLast(limit).mapNotNull {
-                    runCatching { JSONObject(it) }.getOrNull()
-                }.toList()
+            val lines = String(bytes, Charsets.UTF_8).lineSequence()
+                .filter { it.isNotBlank() }.toList()
+            lines.takeLast(limit).mapNotNull { line ->
+                runCatching { JSONObject(line) }.getOrNull()
+            }
         }.getOrDefault(emptyList())
     }
 
@@ -363,8 +364,11 @@ object ScreenUnderstandingService {
                 val remaining = (input.length() - input.filePointer).toInt().coerceAtLeast(0)
                 ByteArray(remaining).also { input.readFully(it) }
             }
-            String(bytes, Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }
-                .takeLast(6).mapNotNull { runCatching { JSONObject(it) }.getOrNull() }.toList()
+            val lines = String(bytes, Charsets.UTF_8).lineSequence()
+                .filter { it.isNotBlank() }.toList()
+            lines.takeLast(6).mapNotNull { line ->
+                runCatching { JSONObject(line) }.getOrNull()
+            }
         }.getOrDefault(emptyList()) else emptyList()
 
         val summary = LocalLearningMemory.summary(context)
