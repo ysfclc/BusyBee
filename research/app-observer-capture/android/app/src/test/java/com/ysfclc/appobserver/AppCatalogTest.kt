@@ -10,7 +10,7 @@ class AppCatalogTest {
         assertTrue(AppCatalog.isSessionTarget("com.whatsapp", "com.whatsapp"))
         assertTrue(AppCatalog.isSessionTarget("com.android.settings", "com.android.settings"))
         assertTrue(AppCatalog.isSessionTarget("org.example.unknownapp", "org.example.unknownapp"))
-        assertTrue(AppCatalog.isSessionTarget("com.ysfclc.appobserver.capture.generic.debug", "com.ysfclc.appobserver.capture.generic.debug"))
+        assertTrue(AppCatalog.isSessionTarget("com.ysfclc.appobserver.capture.generic.viewer.debug", "com.ysfclc.appobserver.capture.generic.viewer.debug"))
         assertFalse(AppCatalog.isSessionTarget("com.whatsapp", "com.instagram.android"))
         assertFalse(AppCatalog.isSessionTarget(null, "com.whatsapp"))
         assertFalse(AppCatalog.isSessionTarget("com.whatsapp", null))
