@@ -97,7 +97,7 @@ class SemanticRuleActivity : Activity() {
         root.addView(scopeSpinner)
 
         root.addView(TextView(this).apply {
-            text = "Content is never read unless you choose one of the two explicit content sources. Visual-only rules retain the screenshot and region label without extracting text. Password fields are always excluded. System-surface text comes from notification listener rules; the observer does not scrape all system windows."
+            text = "Content is never read unless you choose one of the two explicit content sources. Visual-only rules retain the screenshot and region label without extracting text. Password fields and editable input contents are always excluded. System-surface text comes from notification listener rules; the observer does not scrape all system windows."
             textSize = 12f
             setTextColor(Color.rgb(255, 202, 121))
             setPadding(0, dp(8), 0, dp(10))
