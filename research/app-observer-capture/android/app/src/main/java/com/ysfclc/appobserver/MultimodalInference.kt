@@ -450,11 +450,17 @@ object MultimodalInference {
     }
 
     private fun containsTerm(normalisedText: String, term: String): Boolean {
-        val phrase = normalise(term)
+        val phrase = normalise(term).trim()
         if (phrase.isBlank()) return false
-        val pattern = Regex("(?<![\\\\p{L}\\\\p{N}])" + Regex.escape(phrase) +
-            "(?![\\\\p{L}\\\\p{N}])")
-        return pattern.containsMatchIn(normalisedText)
+        var start = normalisedText.indexOf(phrase)
+        while (start >= 0) {
+            val end = start + phrase.length
+            val leftBoundary = start == 0 || !normalisedText[start - 1].isLetterOrDigit()
+            val rightBoundary = end >= normalisedText.length || !normalisedText[end].isLetterOrDigit()
+            if (leftBoundary && rightBoundary) return true
+            start = normalisedText.indexOf(phrase, start + 1)
+        }
+        return false
     }
 
     private fun normalise(value: String): String = value.lowercase(Locale.ROOT)
