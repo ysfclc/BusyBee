@@ -293,7 +293,7 @@ object LocalLearningMemory {
             val sourceApp = sourceApps.optJSONObject(pkg) ?: continue
             val targetApp = targetApps.optJSONObject(pkg) ?: JSONObject().also { targetApps.put(pkg, it) }
             val targetStates = targetApp.optJSONArray("states") ?: JSONArray().also { targetApp.put("states", it) }
-            val knownIds = (0 until targetStates.length()).mapNotNull { targetStates.optJSONObject(it)?.optString("stateId") }.toSet()
+            val knownIds = (0 until targetStates.length()).mapNotNull { targetStates.optJSONObject(it)?.optString("stateId") }.toMutableSet()
             val sourceStates = sourceApp.optJSONArray("states") ?: JSONArray()
             for (index in 0 until sourceStates.length()) {
                 val state = sourceStates.optJSONObject(index) ?: continue
@@ -316,7 +316,7 @@ object LocalLearningMemory {
                     })))
                     .put("labelVotes", safeVotes)
                 targetStates.put(safeState)
-                knownIds.plus(stateId)
+                knownIds.add(stateId)
             }
             while (targetStates.length() > MAX_STATES_PER_APP) targetStates.remove(0)
             val targetTransitions = targetApp.optJSONArray("transitions") ?: JSONArray().also { targetApp.put("transitions", it) }
