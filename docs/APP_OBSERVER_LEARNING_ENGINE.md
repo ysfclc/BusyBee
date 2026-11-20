@@ -41,11 +41,13 @@ Persist only structural fields:
 - For interaction events, the source node's structural signature when Android exposes it.
 - A versioned SHA-256 structural fingerprint over hierarchy indexes, node classes, resource IDs and boolean control states. The fingerprint excludes text, descriptions, editable values and pixel bounds; it groups structurally equivalent trees but does not assert semantic screen identity.
 
-Do not read or store AccessibilityNodeInfo text, content descriptions, hint text, editable contents, typed values or clipboard state. Do not collect screenshots or screen recordings. Password and editable controls are represented by structural flags only.
+Screenshots are now the visual ground truth. During a manually started session, the AccessibilityService requests a full-display screenshot after meaningful UI events (window changes, clicks, scrolls, selections and text-change notifications), rate-limited to about one request per 1.2 seconds. Screenshots are saved locally as JPEGs and linked to their UI event by screenshot ID, timestamp, event type and dimensions. Android may block secure/protected windows or other capture surfaces; capture failures are recorded.
+
+By default, AccessibilityNodeInfo text, content descriptions, hints, editable contents and typed values are not read. The user can draw a region on a captured screenshot and create a meaning rule. Each rule supplies a user-defined category, scope and explicit payload source: visual_only, accessibility_text or notification_text. Only a matching region rule permits the corresponding content read. Password nodes are always excluded. User-defined rules persist locally across sessions and are included in evidence export/import. See [Visual Ground Truth and Meaning Rules](APP_OBSERVER_VISUAL_MEANING.md).
 
 ### Notification evidence
 
-Record only package, post time, category, ongoing/group flags, action count and whether a content intent exists. Never read notification titles, bodies, expanded text, reply text or action labels.
+Notification envelope metadata remains the default. Notification title/body content is read only when a user-authored rule explicitly selects notification_text for the selected app or the Android system-surface scope. Payload records carry the rule ID, category, source, timestamp and screenshot reference when available. Notification action labels and reply input are not read.
 
 ### Network evidence
 
@@ -105,14 +107,16 @@ No automation executor is included in this observer build. Android platform poli
 
 ## 6. Privacy contract
 
-- Manual session start and stop; one selected app at a time.
+- Manual session start and stop; one selected app at a time, with an explicit separate rule scope for Android system surfaces.
 - Local private storage only; no background upload or telemetry.
-- No visible or typed text, notification content, screenshots, clipboard, files, credentials or account details.
+- Full-display screenshots are saved during an explicitly started session. A screenshot can contain sensitive visible content; review it before sharing.
+- Accessibility text and notification content remain off by default. A user-drawn meaning rule must explicitly authorise a content source for a region/category before its payload is read.
+- Password nodes are never read. Typed values outside explicitly authorised regions are not read. The observer never reads clipboard contents.
 - No raw network payloads, raw IP addresses, domains, headers, tokens or raw packet files.
-- No collection of other apps' events during a selected-app session.
-- Export is user-initiated; JSONL evidence is sanitised again at export to strip sensitive fields from legacy sessions.
-- The export includes a privacy notice and capability report.
-- Do not treat automatic redaction as sufficient: the design avoids collecting content instead.
+- No third-party app screens are captured when only the selected-app scope is active. System-surface screenshot capture is available only after a system-surface rule exists and is limited to Android system/updated-system package events; system UI node text is not scraped.
+- Export is user-initiated. The evidence bundle contains screenshots, rule-authorised semantic payloads and the rule definitions alongside the UI/network records.
+- Import of a prior evidence ZIP preserves its session records/screenshots and merges valid meaning rules. The old app can remain installed during migration.
+
 
 ## 7. Acceptance gates
 
@@ -150,20 +154,23 @@ Only after learning gate passes:
 
 Implemented in the App Observer capture project:
 - Dynamic launchable-app picker rather than a provider-specific catalogue, plus explicit App Observer self-test target.
-- Selected-package filtering in the Accessibility and notification listeners.
-- Structure-only accessibility snapshots with hierarchy indexes and interaction source-node evidence.
-- Versioned SHA-256 fingerprints for exact structural matching; screen text, descriptions, editable values and pixel bounds are excluded.
-- On-device live viewer for UI structure, repeated fingerprints, recent events and the separate network metadata timeline.
-- Notification envelope metadata without titles or bodies.
-- PCAPdroid TCP stream inspection with only allowlisted header metadata persisted.
-- No raw packet/PCAP file persistence; no full-payload or TLS-decryption request.
-- Private local session storage and export-time sanitisation.
+- Selected-package filtering and the generic UI diagnostic pipeline, including root-window, node-access, persistence and screenshot counters.
+- Structure-only accessibility snapshots with hierarchy indexes, interaction source-node evidence and versioned SHA-256 structural fingerprints.
+- Full-display screenshots through Android's Accessibility screenshot API (API 30+), stored locally and linked to UI events.
+- Screenshot viewer and region annotation activity; arbitrary user-defined meaning categories and normalised region selectors.
+- Persistent local semantic rules with visual-only, explicit Accessibility text and selected-app notification-content source modes.
+- Separate semantic-payload stream linked by rule ID and screenshot ID, plus explicit system-surface screenshot scope.
+- Evidence export/import for screenshots, semantic payloads, rules and earlier session JSONL.
+- Notification envelope metadata by default; content only when an explicit notification_text rule exists.
+- PCAPdroid TCP stream inspection with only allowlisted packet-header metadata persisted; no raw PCAP or TLS-decrypted traffic.
+- Stable release application ID and external persistent signing configuration; CI intentionally withholds installable APK artifacts until release-signing secrets are configured.
 
-Not yet implemented or device-verified:
-- Semantic state classification and behaviour learning; a structural fingerprint match is not semantic screen understanding.
-- Semantic correlation engine across UI/network evidence.
-- Reusable automation skills or action executor.
-- Physical-device acceptance across a representative set of apps. CI run #113 passed for source commit `38742a72d6e79c97f8cfab16b02ab3b6907f1012`; viewer artifact ID `14618502708`, package `com.ysfclc.appobserver.capture.generic.viewer.debug`, APK SHA-256 `581456f1a934a3e1a814070531a912e108f30df0ce141dbd040dc10340a23e8d`. Device capture and PCAPdroid packet delivery remain untested.
+Still not yet implemented or device-verified:
+- Physical Redmi acceptance for screenshots, region matching, system-surface screenshot capture and notification payload linkage.
+- Visual semantic recognition and automatic meaning suggestions; the current categories are authored by the user, not inferred.
+- State/behaviour learning and correlation across screenshot, UI, notification and network evidence.
+- Reusable automation skills or action execution.
+- Persistent signing secret installation in GitHub repository settings and the first stable release artifact; the private keystore was generated and the workflow is configured, but the secrets must be installed before the next release can be built and verified.
 - Per-app coverage report and false-positive evaluation.
 
-This status must be preserved: building the recorder does not mean app understanding or automation has been completed.
+Preserve this boundary: a screenshot is visual evidence, a semantic rule is user-authored meaning, and a model inference is a separate future classification. Building the recorder does not mean app understanding or automation has been completed.
