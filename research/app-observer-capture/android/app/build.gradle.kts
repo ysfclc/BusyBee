@@ -57,6 +57,8 @@ android {
 }
 
 dependencies {
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:image-labeling:17.0.9")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }
