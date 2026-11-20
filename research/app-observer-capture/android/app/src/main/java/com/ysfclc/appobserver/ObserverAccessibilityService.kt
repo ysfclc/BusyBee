@@ -187,7 +187,7 @@ class ObserverAccessibilityService : AccessibilityService() {
 
                     // Content is read only when this exact screen region has a user-authored
                     // rule that explicitly permits Accessibility text capture.
-                    if (!isPassword && !bounds.isEmpty) {
+                    if (!isPassword && !isEditable && !bounds.isEmpty) {
                         val realMetrics = DisplayMetrics()
                         @Suppress("DEPRECATION")
                         (getSystemService(WINDOW_SERVICE) as WindowManager)
