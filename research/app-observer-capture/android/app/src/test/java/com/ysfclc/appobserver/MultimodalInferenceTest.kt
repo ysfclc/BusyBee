@@ -35,6 +35,29 @@ class MultimodalInferenceTest {
     }
 
     @Test
+    fun identifiesMapRegionFromAccessibilityElementGeometry() {
+        val evidence = evidence(
+            accessibilityClasses = listOf("com.google.android.gms.maps.MapView"),
+            accessibilityElements = listOf(
+                AccessibilityElementEvidence(
+                    className = "com.google.android.gms.maps.MapView",
+                    resourceId = "com.example:id/map",
+                    region = NormalisedRegion(0.05f, 0.18f, 0.95f, 0.86f),
+                    clickable = false,
+                    scrollable = true,
+                    editable = false
+                )
+            )
+        )
+        val result = MultimodalInference.classify(evidence)
+            .firstOrNull { it.concept == "map_view" }
+        assertNotNull(result)
+        assertNotNull(result!!.region)
+        assertTrue(result.region!!.left < 0.1f)
+        assertTrue(result.region!!.bottom > 0.8f)
+    }
+
+    @Test
     fun combinesNotificationAndUiStructureToIdentifyChat() {
         val evidence = evidence(
             accessibilityClasses = listOf("androidx.recyclerview.widget.RecyclerView"),
@@ -68,7 +91,8 @@ class MultimodalInferenceTest {
         accessibilityClasses: List<String> = emptyList(),
         editableCount: Int = 0,
         notificationCategories: List<String> = emptyList(),
-        notificationCount: Int = 0
+        notificationCount: Int = 0,
+        accessibilityElements: List<AccessibilityElementEvidence> = emptyList()
     ) = LearningEvidence(
         packageName = "com.example.target",
         screenshotId = "shot-test",
@@ -79,6 +103,7 @@ class MultimodalInferenceTest {
         visualLabels = visualLabels,
         accessibilityClasses = accessibilityClasses,
         resourceIds = emptyList(),
+        accessibilityElements = accessibilityElements,
         clickableCount = 4,
         scrollableCount = 1,
         editableCount = editableCount,
