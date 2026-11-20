@@ -156,17 +156,15 @@ object MultimodalInference {
 
         phrases.forEach { (concept, terms) ->
             val matches = terms.filter { term ->
-                val candidate = term.lowercase(Locale.ROOT)
-                allText.contains(candidate) || normalised.contains(normalise(candidate))
+                containsTerm(normalised, term)
             }
             if (matches.isNotEmpty()) {
                 val candidate = candidates.getValue(concept)
                 candidate.score += min(2.6f, matches.distinct().size * 0.9f)
                 candidate.sources += "on_device_ocr"
                 evidence.lines.filter { line ->
-                    val lineText = line.text.lowercase(Locale.ROOT)
-                    matches.any { lineText.contains(it.lowercase(Locale.ROOT)) ||
-                        normalise(lineText).contains(normalise(it)) }
+                    val lineText = normalise(line.text)
+                    matches.any { containsTerm(lineText, it) }
                 }.forEach(candidate.lines::add)
             }
         }
@@ -241,20 +239,19 @@ object MultimodalInference {
                 sources += "notification_listener_metadata"
             }
         }
+        // Network and interaction signals corroborate concepts supported by visual/UI evidence;
+        // they must never invent a semantic category on their own.
         if (evidence.networkPacketCount >= 3) {
-            listOf("service_offer", "trip_status", "payment").forEach { concept ->
-                candidates.getValue(concept).apply {
-                    score += 0.25f
-                    sources += "correlated_network_activity"
-                }
+            candidates.values.filter { it.score > 0f }.forEach {
+                it.score += 0.18f
+                it.sources += "correlated_network_activity"
             }
         }
-        if (evidence.interactionType.contains("clicked") || evidence.interactionType.contains("selected")) {
-            listOf("service_offer", "confirmation_result", "search_interface").forEach { concept ->
-                candidates.getValue(concept).apply {
-                    score += 0.12f
-                    sources += "interaction_timeline"
-                }
+        if (evidence.interactionType.contains("clicked") || evidence.interactionType.contains("selected") ||
+            evidence.interactionType.contains("scrolled")) {
+            candidates.values.filter { it.score > 0f }.forEach {
+                it.score += 0.10f
+                it.sources += "interaction_timeline"
             }
         }
 
@@ -282,10 +279,41 @@ object MultimodalInference {
         val normalised = normalise(text)
         val features = linkedSetOf<String>()
         phrases.forEach { (concept, terms) ->
-            if (terms.any { normalised.contains(normalise(it)) }) features += "ocr:$concept"
+            if (terms.any { containsTerm(normalised, it) }) features += "ocr:$concept"
         }
         if (moneyPattern.containsMatchIn(text)) features += "ocr:currency_amount"
         if (Regex("""\b\d{1,2}[:.]\d{2}\b""").containsMatchIn(text)) features += "ocr:time_value"
+        val positionedLines = evidence.lines.filter {
+            it.top != null && it.bottom != null && it.left != null && it.right != null
+        }
+        if (positionedLines.size >= 12) features += "layout:dense_text"
+        if (positionedLines.size >= 5) features += "layout:multi_line_content"
+        val topText = positionedLines.count {
+            ((it.top!! + it.bottom!!) / 2f) < evidence.height * 0.18f
+        }
+        val bottomText = positionedLines.count {
+            ((it.top!! + it.bottom!!) / 2f) > evidence.height * 0.82f
+        }
+        if (topText > 0) features += "layout:top_text"
+        if (bottomText > 0) features += "layout:bottom_text"
+        val currencyLine = positionedLines.firstOrNull { moneyPattern.containsMatchIn(it.text) }
+        if (currencyLine != null && evidence.height > 0) {
+            val centre = (currencyLine.top!! + currencyLine.bottom!!) / 2f / evidence.height
+            features += when {
+                centre < 0.30f -> "layout:currency_top"
+                centre > 0.70f -> "layout:currency_bottom"
+                else -> "layout:currency_centre"
+            }
+        }
+        if (positionedLines.size >= 4) {
+            val centres = positionedLines.map { (it.top!! + it.bottom!!) / 2f }.sorted()
+            val gaps = centres.zipWithNext { first, second -> second - first }.filter { it > 0f }
+            if (gaps.size >= 3) {
+                val avg = gaps.average().toFloat()
+                val regular = gaps.count { kotlin.math.abs(it - avg) <= max(4f, avg * 0.30f) }
+                if (regular >= 3) features += "layout:repeated_rows"
+            }
+        }
         if (evidence.visualLabels.any { it.confidence >= 0.42f &&
                 (it.label.contains("map", true) || it.label.contains("road", true)) }) {
             features += "vision:map_or_road"
@@ -303,6 +331,19 @@ object MultimodalInference {
         if (evidence.editableCount > 0) features += "ui:editable_control"
         if (evidence.clickableCount >= 3) features += "ui:clickable_dense"
         if (evidence.scrollableCount > 0) features += "ui:scrollable"
+        evidence.accessibilityElements.forEach { element ->
+            val id = element.resourceId.lowercase(Locale.ROOT)
+            val className = element.className.lowercase(Locale.ROOT)
+            if (className.contains("map") || id.contains("map")) features += "ui:map_region"
+            if (listOf("price", "fare", "amount", "earning", "total", "cost").any(id::contains)) {
+                features += "ui:price_region"
+            }
+            if (element.clickable && listOf("accept", "offer", "request", "pickup", "confirm").any(id::contains)) {
+                features += "ui:action_control"
+            }
+            if (element.editable) features += "ui:input_region"
+            if (element.scrollable) features += "ui:scroll_region"
+        }
         if (evidence.interactionType.contains("clicked")) features += "event:click"
         if (evidence.interactionType.contains("scrolled")) features += "event:scroll"
         if (evidence.notificationCategories.any { it.contains("message", true) || it.contains("msg", true) }) {
@@ -387,6 +428,14 @@ object MultimodalInference {
             (line.right / width.toFloat()).coerceIn(0f, 1f),
             (line.bottom / height.toFloat()).coerceIn(0f, 1f)
         )
+    }
+
+    private fun containsTerm(normalisedText: String, term: String): Boolean {
+        val phrase = normalise(term)
+        if (phrase.isBlank()) return false
+        val pattern = Regex("(?<![\\\\p{L}\\\\p{N}])" + Regex.escape(phrase) +
+            "(?![\\\\p{L}\\\\p{N}])")
+        return pattern.containsMatchIn(normalisedText)
     }
 
     private fun normalise(value: String): String = value.lowercase(Locale.ROOT)
