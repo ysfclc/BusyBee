@@ -75,7 +75,8 @@ object MultimodalInference {
         "product_details", "order_details", "navigation", "settings",
         "media_player", "calendar_or_schedule", "document_or_receipt",
         "booking_or_reservation", "support_or_help", "error_or_warning",
-        "other_or_unknown"
+        "action_button", "input_field", "top_navigation", "bottom_navigation",
+        "content_card", "status_bar", "other_or_unknown"
     )
 
     private val phrases = mapOf(
@@ -152,6 +153,12 @@ object MultimodalInference {
         "booking_or_reservation" to listOf("booking", "reservation", "book now", "check in", "rezerwacja", "zarezerwuj", "rezervasyon", "şimdi ayırt"),
         "support_or_help" to listOf("help", "support", "contact us", "customer service", "pomoc", "kontakt", "yardım", "destek"),
         "error_or_warning" to listOf("error", "warning", "failed", "try again", "błąd", "ostrzeżenie", "niepowodzenie", "hata", "uyarı", "tekrar deneyin"),
+        "action_button" to listOf("continue", "submit", "confirm", "accept", "next", "save", "dalej", "zapisz", "potwierdź", "devam et", "kaydet"),
+        "input_field" to listOf("enter text", "type here", "search here", "wpisz", "wprowadź tekst", "metin girin", "ara"),
+        "top_navigation" to listOf("back", "menu", "home", "wstecz", "menu", "ana sayfa"),
+        "bottom_navigation" to listOf("home", "activity", "profile", "settings", "główna", "aktywność", "profil", "ayarlar"),
+        "content_card" to emptyList(),
+        "status_bar" to emptyList(),
         "other_or_unknown" to emptyList()
     )
 
@@ -368,6 +375,14 @@ object MultimodalInference {
         if (evidence.editableCount > 0) features += "ui:editable_control"
         if (evidence.clickableCount >= 3) features += "ui:clickable_dense"
         if (evidence.scrollableCount > 0) features += "ui:scrollable"
+        val topControls = evidence.accessibilityElements.count {
+            it.region != null && it.region.top < 0.18f && (it.clickable || it.resourceId.contains("toolbar", true))
+        }
+        val bottomControls = evidence.accessibilityElements.count {
+            it.region != null && it.region.bottom > 0.82f && (it.clickable || it.resourceId.contains("bottom", true))
+        }
+        if (topControls > 0) features += "layout:top_controls"
+        if (bottomControls > 0) features += "layout:bottom_controls"
         evidence.accessibilityElements.forEach { element ->
             val id = element.resourceId.lowercase(Locale.ROOT)
             val className = element.className.lowercase(Locale.ROOT)
@@ -445,6 +460,17 @@ object MultimodalInference {
                     .any(id::contains)
                 "payment" -> listOf("payment", "payout", "card", "bank", "wallet")
                     .any(id::contains)
+                "action_button" -> element.clickable || className.contains("button") ||
+                    listOf("button", "action", "submit", "confirm", "accept").any(id::contains)
+                "input_field" -> element.editable || className.contains("edittext") ||
+                    className.contains("textfield") || id.contains("input")
+                "top_navigation" -> element.region?.top?.let { it < 0.24f } == true &&
+                    listOf("toolbar", "appbar", "top_nav", "header", "navigation").any(id::contains)
+                "bottom_navigation" -> element.region?.bottom?.let { it > 0.76f } == true &&
+                    listOf("bottom_nav", "tab_bar", "navigation_bar", "bottom_navigation").any(id::contains)
+                "content_card" -> className.contains("card") || id.contains("_card") || id.contains("card_")
+                "status_bar" -> element.region?.top?.let { it < 0.06f } == true &&
+                    (className.contains("status") || id.contains("status_bar"))
                 else -> false
             }
         }.mapNotNull { it.region }
