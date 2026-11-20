@@ -57,4 +57,4 @@ From the repository root:
     chmod +x android/gradlew
     android/gradlew -p research/app-observer-capture/android --no-daemon testDebugUnitTest assembleDebug
 
-The generic privacy edition uses package ID `com.ysfclc.appobserver.capture.generic.debug` so it can be installed alongside the earlier capture test build. CI debug APKs use ephemeral signing keys and are not an update channel; use this edition's artifact as the baseline for device acceptance.
+The live-viewer debug variant uses package ID `com.ysfclc.appobserver.capture.generic.viewer.debug` and app label **App Observer Live Viewer**. It installs beside earlier App Observer packages and is visually distinguishable in the launcher. CI debug APKs still use ephemeral signing keys; a later build may need side-by-side installation or a persistent signing setup for seamless updates.
