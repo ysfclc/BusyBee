@@ -73,6 +73,23 @@ class MultimodalInferenceTest {
     }
 
     @Test
+    fun conceptMatchingUsesWordBoundariesToReduceSubstringFalsePositives() {
+        val evidence = evidence(
+            lines = listOf(OcrLineEvidence("maples and carpeting", 10, 20, 260, 60))
+        )
+        val predictions = MultimodalInference.classify(evidence)
+        assertFalse(predictions.any { it.concept == "map_view" })
+        assertFalse(predictions.any { it.concept == "service_offer" })
+    }
+
+    @Test
+    fun customConceptNamesAreNormalisedForLocalTraining() {
+        assertTrue(LocalLearningMemory.normaliseConceptLabel("Driver Heatmap") == "driver_heatmap")
+        assertTrue(LocalLearningMemory.normaliseConceptLabel("Mapa Żółć") == "mapa_zolc")
+        assertTrue(LocalLearningMemory.normaliseConceptLabel("***").isBlank())
+    }
+
+    @Test
     fun learningFeaturesNeverContainArbitraryRecognisedPersonalText() {
         val evidence = evidence(
             lines = listOf(OcrLineEvidence("Alice private@example.com message from Yusuf", 1, 1, 200, 30))
