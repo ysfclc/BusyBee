@@ -6,19 +6,21 @@ import org.junit.Test
 
 class AppCatalogTest {
     @Test
-    fun onlyResearchTargetsAreObserved() {
-        listOf("com.ubercab.driver", "ee.mtakso.driver", "com.waze",
-            "com.google.android.apps.maps")
-            .forEach { assertTrue(AppCatalog.isObservedPackage(it)) }
-        listOf("com.whatsapp", "com.whatsapp.w4b", "com.ubercab.eats",
-            "com.instagram.android", "com.android.settings", null)
-            .forEach { assertFalse(AppCatalog.isObservedPackage(it)) }
+    fun selectedPackageFilterWorksForAnyAppWithoutProviderAllowlist() {
+        assertTrue(AppCatalog.isSessionTarget("com.whatsapp", "com.whatsapp"))
+        assertTrue(AppCatalog.isSessionTarget("com.android.settings", "com.android.settings"))
+        assertTrue(AppCatalog.isSessionTarget("org.example.unknownapp", "org.example.unknownapp"))
+        assertFalse(AppCatalog.isSessionTarget("com.whatsapp", "com.instagram.android"))
+        assertFalse(AppCatalog.isSessionTarget(null, "com.whatsapp"))
+        assertFalse(AppCatalog.isSessionTarget("com.whatsapp", null))
     }
 
     @Test
-    fun contentPolicyDescribesSessionScopedOptInCapture() {
-        assertTrue(AppCatalog.CONTENT_POLICY.contains("selected driver"))
-        assertTrue(AppCatalog.CONTENT_POLICY.contains("explicit session toggle"))
-        assertTrue(AppCatalog.CONTENT_POLICY.contains("password fields"))
+    fun contentPolicyDescribesStructureOnlyPrivacy() {
+        assertTrue(AppCatalog.CONTENT_POLICY.contains("explicitly selected"))
+        assertTrue(AppCatalog.CONTENT_POLICY.contains("manually started session"))
+        assertTrue(AppCatalog.CONTENT_POLICY.contains("typed values"))
+        assertTrue(AppCatalog.CONTENT_POLICY.contains("network payloads"))
+        assertTrue(AppCatalog.CONTENT_POLICY.contains("raw packet captures"))
     }
 }
