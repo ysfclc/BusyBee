@@ -394,11 +394,23 @@ class MainActivity : Activity() {
         val android = report.getJSONObject("android")
         val accessibilityText = if (access.optBoolean("accessibilityEnabled")) "enabled" else "not enabled"
         val notificationText = if (access.optBoolean("notificationAccessEnabled")) "enabled" else "not enabled"
+        val captureCounters = report.optJSONObject("uiCaptureDiagnostics")
+            ?.optJSONObject("counters") ?: JSONObject()
+        val received = captureCounters.optLong("events_received")
+        val matched = captureCounters.optLong("events_target_match")
+        val roots = captureCounters.optLong("root_acquired")
+        val snapshots = captureCounters.optLong("hierarchy_snapshots")
+        val writeFailures = captureCounters.optLong("ui_write_failures")
+        val pipelineFailures = captureCounters.optLong("pipeline_failures")
+        val pipelineSummary = "UI pipeline: " + received + " events · " + matched +
+            " target matches · " + roots + " roots · " + snapshots +
+            " snapshots · " + writeFailures + " write failures · " + pipelineFailures + " processing failures"
         reportPreview.text = listOf(
             "Android " + android.optString("release") + " · API " + android.optInt("apiLevel"),
             "Accessibility: " + accessibilityText,
             "Notification metadata: " + notificationText,
-            "Target discovery: dynamic launchable-app list + explicit self-test"
+            "Target discovery: dynamic launchable-app list + explicit self-test",
+            pipelineSummary
         ).joinToString("\n")
 
         val active = ObservationStore.hasActiveSession(this)
@@ -417,12 +429,14 @@ class MainActivity : Activity() {
         sessionStatus.text = if (active) {
             "OBSERVING · " + (observedTarget ?: "selected app") +
                 "\nUI structure events: " + uiCount + " · network metadata events: " + networkCount +
+                "\n" + pipelineSummary +
                 "\nTCP exporter: " + PcapdroidCaptureService.liveStatus() +
                 " · packet headers inspected: " + PcapdroidCaptureService.livePackets() +
                 " · packet bytes represented: " + PcapdroidCaptureService.liveBytes()
         } else if (directory != null) {
             "LAST SESSION · " + (observedTarget ?: "selected app") +
                 "\nUI structure events: " + uiCount + " · network metadata events: " + networkCount +
+                "\n" + pipelineSummary +
                 "\nExport creates a privacy-minimised evidence bundle. No raw PCAP is retained by this build."
         } else {
             "No active session."
