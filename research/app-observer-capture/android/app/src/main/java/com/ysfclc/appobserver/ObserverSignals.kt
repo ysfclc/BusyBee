@@ -24,7 +24,11 @@ object ObserverSignals {
         "node_property_failures", "child_access_failures", "hierarchy_snapshots",
         "empty_hierarchies", "unchanged_structure_events", "ui_write_attempts",
         "ui_write_successes", "ui_write_failures", "pipeline_failures",
-        "screenshots_attempted", "screenshots_stored", "screenshots_failed", "screenshots_rate_limited"
+        "screenshots_attempted", "screenshots_stored", "screenshots_failed", "screenshots_rate_limited",
+        "screen_analysis_attempts", "screen_ocr_successes", "screen_ocr_failures",
+        "screen_image_label_successes", "screen_image_label_failures",
+        "screen_insights_written", "screen_analysis_failures",
+        "screen_states_reused", "screen_states_created"
     )
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
