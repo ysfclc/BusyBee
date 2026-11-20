@@ -230,26 +230,44 @@ object ScreenUnderstandingService {
         val nodes = latestTree?.optJSONArray("nodes") ?: JSONArray()
         val accessibilityClasses = ArrayList<String>()
         val resourceIds = ArrayList<String>()
+        val accessibilityElements = ArrayList<AccessibilityElementEvidence>()
         val protected = ArrayList<Rect>()
         var clickable = 0
         var scrollable = 0
         var editable = 0
         for (index in 0 until nodes.length()) {
             val node = nodes.optJSONObject(index) ?: continue
-            node.optString("className").takeIf { it.isNotBlank() && it != "null" }
-                ?.let(accessibilityClasses::add)
-            node.optString("viewId").takeIf { it.isNotBlank() && it != "null" }
-                ?.let(resourceIds::add)
-            if (node.optBoolean("clickable")) clickable++
-            if (node.optBoolean("scrollable")) scrollable++
-            if (node.optBoolean("editable")) editable++
-            if (node.optBoolean("editable") || node.optBoolean("password")) {
-                val bounds = node.optJSONObject("bounds") ?: continue
+            val className = node.optString("className").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
+            val resourceId = node.optString("viewId").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
+            className.takeIf { it.isNotBlank() }?.let(accessibilityClasses::add)
+            resourceId.takeIf { it.isNotBlank() }?.let(resourceIds::add)
+            val clickableNode = node.optBoolean("clickable")
+            val scrollableNode = node.optBoolean("scrollable")
+            val editableNode = node.optBoolean("editable")
+            val passwordNode = node.optBoolean("password")
+            if (clickableNode) clickable++
+            if (scrollableNode) scrollable++
+            if (editableNode) editable++
+            val bounds = node.optJSONObject("bounds")
+            if (bounds != null) {
                 val rect = Rect(
                     bounds.optInt("left"), bounds.optInt("top"),
                     bounds.optInt("right"), bounds.optInt("bottom")
                 )
-                if (!rect.isEmpty) protected += rect
+                if (!rect.isEmpty) {
+                    if (editableNode || passwordNode) protected += rect
+                    val region = if (screenshot.width > 0 && screenshot.height > 0) {
+                        NormalisedRegion(
+                            (rect.left / screenshot.width.toFloat()).coerceIn(0f, 1f),
+                            (rect.top / screenshot.height.toFloat()).coerceIn(0f, 1f),
+                            (rect.right / screenshot.width.toFloat()).coerceIn(0f, 1f),
+                            (rect.bottom / screenshot.height.toFloat()).coerceIn(0f, 1f)
+                        ).takeIf { it.left < it.right && it.top < it.bottom }
+                    } else null
+                    accessibilityElements += AccessibilityElementEvidence(
+                        className, resourceId, region, clickableNode, scrollableNode, editableNode
+                    )
+                }
             }
         }
 
@@ -323,6 +341,7 @@ object ScreenUnderstandingService {
             visualLabels = visualLabels,
             accessibilityClasses = accessibilityClasses,
             resourceIds = resourceIds,
+            accessibilityElements = accessibilityElements,
             clickableCount = clickable,
             scrollableCount = scrollable,
             editableCount = editable,
