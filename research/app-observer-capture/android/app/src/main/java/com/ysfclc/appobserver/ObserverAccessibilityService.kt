@@ -222,7 +222,6 @@ class ObserverAccessibilityService : AccessibilityService() {
             eventType == AccessibilityEvent.TYPE_VIEW_SELECTED
 
         if (shouldWriteSnapshot) {
-            lastFingerprint[packageName] = fingerprint
             val record = baseEvent(event, packageName, eventName, now)
                 .put("windowAvailable", true)
                 .put("snapshotChanged", true)
@@ -234,7 +233,8 @@ class ObserverAccessibilityService : AccessibilityService() {
                 .put("nodes", nodes)
             sourceRecord?.let { record.put("sourceNode", it) }
             ObserverSignals.recordCaptureDiagnostic(this, "hierarchy_snapshots")
-            persistUiEvent(this, record)
+            if (persistUiEvent(this, record)) lastFingerprint[packageName] = fingerprint
+            else lastFingerprint.remove(packageName)
         } else if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
             eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
             eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
@@ -257,13 +257,15 @@ class ObserverAccessibilityService : AccessibilityService() {
             defaultValue
         }
 
-    private fun persistUiEvent(context: Context, record: JSONObject) {
+    private fun persistUiEvent(context: Context, record: JSONObject): Boolean {
         ObserverSignals.recordCaptureDiagnostic(context, "ui_write_attempts")
         val result = runCatching { ObservationStore.appendUiEvent(context, record) }
-        if (result.isSuccess) {
+        return if (result.isSuccess) {
             ObserverSignals.recordCaptureDiagnostic(context, "ui_write_successes")
+            true
         } else {
             ObserverSignals.recordCaptureDiagnostic(context, "ui_write_failures")
+            false
         }
     }
 
