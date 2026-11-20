@@ -17,8 +17,8 @@ android {
         applicationId = "com.ysfclc.appobserver.capture"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.4.0-visual-rules"
+        versionCode = 8
+        versionName = "0.5.0-multimodal"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
