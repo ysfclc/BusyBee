@@ -48,7 +48,7 @@ object ObservationStore {
                 .put("startedAtEpochMs", now)
                 .put("targetPackage", packageName)
                 .put("targetLabel", label)
-                .put("observationProfile", "screenshots_structure_and_user_ruled_semantics")
+                .put("observationProfile", "multimodal_machine_understanding_with_local_learning")
                 .put("device", JSONObject()
                     .put("androidRelease", android.os.Build.VERSION.RELEASE)
                     .put("apiLevel", android.os.Build.VERSION.SDK_INT))
@@ -142,6 +142,22 @@ object ObservationStore {
 
     fun latestScreenshot(context: Context): StoredScreenshot? =
         screenshots(context, limit = 1).lastOrNull()
+
+    /** Resolve only known evidence streams inside one validated session directory. */
+    fun evidenceFile(context: Context, sessionId: String, name: String): File? {
+        if (sessionId.isBlank() || !name.matches(Regex("[A-Za-z0-9._-]+\\.jsonl"))) return null
+        if (name !in setOf("ui-events.jsonl", "network-events.jsonl", "semantic-payloads.jsonl",
+                "screen-understanding.jsonl", "events.jsonl")) return null
+        return File(sessionDirectory(context, sessionId), name).takeIf { it.isFile }
+    }
+
+    /** Analysis may finish after STOP; keep its result attached to the originating session. */
+    fun appendUnderstanding(context: Context, sessionId: String, record: JSONObject): Boolean =
+        synchronized(lock) {
+            val directory = sessionDirectory(context, sessionId)
+            if (!directory.isDirectory) return@synchronized false
+            runCatching { appendLine(File(directory, "screen-understanding.jsonl"), record) }.isSuccess
+        }
 
     fun storeScreenshot(
         context: Context,
@@ -296,12 +312,15 @@ object ObservationStore {
                     zip.closeEntry()
                 }
                 listOf("events.jsonl", "ui-events.jsonl", "network-events.jsonl",
-                    "semantic-payloads.jsonl").forEach { name ->
+                    "semantic-payloads.jsonl", "screen-understanding.jsonl").forEach { name ->
                     val file = File(directory, name)
                     if (file.isFile) writeSanitisedJsonLines(zip, name, file)
                 }
                 zip.putNextEntry(ZipEntry("semantic-rules.json"))
                 zip.write(SemanticRuleStore.exportJson(context).toString(2).toByteArray(Charsets.UTF_8))
+                zip.closeEntry()
+                zip.putNextEntry(ZipEntry("learning-model.json"))
+                zip.write(LocalLearningMemory.exportJson(context).toString(2).toByteArray(Charsets.UTF_8))
                 zip.closeEntry()
                 addScreenshotFiles(zip, directory)
 
@@ -336,7 +355,7 @@ object ObservationStore {
                     val entry = zip.nextEntry ?: break
                     val name = entry.name.replace('\\', '/')
                     val safePath = name.matches(Regex(
-                        "(session\\.json|events\\.jsonl|ui-events\\.jsonl|network-events\\.jsonl|semantic-payloads\\.jsonl|semantic-rules\\.json|device-capability-report\\.json|PRIVACY-AND-REVIEW\\.txt|screenshots/[A-Za-z0-9_-]+\\.jpg|screenshots/index\\.jsonl)"
+                        "(session\\.json|events\\.jsonl|ui-events\\.jsonl|network-events\\.jsonl|semantic-payloads\\.jsonl|screen-understanding\\.jsonl|learning-model\\.json|semantic-rules\\.json|device-capability-report\\.json|PRIVACY-AND-REVIEW\\.txt|screenshots/[A-Za-z0-9_-]+\\.jpg|screenshots/index\\.jsonl)"
                     ))
                     if (!entry.isDirectory && safePath) {
                         val target = File(directory, name)
@@ -364,6 +383,8 @@ object ObservationStore {
                             sanitiseJsonLinesInPlace(target)
                         } else if (name == "semantic-rules.json") {
                             runCatching { SemanticRuleStore.importJson(context, JSONObject(target.readText())) }
+                        } else if (name == "learning-model.json") {
+                            runCatching { LocalLearningMemory.importJson(context, JSONObject(target.readText())) }
                         }
                     }
                     zip.closeEntry()
