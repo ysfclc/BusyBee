@@ -34,6 +34,7 @@ object ScreenUnderstandingService {
     }
     private const val CORRELATION_WINDOW_MS = 8_000L
     private const val MAX_JSONL_TAIL_BYTES = 1_048_576L
+    private const val MAX_UI_TREE_AGE_MS = 3_000L
 
     fun analyse(context: Context, sessionId: String, screenshot: StoredScreenshot) {
         if (!inFlight.add(screenshot.id)) return
@@ -225,10 +226,12 @@ object ScreenUnderstandingService {
     ): LearningEvidence {
         val uiRecords = readRecords(context, sessionId, "ui-events.jsonl", 180)
         val screenshotTime = screenshot.timestampEpochMs
-        val latestTree = uiRecords.lastOrNull {
-            it.optJSONArray("nodes") != null &&
-                it.optLong("timestampEpochMs") <= screenshotTime + 2_000L
-        }
+        val latestTree = uiRecords.asSequence()
+            .filter { it.optJSONArray("nodes") != null }
+            .minByOrNull { kotlin.math.abs(it.optLong("timestampEpochMs") - screenshotTime) }
+            ?.takeIf {
+                kotlin.math.abs(it.optLong("timestampEpochMs") - screenshotTime) <= MAX_UI_TREE_AGE_MS
+            }
         val nodes = latestTree?.optJSONArray("nodes") ?: JSONArray()
         val accessibilityClasses = ArrayList<String>()
         val resourceIds = ArrayList<String>()
@@ -300,13 +303,15 @@ object ScreenUnderstandingService {
         val notificationCategories = notifications.mapNotNull {
             it.optString("category").takeIf { category -> category.isNotBlank() && category != "null" }
         }
-        val recentUi = uiRecords.lastOrNull {
-            it.optLong("timestampEpochMs") in from..to &&
-                it.optString("eventType") in setOf(
-                    "view_clicked", "view_long_clicked", "view_selected", "view_scrolled",
-                    "view_focused", "window_state_changed", "window_content_changed"
-                )
-        }
+        val recentUi = uiRecords.asSequence()
+            .filter {
+                it.optLong("timestampEpochMs") in from..to &&
+                    it.optString("eventType") in setOf(
+                        "view_clicked", "view_long_clicked", "view_selected", "view_scrolled",
+                        "view_focused", "window_state_changed", "window_content_changed"
+                    )
+            }
+            .minByOrNull { kotlin.math.abs(it.optLong("timestampEpochMs") - screenshotTime) }
         val interactionSource = recentUi?.optJSONObject("sourceNode")
         interactionSource?.optString("className")
             ?.takeIf { it.isNotBlank() && it != "null" }?.let(accessibilityClasses::add)
