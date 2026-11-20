@@ -1,20 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- INTERNET is used only for the loopback UDP socket receiving PCAPdroid packets. -->
+    <!-- Required only for the loopback TCP connection from PCAPdroid's exporter. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
-        <package android:name="com.ubercab.driver" />
-        <package android:name="ee.mtakso.driver" />
-        <package android:name="com.waze" />
-        <package android:name="com.google.android.apps.maps" />
+        <!-- Discover any app with a launcher entry; avoid QUERY_ALL_PACKAGES. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
         <package android:name="com.emanuelef.remote_capture" />
         <package android:name="com.emanuelef.remote_capture.debug" />
     </queries>
@@ -40,7 +38,7 @@
 
         <service
             android:name=".ObserverNotificationListener"
-            android:label="App Observer selected-app notifications"
+            android:label="App Observer selected-app notification metadata"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="true">
             <intent-filter>
@@ -50,7 +48,7 @@
 
         <service
             android:name=".ObserverAccessibilityService"
-            android:label="App Observer read-only UI observer"
+            android:label="App Observer read-only UI structure observer"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true">
             <intent-filter>
