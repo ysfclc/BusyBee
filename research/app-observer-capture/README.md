@@ -52,4 +52,4 @@ From the repository root:
     chmod +x android/gradlew
     android/gradlew -p research/app-observer-capture/android --no-daemon testDebugUnitTest assembleDebug
 
-CI debug APK is a test artifact, not a stable update channel; CI debug signing keys can differ between runs.
+The generic privacy edition uses package ID `com.ysfclc.appobserver.capture.generic.debug` so it can be installed alongside the earlier capture test build. CI debug APKs use ephemeral signing keys and are not an update channel; use this edition's artifact as the baseline for device acceptance.
