@@ -9,7 +9,7 @@ The user names regions and chooses which additional evidence may be attached. A 
 ## Screenshot capture
 
 - A manually started session for one selected app captures the full visible display after relevant Accessibility events (window changes, clicks, scrolls, selections and text-change notifications).
-- Capture is rate-limited to approximately one screenshot request per 1.2 seconds.
+- Capture is rate-limited to approximately one screenshot request per 1.2 seconds, with one bounded retry when Android explicitly reports that the request interval was too short.
 - Screenshots are requested through Android's AccessibilityService screenshot API on Android 11/API 30 and later.
 - Screenshot bytes are stored as JPEG files in the selected session's private app storage. Each screenshot is linked to its event by screenshot ID, timestamp, target/system-surface scope, image dimensions and event type.
 - A screenshot can contain sensitive information that is visibly rendered. Screenshots remain local and are included in an export only when the user explicitly exports the evidence bundle.
