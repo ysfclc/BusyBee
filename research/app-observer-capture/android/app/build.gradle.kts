@@ -9,13 +9,13 @@ android {
         applicationId = "com.ysfclc.appobserver.capture"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.1-capture"
+        versionCode = 4
+        versionName = "0.3.0-generic-privacy"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
+            applicationIdSuffix = ".generic.debug"
             versionNameSuffix = "-debug"
         }
         release { isMinifyEnabled = false }
