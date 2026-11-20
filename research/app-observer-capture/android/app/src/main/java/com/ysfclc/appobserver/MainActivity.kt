@@ -442,7 +442,8 @@ class MainActivity : Activity() {
             SemanticRuleStore.all(this).filter {
                 it.packageName == selected.packageName &&
                     it.matchesScreenLayout(selected.width, selected.height)
-            }
+            },
+            ScreenUnderstandingService.regionsForScreenshot(this, selected.id)
         )
     }
 
@@ -462,14 +463,36 @@ class MainActivity : Activity() {
             style = Paint.Style.FILL
             setShadowLayer(4f, 1f, 1f, Color.BLACK)
         }
+        private val machineFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x332F8CFF
+            style = Paint.Style.FILL
+        }
+        private val machineBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(92, 164, 255)
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+        }
+        private val machineText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 26f
+            style = Paint.Style.FILL
+            setShadowLayer(4f, 1f, 1f, Color.BLACK)
+        }
         private var bitmapWidth = 0
         private var bitmapHeight = 0
         private var rules: List<SemanticRule> = emptyList()
+        private var machineRegions: List<MachineRegion> = emptyList()
 
-        fun configure(width: Int, height: Int, rules: List<SemanticRule>) {
+        fun configure(
+            width: Int,
+            height: Int,
+            rules: List<SemanticRule>,
+            machineRegions: List<MachineRegion>
+        ) {
             bitmapWidth = width
             bitmapHeight = height
             this.rules = rules
+            this.machineRegions = machineRegions
             invalidate()
         }
 
@@ -494,6 +517,21 @@ class MainActivity : Activity() {
                 canvas.drawRect(rect, border)
                 val baseline = (rect.top - 8f).coerceAtLeast(text.textSize)
                 canvas.drawText(rule.label, rect.left + 6f, baseline, text)
+            }
+            machineRegions.forEach { machine ->
+                val region = machine.region
+                val rect = RectF(
+                    leftInset + region.left * bitmapWidth * scale,
+                    topInset + region.top * bitmapHeight * scale,
+                    leftInset + region.right * bitmapWidth * scale,
+                    topInset + region.bottom * bitmapHeight * scale
+                )
+                canvas.drawRect(rect, machineFill)
+                canvas.drawRect(rect, machineBorder)
+                val percentage = (machine.confidence * 100f).toInt()
+                val label = machine.label.take(28) + " · " + percentage + "%"
+                val baseline = (rect.top - 7f).coerceAtLeast(machineText.textSize)
+                canvas.drawText(label, rect.left + 6f, baseline, machineText)
             }
         }
     }
@@ -659,7 +697,7 @@ class MainActivity : Activity() {
                 selectedScreenshotIndex = -1
                 displayedScreenshotPath = null
                 screenshotPreview.setImageDrawable(null)
-                screenshotRuleOverlay.configure(0, 0, emptyList())
+                screenshotRuleOverlay.configure(0, 0, emptyList(), emptyList())
                 screenshotCaption.text = "No screenshots yet. Start a session, switch to the selected app and interact with it."
                 screenshotNavigation.text = "No screenshot selected."
             } else {
