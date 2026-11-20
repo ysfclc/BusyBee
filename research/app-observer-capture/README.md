@@ -1,20 +1,24 @@
 # App Observer — Android Capture
 
-App Observer is a generic, read-only Android behaviour recorder. It is not limited to a predefined provider list. The user selects one launchable app and manually starts/stops each observation session.
+App Observer is a generic Android application-understanding instrument, not a provider-specific recorder. The user selects one launchable app and manually starts/stops each observation session. During a session, on-device models identify candidate screen concepts and learn recurring states from combined visual, Accessibility, interaction, notification and network evidence.
 
 ## Current evidence sources
 
 - Full-display screenshots requested through the Android Accessibility screenshot API (Android 11/API 30+), rate-limited to roughly 1.2 seconds after meaningful UI events, with one bounded retry when Android reports a short interval.
 - Accessibility hierarchy and structural event metadata for the selected app.
-- User-authored screenshot-region meaning rules.
+- Bundled on-device OCR and image labelling, with raw OCR text discarded after inference.
+- Machine-inferred screen concepts with confidence, evidence provenance and OCR-derived region bounds.
+- Persistent per-app recurring-state clusters and interaction-linked transition counts.
+- Optional user corrections that train a local classifier from privacy-safe feature vectors.
+- User-authored screenshot-region meaning rules as optional annotations/permissions, not prerequisites for classification.
 - Notification envelope metadata by default; notification content only when a user rule explicitly selects notification_text.
 - Optional PCAPdroid packet-header metadata only. No raw PCAP, raw addresses, TLS decryption or application payloads.
 
-Android may block screenshots of secure or protected windows. An empty or unavailable Accessibility hierarchy does not imply the screenshot is blank.
+Android may block screenshots of secure or protected windows. An empty or unavailable Accessibility hierarchy does not imply the screenshot is blank. OCR and image labelling run locally. Editable/password node bounds are excluded from OCR when exposed; raw OCR strings are not written to evidence. Inferred concepts, confidence, provenance, safe feature vectors and selected amounts may be retained locally.
 
 ## Meaning rules
 
-Open the latest screenshot and choose DEFINE MEANING FROM THIS SCREENSHOT. Draw a region and assign any label, for example chat, notification bar, offer card, amount, map or a custom category.
+The machine identifies screen concepts automatically. DEFINE MEANING FROM THIS SCREENSHOT remains an optional way to define a region or explicitly authorise extra Accessibility/notification text for that region. Use CORRECT / TEACH THE LOCAL MODEL to train from an incorrect whole-screen classification.
 
 Choose one evidence source:
 - Visual screenshot only: retain the region and meaning label; do not read text.
@@ -41,7 +45,9 @@ Rules are stored locally outside individual sessions and are included in exporte
 - semantic-payloads.jsonl: only content explicitly authorised by a matching meaning rule.
 - semantic-rules.json: exported user-authored rules.
 - network-events.jsonl: allowlisted packet-header metadata when PCAPdroid is active.
-- device-capability-report.json: Android/device capability snapshot.
+- screen-understanding.jsonl: machine concepts, confidence, sources, OCR regions, selected entities, fused evidence and learned state/transition references (no raw OCR text).
+- learning-model.json: persistent per-app screen clusters, transitions and reviewed classifier training counts/features.
+- device-capability-report.json: Android/device capability and inference diagnostics.
 - PRIVACY-AND-REVIEW.txt: export review requirements.
 
 ## Build and release signing
