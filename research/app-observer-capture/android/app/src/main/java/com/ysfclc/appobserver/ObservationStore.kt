@@ -66,13 +66,21 @@ object ObservationStore {
                     .put("screenshotsStored", true)
                     .put("captureMethod", "android_accessibility_service_screenshot_api")
                     .put("userDefinedSemanticRules", true)
-                    .put("semanticTextReadOnlyForExplicitRules", true))
+                                        .put("semanticTextReadOnlyForExplicitRules", true)
+                    .put("machineUnderstandingEnabled", true)
+                    .put("onDeviceOcrAndImageLabelling", true)
+                    .put("rawRecognisedTextPersisted", false)
+                    .put("multimodalConceptAndStateEvidence", true))
                 .put("privacy", JSONObject()
                     .put("localOnly", true)
                     .put("visibleTextStoredByDefault", false)
                     .put("typedValuesStoredByDefault", false)
                     .put("notificationContentStoredByDefault", false)
-                    .put("semanticPayloadsRequireUserRule", true)
+                                        .put("semanticPayloadsRequireUserRule", true)
+                    .put("machineOcrRunsLocally", true)
+                    .put("rawOcrTextPersisted", false)
+                    .put("machineConceptsPersisted", true)
+                    .put("learningFeaturesContainRawText", false)
                     .put("screenshotsStored", true)
                     .put("clipboardStored", false)
                     .put("networkPayloadStored", false)
@@ -330,10 +338,12 @@ object ObservationStore {
                 zip.closeEntry()
 
                 val notice = ("User-reviewed App Observer evidence bundle. Screenshots are stored as visual evidence. " +
-                    "Text payloads are present only for regions where the user created an explicit meaning rule allowing " +
-                    "Accessibility text or notification content. These payloads may contain private information; review " +
-                    "the bundle before sharing. No network payloads, raw IP addresses or raw PCAP files are included. " +
-                    "Semantic rules and their screenshot region selectors are included so the evidence can be interpreted.").toByteArray(Charsets.UTF_8)
+                    "Bundled OCR and image labelling run on-device. Raw recognised screen text is not persisted; the " +
+                    "screen-understanding stream stores inferred concepts, confidence, evidence provenance, screen-state " +
+                    "clusters, transitions, privacy-safe training features and selected extracted entities such as prices. " +
+                    "The persistent learning model is included. Explicitly authorised Accessibility or notification text " +
+                    "may also be present in semantic-payloads.jsonl and can contain private information. Review the bundle " +
+                    "before sharing. No network payloads, raw IP addresses or raw PCAP files are included.").toByteArray(Charsets.UTF_8)
                 zip.putNextEntry(ZipEntry("PRIVACY-AND-REVIEW.txt"))
                 zip.write(notice)
                 zip.closeEntry()
