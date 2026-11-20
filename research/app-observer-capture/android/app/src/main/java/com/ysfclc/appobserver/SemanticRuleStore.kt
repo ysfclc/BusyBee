@@ -159,7 +159,7 @@ object SemanticRuleStore {
                 SemanticRule.SOURCE_NOTIFICATION_TEXT -> "notification text allowed"
                 else -> "visual only"
             }
-            "• \${it.label} · \${it.packageName.substringAfterLast('.')} · $source"
+            "• ${it.label} · ${it.packageName.substringAfterLast('.')} · $source"
         }
     }
 
