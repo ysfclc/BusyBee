@@ -81,7 +81,7 @@ object PcapdroidPacketParser {
                 ByteOrder.BIG_ENDIAN to true
             else -> return null
         }
-        val linkType = ByteBuffer.wrap(bytes, 20, 4).order(orderAndResolution.first).int and 0xffff
+        val linkType = ByteBuffer.wrap(bytes).order(orderAndResolution.first).getInt(20) and 0xffff
         return PcapFileHeader(orderAndResolution.first, linkType, orderAndResolution.second)
     }
 
