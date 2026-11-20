@@ -134,12 +134,13 @@ class MainActivity : Activity() {
         root.addView(section("PRIVACY BY DEFAULT"))
         root.addView(card().apply {
             addView(statusLine("Full visual screenshots during a manual session", true))
-            addView(statusLine("Text outside user-defined meaning regions", false))
-            addView(statusLine("Text inside explicitly authorised regions", true))
+            addView(statusLine("On-device OCR and image models analyse visible screens", true))
+            addView(statusLine("Raw OCR text written to evidence", false))
+            addView(statusLine("Accessibility / notification text without explicit rules", false))
             addView(statusLine("Clipboard, raw network payloads and TLS decryption", false))
             addView(statusLine("Raw IP addresses and raw PCAP files", false))
             addView(label(
-                "Screenshots are visual ground truth and can contain sensitive information visible on screen. Text payloads are read only inside regions where you create an explicit rule. Rules, screenshots and evidence remain in private app storage until you export them.",
+                "The device temporarily reads visible text locally to identify screen concepts. Raw OCR text is discarded; inferred categories, confidence, screen-state patterns and selected entities such as prices are retained in private storage. Accessibility and notification text payloads still require explicit rules. Screenshots can contain sensitive information; review exports before sharing.",
                 11f, MUTED, false
             ).apply { setPadding(0, dp(10), 0, 0) })
         })
