@@ -66,7 +66,7 @@ object LocalLearningMemory {
                 .put("lastSeenAtEpochMs", timestampEpochMs)
                 .put("lastSimilarity", bestSimilarity.toDouble())
             val merged = (state.optJSONArray("features").toStringSet() + currentFeatures)
-                .takeLast(MAX_FEATURES_PER_STATE)
+                .toList().takeLast(MAX_FEATURES_PER_STATE).toSet()
             state.put("features", JSONArray(merged))
         } else {
             state = JSONObject()
