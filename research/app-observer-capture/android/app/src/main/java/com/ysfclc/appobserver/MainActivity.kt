@@ -231,6 +231,9 @@ class MainActivity : Activity() {
                 "The device analyses screenshots with on-device OCR and image labelling, then correlates Accessibility structure, interactions, authorised notification content and nearby network activity. Repeated screens and transitions become persistent learned states. Raw OCR text is not saved.",
                 11f, MUTED, false
             ).apply { setPadding(0, dp(8), 0, 0) })
+            addView(action("CORRECT / TEACH THE LOCAL MODEL") {
+                startActivity(Intent(this@MainActivity, LearningCorrectionActivity::class.java))
+            })
         })
 
         root.addView(section("CAPTURED DATA · LIVE VIEW"))
