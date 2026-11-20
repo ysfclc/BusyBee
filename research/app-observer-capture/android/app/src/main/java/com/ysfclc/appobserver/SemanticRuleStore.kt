@@ -63,6 +63,7 @@ data class SemanticRule(
 }
 
 object SemanticRuleStore {
+    const val SYSTEM_SURFACE_PACKAGE = "__android_system_surface__"
     private const val PREFS = "app_observer_semantic_rules"
     private const val RULES_KEY = "rules_json"
     private const val MAX_RULES = 500
@@ -133,6 +134,9 @@ object SemanticRuleStore {
 
     fun notificationRules(context: Context, packageName: String): List<SemanticRule> =
         all(context).filter { it.packageName == packageName && it.capturesNotificationText }
+
+    fun hasSystemSurfaceRules(context: Context): Boolean =
+        all(context).any { it.packageName == SYSTEM_SURFACE_PACKAGE }
 
     fun exportJson(context: Context): JSONObject = JSONObject()
         .put("schema", "app-observer-semantic-rules/v1")
