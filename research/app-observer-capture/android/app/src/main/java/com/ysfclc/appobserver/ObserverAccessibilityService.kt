@@ -9,6 +9,8 @@ import android.graphics.Rect
 import android.os.Build
 import android.view.Display
 import android.os.SystemClock
+import android.util.DisplayMetrics
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import org.json.JSONArray
@@ -184,10 +186,14 @@ class ObserverAccessibilityService : AccessibilityService() {
                     // Content is read only when this exact screen region has a user-authored
                     // rule that explicitly permits Accessibility text capture.
                     if (!isPassword && !bounds.isEmpty) {
+                        val realMetrics = DisplayMetrics()
+                        @Suppress("DEPRECATION")
+                        (getSystemService(WINDOW_SERVICE) as WindowManager)
+                            .defaultDisplay.getRealMetrics(realMetrics)
                         val allowedRules = SemanticRuleStore.matchingAccessibilityRules(
                             this, packageName, bounds,
-                            resources.displayMetrics.widthPixels,
-                            resources.displayMetrics.heightPixels
+                            realMetrics.widthPixels,
+                            realMetrics.heightPixels
                         )
                         if (allowedRules.isNotEmpty()) {
                             val nodeText = readNode(this, null as String?) {
