@@ -7,8 +7,9 @@ App Observer is a generic, read-only Android behaviour recorder for BusyBee engi
 - Repository: ysfclc/BusyBee
 - Branch: fix/app-observer-capture-0.2.1
 - Project: research/app-observer-capture/android
-- Debug package: com.ysfclc.appobserver.capture.debug
-- Version: 0.2.1-capture (versionCode 3)
+- Generic debug package: com.ysfclc.appobserver.capture.generic.debug
+- Version: 0.3.0-generic-privacy (versionCode 4)
+- Package is intentionally distinct so it installs alongside earlier capture/survey test editions; GitHub debug signatures remain ephemeral.
 
 ## Recovery and product decisions
 - Keep the original research/app-observer survey app untouched.
