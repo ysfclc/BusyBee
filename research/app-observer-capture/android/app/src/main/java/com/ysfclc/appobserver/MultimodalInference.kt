@@ -66,6 +66,13 @@ data class ConceptHypothesis(
     val region: NormalisedRegion?
 )
 
+data class MachineRegion(
+    val label: String,
+    val confidence: Float,
+    val region: NormalisedRegion,
+    val evidenceSource: String
+)
+
 object MultimodalInference {
     val concepts = listOf(
         "chat_conversation", "price_or_fare", "map_view", "route_summary",
