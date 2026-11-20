@@ -45,6 +45,7 @@ class MainActivity : Activity() {
     private lateinit var screenshotRuleOverlay: ScreenshotRuleOverlay
     private lateinit var screenshotCaption: TextView
     private lateinit var semanticRulesPreview: TextView
+    private lateinit var semanticPayloadPreview: TextView
     private var displayedScreenshotPath: String? = null
     private lateinit var appSpinner: Spinner
     private lateinit var appAdapter: ArrayAdapter<ObservedApp>
@@ -200,6 +201,11 @@ class MainActivity : Activity() {
             })
             semanticRulesPreview = label("No meaning rules yet.", 12f, Color.WHITE, false)
             addView(semanticRulesPreview)
+            addView(label("LINKED PAYLOADS · MATCHED TO MEANING RULES", 12f, ACCENT, true).apply {
+                setPadding(0, dp(14), 0, dp(4))
+            })
+            semanticPayloadPreview = label("No authorised payloads yet.", 12f, Color.WHITE, false)
+            addView(semanticPayloadPreview)
         })
 
         root.addView(section("CAPTURED DATA · LIVE VIEW"))
@@ -586,6 +592,13 @@ class MainActivity : Activity() {
                 )
             }
             semanticRulesPreview.text = SemanticRuleStore.describe(this)
+            val semanticFile = ObservationStore.latestDirectory(this)?.let {
+                File(it, "semantic-payloads.jsonl")
+            }
+            val semanticCount = countLines(semanticFile)
+            semanticPayloadPreview.text = EvidencePreview.semanticPayloads(
+                semanticFile, semanticCount, SemanticRuleStore.all(this)
+            )
         }
 
         sessionStatus.text = if (active) {
