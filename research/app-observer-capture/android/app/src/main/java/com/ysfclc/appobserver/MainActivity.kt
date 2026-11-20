@@ -35,6 +35,14 @@ class MainActivity : Activity() {
     private lateinit var includeUiText: CheckBox
     private lateinit var includePayloads: CheckBox
     private var pcapdroidPackage: String? = null
+    private val liveRefresh = object : Runnable {
+        override fun run() {
+            if (::sessionStatus.isInitialized) refresh()
+            if (ObservationStore.hasActiveSession(this@MainActivity) && ::sessionStatus.isInitialized) {
+                sessionStatus.postDelayed(this, 1000L)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +54,15 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (::reportPreview.isInitialized) refresh()
+        if (ObservationStore.hasActiveSession(this) && ::sessionStatus.isInitialized) {
+            sessionStatus.removeCallbacks(liveRefresh)
+            sessionStatus.post(liveRefresh)
+        }
+    }
+
+    override fun onPause() {
+        if (::sessionStatus.isInitialized) sessionStatus.removeCallbacks(liveRefresh)
+        super.onPause()
     }
 
     private fun buildScreen() {
@@ -212,6 +229,7 @@ class MainActivity : Activity() {
             waitForReceiverAndStart(app, id, 0)
         }
         refresh()
+        if (::sessionStatus.isInitialized) sessionStatus.post(liveRefresh)
     }
 
     private fun waitForReceiverAndStart(app: ObservedApp, sessionId: String, attempt: Int) {
@@ -335,6 +353,11 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
             REQUEST_PCAP_START -> {
+                ObservationStore.appendSessionEvent(this, JSONObject()
+                    .put("type", "pcapdroid_start_activity_result")
+                    .put("timestampEpochMs", System.currentTimeMillis())
+                    .put("resultCode", resultCode)
+                    .put("resultOk", resultCode == RESULT_OK))
                 if (resultCode == RESULT_OK) {
                     val versionName = data?.getStringExtra("version_name")
                     val versionCode = data?.getIntExtra("version_code", 0) ?: 0
@@ -385,7 +408,10 @@ class MainActivity : Activity() {
         val pcapBytes = directory?.let { File(it, "network.pcap").takeIf(File::exists)?.length() } ?: 0L
         sessionStatus.text = if (active) {
             "SESSION ACTIVE · " + (ObservationStore.activePackage(this) ?: "selected app") +
-                "\nUI records: $uiCount · packet records: $packetCount · PCAP: " + (pcapBytes / 1024) + " KB"
+                "\nUI records: $uiCount · packet records: $packetCount · PCAP: " + (pcapBytes / 1024) + " KB" +
+                "\nTCP exporter: " + PcapdroidCaptureService.liveStatus() +
+                " · packets: " + PcapdroidCaptureService.livePackets() +
+                " · bytes: " + PcapdroidCaptureService.liveBytes()"
         } else if (directory != null) {
             "LAST SESSION · UI records: $uiCount · packet records: $packetCount · PCAP: " +
                 (pcapBytes / 1024) + " KB\nExport the evidence ZIP to share the session with the engineering assistant."
