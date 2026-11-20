@@ -169,6 +169,8 @@ object ScreenUnderstandingService {
                         textTask?.isSuccessful == true || labelTask?.isSuccessful == true -> "partial"
                         else -> "degraded"
                     })
+                    .put("confidenceSemantics", "uncalibrated_multi_source_evidence_score")
+                    .put("modelFeedbackApplied", learned.isNotEmpty())
                     .put("ocrLineCount", lines.size)
                     .put("concepts", concepts)
                     .put("entities", entityArray)
