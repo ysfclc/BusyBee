@@ -39,7 +39,14 @@ android {
         }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("persistentRelease")
+            // Withhold CI installables until the key is configured. The unsigned
+            // release candidate can be signed offline with the same private key.
+            if (!persistentKeystoreFile.isNullOrBlank() &&
+                !persistentKeystorePassword.isNullOrBlank() &&
+                !persistentKeyAlias.isNullOrBlank() &&
+                !persistentKeyPassword.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("persistentRelease")
+            }
         }
     }
     compileOptions {
