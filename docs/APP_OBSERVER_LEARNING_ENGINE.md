@@ -1,6 +1,6 @@
 # App Observer — Behaviour Learning and Privacy Baseline
 
-**Status:** Approved product and engineering direction. Generic privacy-first recorder, on-device structural evidence viewer, exact structural fingerprints and App Observer self-test target are implemented and CI-verified (2026-11-20). Physical-device acceptance, semantic pattern classification and automation execution remain future work.
+**Status:** The capture baseline and first on-device multimodal learning layer are implemented in the active development branch. The new OCR/image-labelling pipeline, evidence fusion, recurring-state clustering, transition memory and review-trained classifier still require a successful full CI build and physical Redmi acceptance. Accuracy benchmarks and automation execution remain future work.
 
 ## 1. Product objective
 
@@ -10,7 +10,7 @@ Its job is to observe one user-selected app during an explicit session and produ
 
 - Screens and screen states.
 - UI structure, control roles and hierarchy.
-- User-visible interaction events, without reading content entered or displayed.
+- User-visible interaction events; typed fields are excluded from OCR and raw recognised screen text is not persisted.
 - State transitions and timing.
 - Notification envelope changes.
 - Network activity patterns using minimised packet-header metadata.
@@ -41,7 +41,15 @@ Persist only structural fields:
 - For interaction events, the source node's structural signature when Android exposes it.
 - A versioned SHA-256 structural fingerprint over hierarchy indexes, node classes, resource IDs and boolean control states. The fingerprint excludes text, descriptions, editable values and pixel bounds; it groups structurally equivalent trees but does not assert semantic screen identity.
 
-Screenshots are now the visual ground truth. During a manually started session, the AccessibilityService requests a full-display screenshot after meaningful UI events (window changes, clicks, scrolls, selections and text-change notifications), rate-limited to about one request per 1.2 seconds. Screenshots are saved locally as JPEGs and linked to their UI event by screenshot ID, timestamp, event type and dimensions. Android may block secure/protected windows or other capture surfaces; capture failures are recorded.
+Screenshots are the visual ground truth. During a manually started session, the AccessibilityService requests a full-display screenshot after meaningful UI events (window changes, clicks, scrolls, selections and text-change notifications), rate-limited to about one request per 1.2 seconds. Screenshots are saved locally as JPEGs and linked to their UI event by screenshot ID, timestamp, event type and dimensions. Android may block secure/protected windows or other capture surfaces; capture failures are recorded.
+
+### Machine understanding and evidence fusion
+
+Every stored screenshot is passed to bundled, on-device ML Kit text recognition and image labelling. OCR lines overlapping Accessibility nodes marked editable or password are excluded. OCR runs in memory; arbitrary recognised strings are discarded rather than written to JSONL. The classifier emits concept hypotheses with confidence, source provenance and OCR-derived region geometry. Initial concept families include chat/conversation, price/fare, map, route summary, service offer, trip state, confirmation result, search, list/feed, form, authentication, payment, notification and profile/account. The current lexicon supports common English, Polish and Turkish terms.
+
+The visual/OCR result is fused with the nearest captured Accessibility hierarchy and resource IDs, the interaction trigger and source node, notification category/count metadata, any notification text already authorised by an explicit rule, and packet-header volume/protocol/port observations in an eight-second correlation window. Network metadata is corroborating timing/shape evidence only; it is not treated as proof of a server-side operation. The resulting `screen-understanding.jsonl` records hypotheses, confidence, evidence sources, candidate regions, selected extracted currency amounts, correlated-source counts and a privacy-safe feature vector. Raw OCR lines and arbitrary user text are not retained by this stream.
+
+A persistent local learner clusters recurring screens by Jaccard similarity over the privacy-safe multimodal feature vector. It tracks per-app state IDs, occurrence counts, dominant concept votes and transitions linked to the most recent interaction trigger. An optional correction screen accepts a category correction and trains a per-app multinomial Naive Bayes model from the same sanitised feature vector. User correction is a feedback channel, not a prerequisite for each identification. Learning memory lives outside individual sessions and is included in evidence export/import.
 
 By default, AccessibilityNodeInfo text, content descriptions, hints, editable contents and typed values are not read. The user can draw a region on a captured screenshot and create a meaning rule. Each rule supplies a user-defined category, scope and explicit payload source: visual_only, accessibility_text or notification_text. Only a matching region rule permits the corresponding content read. Password nodes are always excluded. User-defined rules persist locally across sessions and are included in evidence export/import. See [Visual Ground Truth and Meaning Rules](APP_OBSERVER_VISUAL_MEANING.md).
 
@@ -74,17 +82,16 @@ Evidence records carry both wall-clock and monotonic timing where available. Thi
 4. Notification metadata from the selected app.
 5. Packet-header bursts from the selected app.
 
-The next model should express a candidate behaviour as a state-transition record:
+The current learner emits a state-transition observation with:
 
-- State before: structural screen fingerprint and relevant control signatures.
-- Interaction: event type and structural source-node fingerprint.
-- State after: resulting screen fingerprint.
-- Network evidence: time-windowed protocol/port/size sequence, if available.
-- Outcome evidence: explicit UI or notification evidence.
-- Repeatability: number of matching controlled traces.
-- Confidence: evidence-backed classification, not an unsupported probability.
+- Previous and resulting state IDs.
+- The interaction event that preceded the new screenshot.
+- Repeated-state similarity and occurrence count.
+- Concept hypotheses with confidence and explicit source provenance.
+- Notification and packet-header evidence counts in the temporal window.
+- A persistent transition count for repeated from/to/trigger combinations.
 
-A single trace is a candidate, not a reusable skill. Reusable patterns should be promoted only after repeat runs and negative/failure cases demonstrate stable preconditions and postconditions.
+This is an initial learning layer, not yet a validated behaviour model. A temporal correlation does not establish causation, and a repeated visual state does not prove that a business operation succeeded. Production-grade behaviour learning still needs controlled repeat traces, negative/failure examples, postcondition verification, false-positive measurement and per-app acceptance reports. A single observed transition must never be promoted to an automation skill.
 
 ## 5. Reusable automation boundary
 
@@ -110,12 +117,13 @@ No automation executor is included in this observer build. Android platform poli
 - Manual session start and stop; one selected app at a time, with an explicit separate rule scope for Android system surfaces.
 - Local private storage only; no background upload or telemetry.
 - Full-display screenshots are saved during an explicitly started session. A screenshot can contain sensitive visible content; review it before sharing.
-- Accessibility text and notification content remain off by default. A user-drawn meaning rule must explicitly authorise a content source for a region/category before its payload is read.
+- Raw OCR text is processed ephemerally on-device for screen understanding and discarded. Inferred concepts, confidence, source provenance, safe feature vectors and selected extracted entities (currently currency amounts when the price/fare hypothesis is sufficiently strong) are retained locally.
+- Accessibility text and notification title/body payloads remain off by default. A user-drawn meaning rule must explicitly authorise those additional content sources. The learner may consume already-authorised notification payloads in memory, but does not copy their raw contents into the machine-understanding stream.
 - Password nodes are never read. Typed values outside explicitly authorised regions are not read. The observer never reads clipboard contents.
 - No raw network payloads, raw IP addresses, domains, headers, tokens or raw packet files.
 - No third-party app screens are captured when only the selected-app scope is active. System-surface screenshot capture is available only after a system-surface rule exists and is limited to Android system/updated-system package events; system UI node text is not scraped.
-- Export is user-initiated. The evidence bundle contains screenshots, rule-authorised semantic payloads and the rule definitions alongside the UI/network records.
-- Import of a prior evidence ZIP preserves its session records/screenshots and merges valid meaning rules. The old app can remain installed during migration.
+- Export is user-initiated. The evidence bundle contains screenshots, rule-authorised semantic payloads, screen-understanding records, privacy-safe feature vectors and the persistent learning model alongside the UI/network records. Extracted amounts and explicitly authorised payloads may be sensitive; review before sharing.
+- Import of a prior evidence ZIP preserves its session records/screenshots, merges valid meaning rules and imports/merges local learning memory. The old app can remain installed during migration.
 
 
 ## 7. Acceptance gates
@@ -155,7 +163,13 @@ Only after learning gate passes:
 Implemented in the App Observer capture project:
 - Dynamic launchable-app picker rather than a provider-specific catalogue, plus explicit App Observer self-test target.
 - Selected-package filtering and the generic UI diagnostic pipeline, including root-window, node-access, persistence and screenshot counters.
-- Structure-only accessibility snapshots with hierarchy indexes, interaction source-node evidence and versioned SHA-256 structural fingerprints.
+- Structure-only Accessibility snapshots with hierarchy indexes, interaction source-node evidence and versioned SHA-256 structural fingerprints.
+- Bundled on-device OCR and image labelling for every stored screenshot, with editable/password-region masking and ephemeral OCR text handling.
+- Multi-source concept inference correlating OCR, visual labels, Accessibility structure/resource IDs, interactions, notification metadata/authorised payloads and nearby packet-header timing.
+- Confidence-scored concept hypotheses with source provenance, OCR-derived region bounds and selected currency entity extraction.
+- Persistent per-app recurring-screen clusters, occurrence counts and interaction-linked transition counts.
+- Optional correction workflow and per-app multinomial Naive Bayes training from privacy-safe feature vectors.
+- Machine-understanding JSONL and persistent learning-model export/import, with OCR raw text excluded from the model and inference evidence.
 - Full-display screenshots through Android's Accessibility screenshot API (API 30+), stored locally and linked to UI events.
 - Screenshot viewer and region annotation activity; arbitrary user-defined meaning categories and normalised region selectors.
 - Persistent local semantic rules with visual-only, explicit Accessibility text and selected-app notification-content source modes.
@@ -166,11 +180,12 @@ Implemented in the App Observer capture project:
 - Stable release application ID and external persistent signing configuration; CI intentionally withholds installable APK artifacts until release-signing secrets are configured.
 
 Still not yet implemented or device-verified:
-- Physical Redmi acceptance for screenshots, region matching, system-surface screenshot capture and notification payload linkage.
-- Visual semantic recognition and automatic meaning suggestions; the current categories are authored by the user, not inferred.
-- State/behaviour learning and correlation across screenshot, UI, notification and network evidence.
+- Physical Redmi acceptance for screenshot OCR/image labelling, multi-source evidence alignment, notification linkage and background analysis performance.
+- Per-app accuracy benchmarks, labelled evaluation sets, confusion matrices and false-positive/false-negative thresholds.
+- Better visual localisation for controls/regions beyond OCR text boxes and Accessibility bounds; current image labelling is whole-image classification.
+- Robust transition/outcome learning with controlled repeats, negative examples and independently verified postconditions.
 - Reusable automation skills or action execution.
-- Persistent signing secret installation in GitHub repository settings and the first stable release artifact; the private keystore was generated and the workflow is configured, but the secrets must be installed before the next release can be built and verified.
-- Per-app coverage report and false-positive evaluation.
+- Automatic CI signing remains dependent on configuring the four repository secrets; the first stable APK was signed locally with the persistent key, but Actions must use the same key for future release updates.
+- Physical-device memory, latency, battery, storage-retention and long-session stress testing.
 
-Preserve this boundary: a screenshot is visual evidence, a semantic rule is user-authored meaning, and a model inference is a separate future classification. Building the recorder does not mean app understanding or automation has been completed.
+Preserve this boundary: a screenshot is visual evidence, a semantic rule is optional user-authored feedback/permission, and a model inference is a separate evidence-backed hypothesis. The current engine identifies candidate screen concepts and recurring states; it does not yet prove business outcomes or perform automation.
