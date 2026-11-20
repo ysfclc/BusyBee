@@ -183,6 +183,22 @@ object ScreenUnderstandingService {
                         .put("similarity", state.similarity.toDouble())
                         .put("previousStateId", state.previousStateId ?: JSONObject.NULL)
                         .put("transitionOccurrences", state.transitionOccurrences))
+                    .put("evidenceCorrelationWindowMs", CORRELATION_WINDOW_MS)
+                    .put("sourceAvailability", JSONObject()
+                        .put("screenshot", true)
+                        .put("onDeviceOcr", textTask?.isSuccessful == true)
+                        .put("imageLabelling", labelTask?.isSuccessful == true)
+                        .put("accessibilityTreeMatched", evidence.accessibilityTreeMatched)
+                        .put("notificationListenerConnected", evidence.notificationListenerConnected)
+                        .put("authorisedNotificationTextAvailable", evidence.authorisedText.isNotEmpty())
+                        .put("networkMetadataStreamAvailable", evidence.networkStreamAvailable))
+                    .put("missingEvidenceSources", JSONArray().apply {
+                        if (textTask?.isSuccessful != true) put("on_device_ocr")
+                        if (labelTask?.isSuccessful != true) put("image_labelling")
+                        if (!evidence.accessibilityTreeMatched) put("accessibility_hierarchy")
+                        if (!evidence.notificationListenerConnected) put("notification_listener")
+                        if (!evidence.networkStreamAvailable) put("network_metadata")
+                    })
                     .put("correlatedEvidence", JSONObject()
                         .put("accessibilityNodeCount", evidence.accessibilityClasses.size)
                         .put("clickableCount", evidence.clickableCount)
@@ -363,7 +379,10 @@ object ScreenUnderstandingService {
             networkBytes = networkBytes,
             networkProtocols = protocols,
             networkPorts = ports,
-            authorisedText = authorisedText
+            authorisedText = authorisedText,
+            accessibilityTreeMatched = latestTree != null,
+            notificationListenerConnected = ObserverSignals.serviceConnected(context, "notifications"),
+            networkStreamAvailable = ObservationStore.evidenceFile(context, sessionId, "network-events.jsonl") != null
         )
     }
 
