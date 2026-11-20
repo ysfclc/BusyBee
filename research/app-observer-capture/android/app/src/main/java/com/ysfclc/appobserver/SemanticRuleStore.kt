@@ -67,6 +67,12 @@ object SemanticRuleStore {
     private const val PREFS = "app_observer_semantic_rules"
     private const val RULES_KEY = "rules_json"
     private const val MAX_RULES = 500
+    private const val PERMANENT_SELF_TEST_PACKAGE = "com.ysfclc.appobserver.capture"
+    private val LEGACY_SELF_TEST_PACKAGES = setOf(
+        "com.ysfclc.appobserver.capture.generic.debug",
+        "com.ysfclc.appobserver.capture.generic.viewer.debug",
+        "com.ysfclc.appobserver.capture.generic.viewer.diagnostics.debug"
+    )
 
     @Synchronized
     fun all(context: Context): List<SemanticRule> {
@@ -147,7 +153,13 @@ object SemanticRuleStore {
         val incoming = value.optJSONArray("rules") ?: return 0
         val merged = (all(context) + buildList {
             for (index in 0 until incoming.length()) {
-                SemanticRule.fromJson(incoming.optJSONObject(index) ?: continue)?.let(::add)
+                val imported = SemanticRule.fromJson(incoming.optJSONObject(index) ?: continue) ?: continue
+                // Rules authored against one of the earlier App Observer self-test APKs
+                // must follow the permanent release package after the one-time migration.
+                val migratedPackage = if (imported.packageName in LEGACY_SELF_TEST_PACKAGES) {
+                    PERMANENT_SELF_TEST_PACKAGE
+                } else imported.packageName
+                add(imported.copy(packageName = migratedPackage))
             }
         }).distinctBy { it.id }.takeLast(MAX_RULES)
         persist(context, merged)
