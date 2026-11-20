@@ -68,3 +68,15 @@ The report contains app/version metadata and aggregate counters only—not notif
 ## Preservation rule
 
 Keep this source branch and its verified APK/checksum as the known-good baseline. Any broader PCAPdroid, packet-capture or protocol-research build must live in a separate branch and version, and must never overwrite this baseline. A replacement is not accepted until the user explicitly chooses it and the new build passes its own phone acceptance test.
+
+## 2026-11-20 — clean restoration to main
+
+The original App Observer Lab 0.1.0 source and isolated build workflow were restored to `main` through PR [#21](https://github.com/ysfclc/BusyBee/pull/21), merge commit `43bd0ff1e3c2e98ad2972c3f040e2da7939d4d21`.
+
+The restoration PR changed only `.github/workflows/app-observer-lab.yml` and `research/app-observer/**` (17 files, no deletions). It did not change BusyBee production Android code or add PCAP/HAR capture.
+
+Clean restoration CI: [run 44655016958](https://github.com/ysfclc/BusyBee/actions/runs/44655016958) — unit tests, APK assembly, APK v2 signature verification and artifact upload passed.
+
+Fresh CI APK: `com.ysfclc.appobserver.debug`, `0.1.0-survey-debug`, SHA-256 `4717cbf851ff3f0ba3c9adb03147b33809dff2f342c9948a28ad058dbf6f29bd`, artifact `14593395874`.
+
+The exact previously released APK remains separately preserved with original SHA-256 `5b4c903f53c0312b0412b1754bdce2335a00c0fab2098a2978300b3f9cc2ae57`.
