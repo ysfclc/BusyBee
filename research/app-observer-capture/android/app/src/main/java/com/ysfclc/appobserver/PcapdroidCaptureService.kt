@@ -122,19 +122,21 @@ class PcapdroidCaptureService : Service() {
                                 val record = PcapdroidPacketParser.parseRecordHeader(
                                     recordBytes, fileHeader.byteOrder
                                 ) ?: throw IOException("Invalid PCAP record header")
-                                // Packet bytes are transient: inspect protocol/header fields, then discard.
-                                val packetData = readExact(input, record.capturedLength)
-                                    ?: throw EOFException("TCP stream ended inside a packet")
+                                // Read only a bounded prefix for headers; drain the remainder without retaining it.
+                                val prefixLength = minOf(record.capturedLength, MAX_PACKET_HEADER_BYTES)
+                                val packetPrefix = readExact(input, prefixLength)
+                                    ?: throw EOFException("TCP stream ended inside a packet header")
+                                discardExactly(input, record.capturedLength - prefixLength)
                                 val selectedPackage = ObservationStore.activePackage(this)
                                     ?: "selected-app"
                                 val summary = ObservationPrivacy.safeNetworkMetadata(
                                     PcapdroidPacketParser.summarizePcapPacket(
-                                        packetData, fileHeader, record, selectedPackage
+                                        packetPrefix, fileHeader, record, selectedPackage
                                     )
                                 )
                                 networkIndex.append(summary.toString()).append('\n')
                                 packets++
-                                bytes += packetData.size
+                                bytes += record.capturedLength
                                 receivedPackets = packets
                                 receivedBytes = bytes
                                 networkIndex.flush()
@@ -144,7 +146,7 @@ class PcapdroidCaptureService : Service() {
                                         .put("type", "network_metadata_received")
                                         .put("timestampEpochMs", System.currentTimeMillis())
                                         .put("packetCount", packets)
-                                        .put("packetBytesInspected", packetData.size)
+                                        .put("packetBytesInspected", record.capturedLength)
                                         .put("totalPacketBytesInspected", bytes)
                                         .put("protocol", summary.optString("protocol", "unknown")))
                                     updateNotification("Observed $packets packet headers · ${bytes / 1024} KB inspected")
@@ -203,6 +205,18 @@ class PcapdroidCaptureService : Service() {
             offset += count
         }
         return result
+    }
+
+    private fun discardExactly(input: java.io.InputStream, size: Int) {
+        require(size >= 0) { "Invalid packet remainder size" }
+        val buffer = ByteArray(8 * 1024)
+        var remaining = size
+        while (remaining > 0) {
+            val count = input.read(buffer, 0, minOf(buffer.size, remaining))
+            if (count < 0) throw EOFException("TCP stream ended while discarding packet payload")
+            if (count == 0) continue
+            remaining -= count
+        }
     }
 
     private fun endSession(reason: String) {
@@ -269,6 +283,7 @@ class PcapdroidCaptureService : Service() {
         private const val GLOBAL_HEADER_BYTES = 24
         private const val RECORD_HEADER_BYTES = 16
         private const val MAX_RECORD_BYTES = 16 * 1024 * 1024
+        private const val MAX_PACKET_HEADER_BYTES = 256
         private const val CHANNEL_ID = "app_observer_capture"
         private const val NOTIFICATION_ID = 7512
 
