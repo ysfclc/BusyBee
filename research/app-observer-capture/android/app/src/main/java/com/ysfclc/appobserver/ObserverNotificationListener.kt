@@ -41,7 +41,8 @@ class ObserverNotificationListener : NotificationListenerService() {
 
         // Only fetch notification content after an explicit user-authored rule enables it.
         val sessionId = ObservationStore.activeSessionId(this)
-        val notificationRules = SemanticRuleStore.notificationRules(this, packageName)
+        val notificationRules = SemanticRuleStore.notificationRules(this, packageName) +
+            SemanticRuleStore.notificationRules(this, SemanticRuleStore.SYSTEM_SURFACE_PACKAGE)
         if (sessionId != null && notificationRules.isNotEmpty()) {
             val extras = notification.extras
             val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.take(500).orEmpty()
