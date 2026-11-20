@@ -57,12 +57,12 @@ jobs:
           APK="research/app-observer-capture/android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture.generic.debug'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture.generic.viewer.debug'"
           sha256sum "$APK" | tee research/app-observer-capture/android/app/build/outputs/apk/debug/SHA256SUMS
       - name: Upload isolated test APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-observer-capture-test-${{ github.run_number }}
+          name: app-observer-live-viewer-${{ github.run_number }}
           path: |
             research/app-observer-capture/android/app/build/outputs/apk/debug/app-debug.apk
             research/app-observer-capture/android/app/build/outputs/apk/debug/SHA256SUMS
