@@ -20,6 +20,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.ImageView
+import android.graphics.drawable.BitmapDrawable
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -44,6 +45,9 @@ class MainActivity : Activity() {
     private lateinit var screenshotPreview: ImageView
     private lateinit var screenshotRuleOverlay: ScreenshotRuleOverlay
     private lateinit var screenshotCaption: TextView
+    private lateinit var screenshotNavigation: TextView
+    private var screenshotHistory: List<StoredScreenshot> = emptyList()
+    private var selectedScreenshotIndex = -1
     private lateinit var semanticRulesPreview: TextView
     private lateinit var semanticPayloadPreview: TextView
     private var displayedScreenshotPath: String? = null
@@ -193,6 +197,12 @@ class MainActivity : Activity() {
             screenshotFrame.addView(screenshotPreview)
             screenshotFrame.addView(screenshotRuleOverlay)
             addView(screenshotFrame)
+            screenshotNavigation = label("No screenshot selected.", 11f, MUTED, false)
+            addView(screenshotNavigation)
+            addView(rowOfActions(
+                action("PREVIOUS SCREEN") { selectScreenshot(-1) },
+                action("NEXT SCREEN") { selectScreenshot(1) }
+            ))
             addView(action("DEFINE MEANING FROM THIS SCREENSHOT", accent = true) {
                 defineMeaningRuleFromLatestScreenshot()
             })
@@ -384,6 +394,36 @@ class MainActivity : Activity() {
             }
         }.isSuccess
 
+    private fun selectScreenshot(delta: Int) {
+        if (screenshotHistory.isEmpty()) return
+        selectedScreenshotIndex = (selectedScreenshotIndex + delta)
+            .coerceIn(0, screenshotHistory.lastIndex)
+        renderSelectedScreenshot()
+    }
+
+    private fun renderSelectedScreenshot() {
+        val selected = screenshotHistory.getOrNull(selectedScreenshotIndex) ?: return
+        screenshotCaption.text = selected.packageName + " · " +
+            selected.width + "×" + selected.height + " · " +
+            SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(selected.timestampEpochMs))
+        screenshotNavigation.text = "SCREEN " + (selectedScreenshotIndex + 1) +
+            " OF " + screenshotHistory.size + " · " + selected.id
+        if (displayedScreenshotPath != selected.file.absolutePath) {
+            val oldBitmap = (screenshotPreview.drawable as? BitmapDrawable)?.bitmap
+            val bitmap = BitmapFactory.decodeFile(selected.file.absolutePath)
+            if (bitmap != null) {
+                screenshotPreview.setImageBitmap(bitmap)
+                displayedScreenshotPath = selected.file.absolutePath
+                if (oldBitmap != null && oldBitmap !== bitmap && !oldBitmap.isRecycled) oldBitmap.recycle()
+            }
+        }
+        screenshotRuleOverlay.configure(
+            selected.width,
+            selected.height,
+            SemanticRuleStore.all(this).filter { it.packageName == selected.packageName }
+        )
+    }
+
     private class ScreenshotRuleOverlay(context: android.content.Context) : View(context) {
         private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0x3341E6B9
@@ -437,7 +477,7 @@ class MainActivity : Activity() {
     }
 
     private fun defineMeaningRuleFromLatestScreenshot() {
-        val screenshot = ObservationStore.latestScreenshot(this)
+        val screenshot = screenshotHistory.getOrNull(selectedScreenshotIndex)
         if (screenshot == null) {
             Toast.makeText(this, "Capture a screenshot first.", Toast.LENGTH_SHORT).show()
             return
@@ -516,6 +556,8 @@ class MainActivity : Activity() {
                 runCatching { ObservationStore.importBundle(this, uri) }
                     .onSuccess {
                         displayedScreenshotPath = null
+                        screenshotHistory = emptyList()
+                        selectedScreenshotIndex = -1
                         refresh()
                         Toast.makeText(this, "Previous session and meaning rules imported.", Toast.LENGTH_LONG).show()
                     }
@@ -570,26 +612,25 @@ class MainActivity : Activity() {
         uiEvidencePreview.text = EvidencePreview.ui(uiFile, uiCount)
         networkEvidencePreview.text = EvidencePreview.network(networkFile, networkCount)
         if (::screenshotPreview.isInitialized) {
-            val latestScreenshot = ObservationStore.latestScreenshot(this)
-            if (latestScreenshot == null) {
+            val previousPath = displayedScreenshotPath
+            val wasFollowingLatest = screenshotHistory.isEmpty() ||
+                selectedScreenshotIndex >= screenshotHistory.lastIndex
+            screenshotHistory = ObservationStore.screenshots(this)
+            if (screenshotHistory.isEmpty()) {
+                selectedScreenshotIndex = -1
+                displayedScreenshotPath = null
+                screenshotPreview.setImageDrawable(null)
+                screenshotRuleOverlay.configure(0, 0, emptyList())
                 screenshotCaption.text = "No screenshots yet. Start a session, switch to the selected app and interact with it."
+                screenshotNavigation.text = "No screenshot selected."
             } else {
-                screenshotCaption.text = latestScreenshot.packageName + " · " +
-                    latestScreenshot.width + "×" + latestScreenshot.height +
-                    " · " + SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-                        .format(Date(latestScreenshot.timestampEpochMs))
-                if (displayedScreenshotPath != latestScreenshot.file.absolutePath) {
-                    val bitmap = BitmapFactory.decodeFile(latestScreenshot.file.absolutePath)
-                    if (bitmap != null) {
-                        screenshotPreview.setImageBitmap(bitmap)
-                        displayedScreenshotPath = latestScreenshot.file.absolutePath
-                    }
+                val retainedIndex = screenshotHistory.indexOfFirst {
+                    it.file.absolutePath == previousPath
                 }
-                screenshotRuleOverlay.configure(
-                    latestScreenshot.width,
-                    latestScreenshot.height,
-                    SemanticRuleStore.all(this).filter { it.packageName == latestScreenshot.packageName }
-                )
+                selectedScreenshotIndex = if (!wasFollowingLatest && retainedIndex >= 0) {
+                    retainedIndex
+                } else screenshotHistory.lastIndex
+                renderSelectedScreenshot()
             }
             semanticRulesPreview.text = SemanticRuleStore.describe(this)
             val semanticFile = ObservationStore.latestDirectory(this)?.let {
@@ -661,6 +702,13 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { bottomMargin = dp(3) }
     }
+
+    private fun rowOfActions(first: Button, second: Button): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(first, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(second, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
 
     private fun label(text: String, size: Float, color: Int, bold: Boolean): TextView =
         TextView(this).apply {
