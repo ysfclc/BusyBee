@@ -120,6 +120,12 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 - Shared reports are traceable, moderated, time-bounded and separated from private data.
 - Security/privacy review and real-world pilot acceptance pass.
 
+## Proposed future capability — driver community and meetups
+
+A separate future opportunity is to help trusted drivers coordinate real-world meetups and practical activities through mutual, time-bounded presence. This is **discovery only** and does not change the current Phase 3–6 delivery order or authorise location permissions, contact access or a backend.
+
+See [Driver Community and Meetups roadmap](DRIVER-COMMUNITY-ROADMAP.md) for the full proposal: mutual nearby notifications, short-lived availability/break intent, group convergence, temporary event circles, shared routines/shift overlap, practical handoffs and optional safety check-ins. Keep this distinct from road intelligence reports and from the private Driver Data Mirror. Any implementation requires a separate architecture, privacy, security, GDPR, Android background-location, battery and safe-driving review.
+
 ## Non-goals
 
 - A map that merely displays nearby amenities.
