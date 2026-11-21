@@ -152,7 +152,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             source = ObservationSource(
                 sourceId = "busybee.manual_offer",
                 provider = o.platform,
-                kind = if (o.source.equals("manual", ignoreCase = true)) ObservationSourceKind.MANUAL else ObservationSourceKind.IMPORT,
+                kind = if (o.source.equals("manual", ignoreCase = true) || o.source.equals("notification-review", ignoreCase = true)) ObservationSourceKind.MANUAL else ObservationSourceKind.IMPORT,
                 adapterVersion = "busybee-manual-offer/1"
             ),
             observedAtUnixMs = observedAt,
