@@ -64,7 +64,7 @@ data class CapturedNotice(val id: Long, val platform: String, val title: String,
 data class CommunityDocument(val id: Long, val title: String, val content: String, val importedAt: Long)
 data class RoadReport(val id: Long, val category: String, val description: String, val latitude: Double, val longitude: Double, val createdAt: Long)
 
-class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 3) {
+class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 4) {
     private fun createObservationLedger(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE IF NOT EXISTS observation_ledger(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,6 +78,20 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             UNIQUE(observation_id,fingerprint))""")
         db.execSQL("CREATE INDEX IF NOT EXISTS observation_source_time ON observation_ledger(source_id,observed_at DESC)")
     }
+    private fun createCanonicalEventLedger(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE IF NOT EXISTS canonical_event_ledger(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            lifecycle_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            occurred_at INTEGER,
+            payload_json TEXT NOT NULL,
+            UNIQUE(event_id,fingerprint))""")
+        db.execSQL("CREATE INDEX IF NOT EXISTS canonical_event_lifecycle ON canonical_event_ledger(lifecycle_id,occurred_at)")
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE offers(
             id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, pickup TEXT, destination TEXT,
@@ -89,6 +103,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             id INTEGER PRIMARY KEY AUTOINCREMENT, fingerprint TEXT NOT NULL UNIQUE, platform TEXT NOT NULL,
             title TEXT NOT NULL, body TEXT NOT NULL, captured_at INTEGER NOT NULL)""")
         createObservationLedger(db)
+        createCanonicalEventLedger(db)
         db.execSQL("""CREATE TABLE driver_items(
             id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, title TEXT NOT NULL, details TEXT,
             due_at INTEGER, amount REAL, uri TEXT, done INTEGER NOT NULL DEFAULT 0,
@@ -106,6 +121,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             db.execSQL("ALTER TABLE driver_items ADD COLUMN completed_at INTEGER")
         }
         if (oldVersion < 3) createObservationLedger(db)
+        if (oldVersion < 4) createCanonicalEventLedger(db)
     }
 
     @Synchronized fun saveOffer(o: DriverOffer): Long {
@@ -210,9 +226,68 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             put("received_at", envelope.receivedAtUnixMs)
             put("payload_json", payload)
         }
-        return writableDatabase.insertWithOnConflict(
+        val inserted = writableDatabase.insertWithOnConflict(
             "observation_ledger", null, values, SQLiteDatabase.CONFLICT_IGNORE
         ) != -1L
+        if (inserted) {
+            // Rust owns provider-neutral interpretation. Keep capture operational
+            // even on devices where the native library is unavailable.
+            val candidate = runCatching {
+                NativeBridge.classifyOfferObservation(payload)
+            }.getOrNull()
+            if (!candidate.isNullOrBlank()) persistCanonicalEvent(candidate)
+        }
+        return inserted
+    }
+
+    private fun persistCanonicalEvent(candidateJson: String) {
+        val event = runCatching { JSONObject(candidateJson) }.getOrNull() ?: return
+        if (!event.has("event_id") || !event.has("lifecycle_id") || !event.has("kind")) return
+        val eventId = event.optString("event_id")
+        val lifecycleId = event.optString("lifecycle_id")
+        val eventType = event.optString("kind")
+        if (eventId.isBlank() || lifecycleId.isBlank() || eventType.isBlank()) return
+        if (event.optString("result") == "no_event" || event.has("error")) return
+
+        val fingerprint = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(candidateJson.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        val db = writableDatabase
+        db.rawQuery(
+            "SELECT 1 FROM canonical_event_ledger WHERE event_id=? AND fingerprint=? LIMIT 1",
+            arrayOf(eventId, fingerprint)
+        ).use { if (it.moveToFirst()) return }
+        val hasPriorVersion = db.rawQuery(
+            "SELECT 1 FROM canonical_event_ledger WHERE event_id=? LIMIT 1",
+            arrayOf(eventId)
+        ).use { it.moveToFirst() }
+        val status = if (hasPriorVersion) "conflict" else event.optString("status", "candidate")
+        val values = ContentValues().apply {
+            put("event_id", eventId)
+            put("fingerprint", fingerprint)
+            put("lifecycle_id", lifecycleId)
+            put("event_type", eventType)
+            put("status", status)
+            if (event.isNull("occurred_at_unix_ms")) putNull("occurred_at")
+            else put("occurred_at", event.optLong("occurred_at_unix_ms"))
+            put("payload_json", candidateJson)
+        }
+        if (hasPriorVersion) {
+            db.execSQL("UPDATE canonical_event_ledger SET status='conflict' WHERE event_id=?", arrayOf(eventId))
+        }
+        db.insertWithOnConflict("canonical_event_ledger", null, values, SQLiteDatabase.CONFLICT_IGNORE)
+    }
+
+    /** Ordered canonical event payloads for BusyBee surfaces and replay. */
+    fun canonicalEventPayloads(limit: Int = 100): List<String> {
+        val out = mutableListOf<String>()
+        readableDatabase.rawQuery(
+            "SELECT payload_json FROM canonical_event_ledger ORDER BY occurred_at,id LIMIT ?",
+            arrayOf(limit.coerceIn(1, 1000).toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) out.add(cursor.getString(0))
+        }
+        return out
     }
 
     /** Ordered raw envelopes for deterministic replay/reconciliation. */
