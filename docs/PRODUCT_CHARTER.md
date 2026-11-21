@@ -35,6 +35,7 @@ We actively catalogue and integrate all viable source classes:
 5. **Driver economics and recommendations:** turn the personal mirror plus road intelligence into explainable, personalised decisions about when/where to work, which platform or offer is better, and how to reduce dead mileage and costs.
 6. **Community intelligence:** let drivers contribute useful reports with consent, moderation, expiry and reputation safeguards.
 7. **Progressive 3D:** make the map feel living and spatial, with 3D camera presentation as the default visual direction. Do not make a complete photorealistic 3D city model a launch dependency.
+8. **Trusted driver coordination (proposed future capability):** optionally help drivers who already know one another coordinate breaks, meetups and practical handoffs through mutual, time-bounded presence and availability. This is separate from road reports and private driver records; see [Driver Community and Meetups](DRIVER-COMMUNITY-ROADMAP.md). It is not part of the current implementation or phase commitments.
 
 ## 4. Equal product priorities, context-aware presentation
 
