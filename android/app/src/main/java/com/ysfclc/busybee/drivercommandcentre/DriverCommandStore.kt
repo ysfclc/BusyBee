@@ -308,7 +308,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
         replayObservationLedger()
         val out = mutableListOf<String>()
         readableDatabase.rawQuery(
-            "SELECT payload_json,status FROM canonical_event_ledger ORDER BY occurred_at,id LIMIT ?",
+            "SELECT payload_json,status FROM canonical_event_ledger ORDER BY occurred_at DESC,id DESC LIMIT ?",
             arrayOf(limit.coerceIn(1, 1000).toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
