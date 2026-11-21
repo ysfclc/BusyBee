@@ -109,8 +109,10 @@ internal data class DriverActivityEvent(
             (occurredAtUnixMs != null && occurredAtUnixMs <= 0L)) return "invalid_timestamp"
         if (contributingObservationIds.isEmpty()) return "missing_provenance"
         fields.values.forEach { field ->
-            if (field.certainty == FieldCertainty.UNKNOWN && field.value != null) return "unknown_field_has_value"
-            if (field.certainty != FieldCertainty.UNKNOWN && field.value == null) return "known_field_missing_value"
+            if ((field.certainty == FieldCertainty.UNKNOWN || field.certainty == FieldCertainty.CONFLICTING) &&
+                field.value != null) return "unresolved_field_has_value"
+            if ((field.certainty == FieldCertainty.DIRECTLY_OBSERVED || field.certainty == FieldCertainty.DERIVED) &&
+                field.value == null) return "known_field_missing_value"
             if (field.provenance.isEmpty()) return "missing_provenance"
         }
         return null
