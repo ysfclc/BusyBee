@@ -1,4 +1,6 @@
-# App Observer — Intelligence Goal and Engineering Reset
+# App Observer — Research Instrument Reset (Historical)
+
+> **Product-direction correction (2026-11-21):** This document began from the mistaken premise that App Observer was the product. It is not. BusyBee is the product; App Observer is temporary research infrastructure. The authoritative product and implementation contract is [BusyBee — Observation-to-Event Pipeline](OBSERVATION_TO_EVENT_PIPELINE.md). The M1–M5 observer milestones below are historical research notes, not the BusyBee product roadmap. Continue only when a capability improves reliable, evidence-backed canonical BusyBee event production.
 
 **Date:** 2026-11-21  
 **Applies to:** research/app-observer-capture and PR #22  
