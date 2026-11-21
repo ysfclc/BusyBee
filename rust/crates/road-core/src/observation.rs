@@ -288,7 +288,7 @@ pub fn classify_offer_observation(
         lifecycle_id: lifecycle_id.to_string(),
         kind,
         status: EventStatus::Candidate,
-        occurred_at_unix_ms: Some(envelope.observed_at_unix_ms),
+        occurred_at_unix_ms: if envelope.source.kind == SourceKind::Import { None } else { Some(envelope.observed_at_unix_ms) },
         first_observed_at_unix_ms: envelope.observed_at_unix_ms,
         last_observed_at_unix_ms: envelope.observed_at_unix_ms,
         fields,
