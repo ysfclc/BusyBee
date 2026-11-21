@@ -179,41 +179,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
      */
     @Synchronized fun captureObservation(envelope: ObservationEnvelope): Boolean {
         if (envelope.validationError() != null) return false
-        val source = JSONObject()
-            .put("source_id", envelope.source.sourceId)
-            .put("provider", envelope.source.provider)
-            .put("kind", envelope.source.kind.name.lowercase())
-            .put("adapter_version", envelope.source.adapterVersion)
-        val facts = JSONObject()
-        envelope.facts.forEach { (key, fact) ->
-            val factEvidence = JSONArray()
-            fact.evidence.forEach { ref ->
-                factEvidence.put(JSONObject()
-                    .put("evidence_id", ref.evidenceId)
-                    .put("evidence_type", ref.evidenceType)
-                    .put("local_ref", ref.localRef ?: JSONObject.NULL))
-            }
-            facts.put(key, JSONObject()
-                .put("value", fact.value ?: JSONObject.NULL)
-                .put("evidence", factEvidence))
-        }
-        val evidence = JSONArray()
-        envelope.evidence.forEach { ref ->
-            evidence.put(JSONObject()
-                .put("evidence_id", ref.evidenceId)
-                .put("evidence_type", ref.evidenceType)
-                .put("local_ref", ref.localRef ?: JSONObject.NULL))
-        }
-        val payload = JSONObject()
-            .put("schema_version", envelope.schemaVersion)
-            .put("observation_id", envelope.observationId)
-            .put("source", source)
-            .put("observed_at_unix_ms", envelope.observedAtUnixMs)
-            .put("received_at_unix_ms", envelope.receivedAtUnixMs)
-            .put("subject_id", envelope.subjectId ?: JSONObject.NULL)
-            .put("facts", facts)
-            .put("evidence", evidence)
-            .toString()
+        val payload = envelope.toWireJson()
         val fingerprint = java.security.MessageDigest.getInstance("SHA-256")
             .digest(payload.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
