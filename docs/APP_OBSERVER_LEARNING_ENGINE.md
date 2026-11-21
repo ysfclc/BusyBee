@@ -1,12 +1,14 @@
 # App Observer — Behaviour Learning and Privacy Baseline
 
+> **Product boundary:** App Observer is a temporary research/capture instrument, not the product. BusyBee consumes its reusable capabilities through the observation-to-event pipeline. See [OBSERVATION_TO_EVENT_PIPELINE.md](OBSERVATION_TO_EVENT_PIPELINE.md). The goal is not to ship an abstract app-understanding model; it is to produce reliable, evidence-backed canonical BusyBee events.
+
 **Status:** The first on-device multimodal learning layer is implemented and CI-verified (2026-11-20), including bundled OCR/image labelling, multi-source evidence fusion, machine-localised regions, recurring-state clustering, interaction-linked transitions, custom concept feedback and persistent model import/export. Physical Redmi acceptance, per-app accuracy benchmarks, verified business outcomes and automation execution remain future work.
 
-## 1. Product objective
+## 1. Research objective
 
-App Observer is a general-purpose Android application-understanding research instrument. It is not limited to Uber, Bolt, navigation or any fixed provider category.
+This project develops and validates the observation/perception capabilities BusyBee needs to interpret permitted activity from external apps. The research instrument can observe a user-selected app during an explicit session and produce evidence for provider-neutral BusyBee event classification. It is not a separate product and does not own the final business taxonomy.
 
-Its job is to observe one user-selected app during an explicit session and produce evidence that can later be classified into reusable concepts:
+Its job is to capture evidence that can support event extraction:
 
 - Screens and screen states.
 - UI structure, control roles and hierarchy.
@@ -16,7 +18,7 @@ Its job is to observe one user-selected app during an explicit session and produ
 - Network activity patterns using minimised packet-header metadata.
 - Relationships between an interaction, resulting UI transition and nearby network activity.
 
-The intended downstream outcome is an application behaviour model: what states exist, what actions appear available, which transitions occur, and what evidence indicates that a transition completed.
+The intended downstream outcome is a traceable canonical BusyBee event (for example OfferObserved, TripStarted or TripCompleted), with evidence links, field-level uncertainty and explicit unknowns. Application state/transition models are intermediate techniques only when they improve event extraction or verification.
 
 ## 2. No provider allowlist
 
