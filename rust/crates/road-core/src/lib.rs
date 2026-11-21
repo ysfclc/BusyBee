@@ -44,3 +44,27 @@ pub extern "system" fn Java_com_ysfclc_busybee_drivercommandcentre_NativeBridge_
 ) -> jni::sys::jstring {
     env.new_string(ENGINE_VERSION).expect("JNI string allocation failed").into_raw()
 }
+
+fn classify_observation_json(input: &str) -> String {
+    let envelope: observation::ObservationEnvelope = match serde_json::from_str(input) {
+        Ok(value) => value,
+        Err(_) => return serde_json::json!({"error": "invalid_observation_envelope"}).to_string(),
+    };
+    match classify_offer_observation(&envelope) {
+        Ok(Some(event)) => serde_json::to_string(&event)
+            .unwrap_or_else(|_| serde_json::json!({"error": "event_serialization_failed"}).to_string()),
+        Ok(None) => serde_json::json!({"result": "no_event"}).to_string(),
+        Err(error) => serde_json::json!({"error": format!("{error:?}")}).to_string(),
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_ysfclc_busybee_drivercommandcentre_NativeBridge_classifyOfferObservation(
+    mut env: jni::JNIEnv,
+    _this: jni::objects::JObject,
+    input: jni::objects::JString,
+) -> jni::sys::jstring {
+    let raw: String = env.get_string(&input).map(|value| value.into()).unwrap_or_default();
+    let output = classify_observation_json(&raw);
+    env.new_string(output).expect("JNI string allocation failed").into_raw()
+}
