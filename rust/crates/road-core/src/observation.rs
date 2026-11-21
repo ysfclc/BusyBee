@@ -235,12 +235,6 @@ pub fn classify_offer_observation(
     envelope: &ObservationEnvelope,
 ) -> Result<Option<DriverActivityEvent>, ContractError> {
     envelope.validate()?;
-    let lifecycle_id = envelope
-        .subject_id
-        .as_deref()
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| envelope.facts.get("offer_id").and_then(|fact| fact.value.as_deref()))
-        .ok_or(ContractError::MissingIdentity)?;
     let state = envelope
         .facts
         .get("offer_state")
@@ -257,6 +251,12 @@ pub fn classify_offer_observation(
         // prove expiry. Keep the observation in the ledger without an event.
         _ => return Ok(None),
     };
+    let lifecycle_id = envelope
+        .subject_id
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| envelope.facts.get("offer_id").and_then(|fact| fact.value.as_deref()))
+        .ok_or(ContractError::MissingIdentity)?;
 
     let fields = envelope.facts.iter().map(|(name, fact)| {
         let evidence_ids = if fact.evidence.is_empty() {
