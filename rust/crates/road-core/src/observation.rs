@@ -161,10 +161,10 @@ impl DriverActivityEvent {
             return Err(ContractError::MissingProvenance);
         }
         for field in self.fields.values() {
-            if matches!(field.certainty, FieldCertainty::Unknown | FieldCertainty::Conflicting) && field.value.is_some() {
+            if matches!(&field.certainty, FieldCertainty::Unknown | FieldCertainty::Conflicting) && field.value.is_some() {
                 return Err(ContractError::UnknownFieldHasValue);
             }
-            if matches!(field.certainty, FieldCertainty::DirectlyObserved | FieldCertainty::Derived) && field.value.is_none() {
+            if matches!(&field.certainty, FieldCertainty::DirectlyObserved | FieldCertainty::Derived) && field.value.is_none() {
                 return Err(ContractError::KnownFieldMissingValue);
             }
             if field.provenance.is_empty() {
@@ -192,15 +192,16 @@ pub struct EventLedger {
 impl EventLedger {
     pub fn insert(&mut self, event: DriverActivityEvent) -> Result<LedgerInsert, ContractError> {
         event.validate()?;
-        match self.events.get_mut(&event.event_id) {
-            None => {
-                self.events.insert(event.event_id.clone(), vec![event]);
+        match self.events.entry(event.event_id.clone()) {
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(vec![event]);
                 Ok(LedgerInsert::Inserted)
             }
-            Some(versions) if versions.iter().any(|existing| existing == &event) => {
-                Ok(LedgerInsert::Duplicate)
-            }
-            Some(versions) => {
+            std::collections::btree_map::Entry::Occupied(mut entry) => {
+                let versions = entry.get_mut();
+                if versions.iter().any(|existing| existing == &event) {
+                    return Ok(LedgerInsert::Duplicate);
+                }
                 // Preserve both sides of the contradiction and make the
                 // conflict visible to downstream consumers.
                 for existing in versions.iter_mut() {
