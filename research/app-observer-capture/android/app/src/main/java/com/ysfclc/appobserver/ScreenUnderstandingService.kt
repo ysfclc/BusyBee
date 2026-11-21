@@ -288,7 +288,19 @@ object ScreenUnderstandingService {
                         ).takeIf { it.left < it.right && it.top < it.bottom }
                     } else null
                     accessibilityElements += AccessibilityElementEvidence(
-                        className, resourceId, region, clickableNode, scrollableNode, editableNode
+                        className = className,
+                        resourceId = resourceId,
+                        region = region,
+                        clickable = clickableNode,
+                        scrollable = scrollableNode,
+                        editable = editableNode,
+                        elementIndex = index,
+                        parentIndex = node.optInt("parentIndex", -1),
+                        depth = node.optInt("depth", 0),
+                        childIndex = node.optInt("childIndex", 0),
+                        enabled = node.optBoolean("enabled", true),
+                        selected = node.optBoolean("selected", false),
+                        checked = node.optBoolean("checked", false)
                     )
                 }
             }
