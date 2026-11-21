@@ -161,10 +161,10 @@ impl DriverActivityEvent {
             return Err(ContractError::MissingProvenance);
         }
         for field in self.fields.values() {
-            if field.certainty == FieldCertainty::Unknown && field.value.is_some() {
+            if matches!(field.certainty, FieldCertainty::Unknown | FieldCertainty::Conflicting) && field.value.is_some() {
                 return Err(ContractError::UnknownFieldHasValue);
             }
-            if field.certainty != FieldCertainty::Unknown && field.value.is_none() {
+            if matches!(field.certainty, FieldCertainty::DirectlyObserved | FieldCertainty::Derived) && field.value.is_none() {
                 return Err(ContractError::KnownFieldMissingValue);
             }
             if field.provenance.is_empty() {
@@ -186,24 +186,36 @@ pub enum LedgerInsert {
 /// owned by the BusyBee application layer; this type defines safe semantics.
 #[derive(Debug, Default)]
 pub struct EventLedger {
-    events: BTreeMap<String, DriverActivityEvent>,
+    events: BTreeMap<String, Vec<DriverActivityEvent>>,
 }
 
 impl EventLedger {
     pub fn insert(&mut self, event: DriverActivityEvent) -> Result<LedgerInsert, ContractError> {
         event.validate()?;
-        match self.events.get(&event.event_id) {
+        match self.events.get_mut(&event.event_id) {
             None => {
-                self.events.insert(event.event_id.clone(), event);
+                self.events.insert(event.event_id.clone(), vec![event]);
                 Ok(LedgerInsert::Inserted)
             }
-            Some(existing) if existing == &event => Ok(LedgerInsert::Duplicate),
-            Some(_) => Ok(LedgerInsert::Conflict),
+            Some(versions) if versions.iter().any(|existing| existing == &event) => {
+                Ok(LedgerInsert::Duplicate)
+            }
+            Some(versions) => {
+                // Preserve both sides of the contradiction and make the
+                // conflict visible to downstream consumers.
+                for existing in versions.iter_mut() {
+                    existing.status = EventStatus::Conflict;
+                }
+                let mut conflicting = event;
+                conflicting.status = EventStatus::Conflict;
+                versions.push(conflicting);
+                Ok(LedgerInsert::Conflict)
+            }
         }
     }
 
-    pub fn get(&self, event_id: &str) -> Option<&DriverActivityEvent> {
-        self.events.get(event_id)
+    pub fn get(&self, event_id: &str) -> Option<&[DriverActivityEvent]> {
+        self.events.get(event_id).map(Vec::as_slice)
     }
 
     pub fn len(&self) -> usize {
@@ -274,7 +286,11 @@ mod tests {
         let mut ledger = EventLedger::default();
         ledger.insert(event("25.00")).unwrap();
         assert_eq!(ledger.insert(event("30.00")).unwrap(), LedgerInsert::Conflict);
-        assert_eq!(ledger.get("offer:abc:observed").unwrap().fields["amount"].value.as_deref(), Some("25.00"));
+        let versions = ledger.get("offer:abc:observed").unwrap();
+        assert_eq!(versions.len(), 2);
+        assert_eq!(versions[0].fields["amount"].value.as_deref(), Some("25.00"));
+        assert_eq!(versions[1].fields["amount"].value.as_deref(), Some("30.00"));
+        assert!(versions.iter().all(|event| event.status == EventStatus::Conflict));
     }
 
     #[test]
