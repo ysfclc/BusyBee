@@ -1,5 +1,8 @@
 package com.ysfclc.busybee.drivercommandcentre
 
+import org.json.JSONArray
+import org.json.JSONObject
+
 /**
  * Android-side DTOs for the versioned BusyBee observation contract.
  *
@@ -117,4 +120,43 @@ internal data class DriverActivityEvent(
         }
         return null
     }
+}
+
+/** JSON wire format consumed by Rust serde; field names intentionally match snake_case Rust fields. */
+internal fun ObservationEnvelope.toWireJson(): String {
+    val sourceJson = JSONObject()
+        .put("source_id", source.sourceId)
+        .put("provider", source.provider)
+        .put("kind", source.kind.name.lowercase())
+        .put("adapter_version", source.adapterVersion)
+    val factsJson = JSONObject()
+    facts.forEach { (key, fact) ->
+        val factEvidence = JSONArray()
+        fact.evidence.forEach { ref ->
+            factEvidence.put(JSONObject()
+                .put("evidence_id", ref.evidenceId)
+                .put("evidence_type", ref.evidenceType)
+                .put("local_ref", ref.localRef ?: JSONObject.NULL))
+        }
+        factsJson.put(key, JSONObject()
+            .put("value", fact.value ?: JSONObject.NULL)
+            .put("evidence", factEvidence))
+    }
+    val evidenceJson = JSONArray()
+    evidence.forEach { ref ->
+        evidenceJson.put(JSONObject()
+            .put("evidence_id", ref.evidenceId)
+            .put("evidence_type", ref.evidenceType)
+            .put("local_ref", ref.localRef ?: JSONObject.NULL))
+    }
+    return JSONObject()
+        .put("schema_version", schemaVersion)
+        .put("observation_id", observationId)
+        .put("source", sourceJson)
+        .put("observed_at_unix_ms", observedAtUnixMs)
+        .put("received_at_unix_ms", receivedAtUnixMs)
+        .put("subject_id", subjectId ?: JSONObject.NULL)
+        .put("facts", factsJson)
+        .put("evidence", evidenceJson)
+        .toString()
 }
