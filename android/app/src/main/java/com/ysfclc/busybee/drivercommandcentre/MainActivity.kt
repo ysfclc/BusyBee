@@ -87,6 +87,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
+        worker.execute { commands.replayObservationLedger() }
         locationManager=getSystemService(LOCATION_SERVICE) as LocationManager
         MapLibre.getInstance(this)
         window.statusBarColor=BG;window.navigationBarColor=BG
