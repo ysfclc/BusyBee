@@ -120,6 +120,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
         val observedAt = o.capturedAt.coerceAtMost(receivedAt).coerceAtLeast(1L)
         val evidence = EvidenceReference("manual-offer:$id", "manual_offer_input")
         val facts = linkedMapOf(
+            "offer_state" to ObservedFact("observed", listOf(evidence)),
             "platform" to ObservedFact(o.platform, listOf(evidence)),
             "pickup" to ObservedFact(o.pickup.takeIf { it.isNotBlank() }, listOf(evidence)),
             "destination" to ObservedFact(o.destination.takeIf { it.isNotBlank() }, listOf(evidence)),
