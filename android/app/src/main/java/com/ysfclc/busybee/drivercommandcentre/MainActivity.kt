@@ -357,6 +357,37 @@ class MainActivity : AppCompatActivity() {
         root.addView(section("RANKED OFFERS",ranked.size.toString()+" offers meet your rules · sorted by estimated net PLN/hour"))
         if(ranked.isEmpty())root.addView(card().apply{addView(label("No qualifying offers yet.",15f,WHITE,true));addView(label("Enable notification capture or add an offer. No demo offers are inserted.",11f,MUTED,false))})
         ranked.forEach{root.addView(offerCard(it))}
+
+        root.addView(section("BUSYBEE CANONICAL EVENT STREAM","Evidence-backed driver activity candidates. Observations without explicit event evidence remain observations."))
+        val canonicalEvents = commands.canonicalEventPayloads(50)
+        if(canonicalEvents.isEmpty()) {
+            root.addView(card().apply {
+                addView(label("No canonical event candidates yet.",12f,WHITE,true))
+                addView(label("Manual offers enter as OfferObserved candidates. Platform notifications are retained as observations until their content supports a reliable event classification.",10f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+            })
+        }
+        canonicalEvents.forEach { payload ->
+            val event = runCatching { JSONObject(payload) }.getOrNull() ?: return@forEach
+            val fields = event.optJSONObject("fields")
+            val summary = mutableListOf<String>()
+            if(fields != null) {
+                val keys = fields.keys()
+                while(keys.hasNext() && summary.size < 5) {
+                    val key = keys.next()
+                    val field = fields.optJSONObject(key) ?: continue
+                    val value = field.opt("value")
+                    if(value != null && value != JSONObject.NULL) summary.add(key.replace('_',' ')+": "+value.toString())
+                }
+            }
+            val occurredAt = event.optLong("occurred_at_unix_ms",0L)
+            root.addView(card().apply {
+                addView(label(event.optString("kind","driver_event").replace('_',' ').uppercase(Locale.US),11f,MINT,true))
+                addView(label(event.optString("status","candidate").uppercase(Locale.US)+" · "+event.optString("lifecycle_id","unresolved lifecycle"),9f,AMBER,true).apply{setPadding(0,dp(3),0,dp(3))})
+                if(summary.isNotEmpty()) addView(label(summary.joinToString(" · "),10f,WHITE,false))
+                addView(label(if(occurredAt>0L)"Observed "+dateTime(occurredAt) else "Event time not supplied",9f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+            })
+        }
+
         root.addView(section("CAPTURED PLATFORM NOTIFICATIONS","Raw notification text; review and convert into a structured offer."))
         val notices=commands.notices()
         if(notices.isEmpty())root.addView(card().apply{addView(label("No ride-platform notifications captured.",11f,MUTED,false))})
