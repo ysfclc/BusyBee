@@ -27,7 +27,7 @@ class PlatformNotificationListener : NotificationListenerService() {
         val receivedAt = System.currentTimeMillis()
         val observedAt = sbn.postTime.takeIf { it > 0L && it <= receivedAt } ?: receivedAt
         val sourceId = "android.notification:$pkg"
-        val digestInput = "$pkg|\${sbn.key}|\${sbn.postTime}|$title|$body"
+        val digestInput = "$pkg|${sbn.key}|${sbn.postTime}|$title|$body"
         val observationId = "notification:" + java.security.MessageDigest.getInstance("SHA-256")
             .digest(digestInput.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
