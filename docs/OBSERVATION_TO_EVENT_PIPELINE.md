@@ -187,11 +187,13 @@ The previous App Observer milestones M1–M5 are demoted from product roadmap to
 
 ## 9. Implementation status — 2026-11-21
 
-The first shared contract slice is now present on the `app-observer-intelligence-reset` branch:
+The first shared contract and capture-integration slice is now present on the `app-observer-intelligence-reset` branch:
 
 - Rust: `observation::ObservationEnvelope`, source identity/kind, evidence references, observed facts, `DriverActivityEvent`, canonical field certainty/provenance, validation and a deterministic in-memory event ledger.
 - The ledger treats exact replays as duplicates. A different payload reusing an event ID is retained alongside the original and both versions are marked `Conflict`; evidence is not silently overwritten.
-- Android: matching Kotlin DTOs and validation rules are defined in `ObservationContract.kt`.
-- Rust unit tests cover envelope timestamp validation, provenance requirements, unknown-field preservation, duplicate insertion and conflicting event IDs.
+- Android: matching Kotlin DTOs and validation rules are defined in `ObservationContract.kt`, with unit tests for timestamp, unknown-field and provenance rules.
+- Existing driver notification capture now creates a versioned observation envelope and appends it to the local SQLite observation ledger. The legacy notices table is retained for compatibility.
+- Manual offer creation also appends a versioned observation while preserving the existing offers table and UI behaviour.
+- The observation ledger stores immutable JSON payloads with a payload fingerprint. Exact replays are ignored; changed payloads reusing an observation ID are retained as separate variants. Ordered payload retrieval is available for replay.
 
-This is a contract/domain primitive, not a completed runtime pipeline. It is not yet wired to notification capture, manual offers or CSV imports; it does not yet classify offer lifecycle observations, persist events durably, or deliver them to Offer Desk/Driver Mirror. CI must pass on the exact latest branch head before treating the contract as verified. No physical-device verification has been performed for this slice.
+This is still not a completed runtime event pipeline. CSV/Driver Mirror imports are not yet routed through the envelope. There is no offer lifecycle classifier/reconciler, durable canonical event ledger, or event delivery to Offer Desk/Driver Mirror yet. The in-memory Rust ledger defines conflict semantics but is not yet connected to Android persistence. CI must pass on the exact latest branch head before treating this slice as verified. No physical-device verification has been performed.
