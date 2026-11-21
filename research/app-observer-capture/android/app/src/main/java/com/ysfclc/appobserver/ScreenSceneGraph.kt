@@ -83,7 +83,7 @@ object ScreenSceneGraphBuilder {
                 else -> "ui_element"
             }
             nodes += SceneNode(
-                id = "ui-$index",
+                id = "ui-${element.elementIndex.takeIf { it >= 0 } ?: index}",
                 kind = kind,
                 source = "accessibility",
                 region = element.region,
@@ -92,7 +92,12 @@ object ScreenSceneGraphBuilder {
                     "resourceId" to element.resourceId.take(160),
                     "clickable" to element.clickable.toString(),
                     "scrollable" to element.scrollable.toString(),
-                    "editable" to element.editable.toString()
+                    "editable" to element.editable.toString(),
+                    "enabled" to element.enabled.toString(),
+                    "selected" to element.selected.toString(),
+                    "checked" to element.checked.toString(),
+                    "depth" to element.depth.toString(),
+                    "childIndex" to element.childIndex.toString()
                 )
             )
         }
@@ -158,6 +163,19 @@ object ScreenSceneGraphBuilder {
                     "portCount" to evidence.networkPorts.distinct().size.toString()
                 )
             )
+        }
+
+        val uiNodesByIndex = nodes.filter { it.source == "accessibility" }
+            .associateBy { it.id.removePrefix("ui-").toIntOrNull() ?: -1 }
+        evidence.accessibilityElements.forEach { element ->
+            val childId = "ui-" + (element.elementIndex.takeIf { it >= 0 }
+                ?: evidence.accessibilityElements.indexOf(element))
+            val parentId = "ui-" + element.parentIndex
+            if (element.parentIndex >= 0 && uiNodesByIndex.containsKey(element.parentIndex) &&
+                uiNodesByIndex.containsKey(element.elementIndex)) {
+                relations += SceneRelation(parentId, childId, "parent_of",
+                    "accessibility_hierarchy", 1f)
+            }
         }
 
         val geometric = nodes.filter { it.region != null && it.kind != "screen_visual_hint" }
