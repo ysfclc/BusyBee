@@ -589,8 +589,53 @@ class MainActivity : AppCompatActivity() {
             val name=contentResolver.query(uri,null,null,null,null)?.use{c->val i=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);if(c.moveToFirst()&&i>=0)c.getString(i)else"platform-export.csv"}?:"platform-export.csv"
             val text=contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use{it.readText()}?:error("File could not be opened")
             val rows=DriverCsv.parse(text);require(rows.isNotEmpty()){"No data rows found"};val result=mirror.importRows(name,rows)
+            captureCsvObservations(name, rows)
             Toast.makeText(this,"Imported "+result.second+" new records from "+result.first+" rows",Toast.LENGTH_LONG).show();showTab("EARNINGS")
         }catch(e:Exception){Toast.makeText(this,"Import failed: "+e.message,Toast.LENGTH_LONG).show()}
+    }
+
+    /**
+     * Keep the original Driver Mirror import, but also feed every normalised
+     * row into the shared observation ledger for future canonical event work.
+     */
+    private fun captureCsvObservations(sourceName: String, rows: List<Map<String, String>>) {
+        val receivedAt = System.currentTimeMillis()
+        rows.forEachIndexed { index, row ->
+            val platform = row["platform"].orEmpty().ifBlank { "Unknown" }
+            val recordType = row["record_type"].orEmpty().trim().lowercase().ifBlank { "unknown" }
+            val raw = row.entries.sortedBy { it.key }.joinToString("&") { "${it.key}=${it.value}" }
+            val digestInput = "${sourceName}|${index + 1}|${raw}"
+            val observationId = "csv:" + java.security.MessageDigest.getInstance("SHA-256")
+                .digest(digestInput.toByteArray(Charsets.UTF_8))
+                .joinToString("") { "%02x".format(it) }
+            val evidence = EvidenceReference(
+                evidenceId = observationId,
+                evidenceType = "csv_import_row",
+                localRef = "${sourceName}#${index + 1}"
+            )
+            val facts = row.mapValues { (_, value) ->
+                ObservedFact(value.takeIf { it.isNotBlank() }, listOf(evidence))
+            }.toMutableMap()
+            if (recordType == "offer") {
+                facts["offer_state"] = ObservedFact("observed", listOf(evidence))
+            }
+            val subject = row["external_id"]?.takeIf { it.isNotBlank() }
+                ?: if (recordType == "offer") "csv-offer:${platform.lowercase()}:${observationId}" else observationId
+            commands.captureObservation(ObservationEnvelope(
+                observationId = observationId,
+                source = ObservationSource(
+                    sourceId = "busybee.csv_import",
+                    provider = platform,
+                    kind = ObservationSourceKind.IMPORT,
+                    adapterVersion = "busybee-csv-import/1"
+                ),
+                observedAtUnixMs = receivedAt,
+                receivedAtUnixMs = receivedAt,
+                subjectId = subject,
+                facts = facts,
+                evidence = listOf(evidence)
+            ))
+        }
     }
 
     private fun buildSourcesScreen():View{
