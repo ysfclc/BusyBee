@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod observation;
-pub use observation::{DriverActivityEvent, DriverEventKind, EventLedger, ObservationEnvelope};
+pub use observation::{classify_offer_observation, DriverActivityEvent, DriverEventKind, EventLedger, ObservationEnvelope};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RoadEvent {
