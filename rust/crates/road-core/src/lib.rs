@@ -35,6 +35,63 @@ mod tests {
     #[test] fn expired_event_is_not_current() { assert!(!event(100, 60).is_current_at(161)); }
     #[test] fn future_observation_is_rejected() { assert!(!event(101, 60).is_current_at(100)); }
     #[test] fn invalid_ttl_is_rejected() { assert!(!event(100, 0).is_current_at(100)); }
+
+    #[test]
+    fn json_boundary_returns_canonical_offer_candidate() {
+        let mut facts = std::collections::BTreeMap::new();
+        facts.insert("offer_state".into(), observation::ObservedFact {
+            value: Some("observed".into()),
+            evidence: vec![],
+        });
+        let envelope = observation::ObservationEnvelope {
+            schema_version: observation::OBSERVATION_SCHEMA_VERSION,
+            observation_id: "jni-test-observation".into(),
+            source: observation::SourceIdentity {
+                source_id: "synthetic".into(),
+                provider: "test".into(),
+                kind: observation::SourceKind::OwnedAppInstrumentation,
+                adapter_version: "test/1".into(),
+            },
+            observed_at_unix_ms: 1_000,
+            received_at_unix_ms: 1_000,
+            subject_id: Some("offer-1".into()),
+            facts,
+            evidence: vec![],
+        };
+        let input = serde_json::to_string(&envelope).unwrap();
+        let output = classify_observation_json(&input);
+        let value: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(value["kind"], "offer_observed");
+        assert_eq!(value["lifecycle_id"], "offer-1");
+        assert_eq!(value["status"], "candidate");
+    }
+
+    #[test]
+    fn json_boundary_does_not_classify_disappearance_as_expiry() {
+        let mut facts = std::collections::BTreeMap::new();
+        facts.insert("offer_state".into(), observation::ObservedFact {
+            value: Some("disappeared".into()),
+            evidence: vec![],
+        });
+        let envelope = observation::ObservationEnvelope {
+            schema_version: observation::OBSERVATION_SCHEMA_VERSION,
+            observation_id: "jni-test-disappearance".into(),
+            source: observation::SourceIdentity {
+                source_id: "synthetic".into(),
+                provider: "test".into(),
+                kind: observation::SourceKind::OwnedAppInstrumentation,
+                adapter_version: "test/1".into(),
+            },
+            observed_at_unix_ms: 1_000,
+            received_at_unix_ms: 1_000,
+            subject_id: Some("offer-1".into()),
+            facts,
+            evidence: vec![],
+        };
+        let input = serde_json::to_string(&envelope).unwrap();
+        let output: serde_json::Value = serde_json::from_str(&classify_observation_json(&input)).unwrap();
+        assert_eq!(output["result"], "no_event");
+    }
 }
 
 #[no_mangle]
