@@ -4,6 +4,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import org.json.JSONArray
+import org.json.JSONObject
 
 data class DriverOffer(
     val id: Long = 0,
@@ -62,7 +64,34 @@ data class CapturedNotice(val id: Long, val platform: String, val title: String,
 data class CommunityDocument(val id: Long, val title: String, val content: String, val importedAt: Long)
 data class RoadReport(val id: Long, val category: String, val description: String, val latitude: Double, val longitude: Double, val createdAt: Long)
 
-class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 2) {
+class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 4) {
+    private fun createObservationLedger(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE IF NOT EXISTS observation_ledger(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            observation_id TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            observed_at INTEGER NOT NULL,
+            received_at INTEGER NOT NULL,
+            payload_json TEXT NOT NULL,
+            UNIQUE(observation_id,fingerprint))""")
+        db.execSQL("CREATE INDEX IF NOT EXISTS observation_source_time ON observation_ledger(source_id,observed_at DESC)")
+    }
+    private fun createCanonicalEventLedger(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE IF NOT EXISTS canonical_event_ledger(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            lifecycle_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            occurred_at INTEGER,
+            payload_json TEXT NOT NULL,
+            UNIQUE(event_id,fingerprint))""")
+        db.execSQL("CREATE INDEX IF NOT EXISTS canonical_event_lifecycle ON canonical_event_ledger(lifecycle_id,occurred_at)")
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE offers(
             id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, pickup TEXT, destination TEXT,
@@ -73,6 +102,8 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
         db.execSQL("""CREATE TABLE notices(
             id INTEGER PRIMARY KEY AUTOINCREMENT, fingerprint TEXT NOT NULL UNIQUE, platform TEXT NOT NULL,
             title TEXT NOT NULL, body TEXT NOT NULL, captured_at INTEGER NOT NULL)""")
+        createObservationLedger(db)
+        createCanonicalEventLedger(db)
         db.execSQL("""CREATE TABLE driver_items(
             id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, title TEXT NOT NULL, details TEXT,
             due_at INTEGER, amount REAL, uri TEXT, done INTEGER NOT NULL DEFAULT 0,
@@ -89,6 +120,8 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             db.execSQL("ALTER TABLE driver_items ADD COLUMN recurrence TEXT")
             db.execSQL("ALTER TABLE driver_items ADD COLUMN completed_at INTEGER")
         }
+        if (oldVersion < 3) createObservationLedger(db)
+        if (oldVersion < 4) createCanonicalEventLedger(db)
     }
 
     @Synchronized fun saveOffer(o: DriverOffer): Long {
@@ -98,7 +131,37 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             put("duration_min",o.durationMin); if(o.passengerRating==null) putNull("passenger_rating") else put("passenger_rating",o.passengerRating)
             put("captured_at",o.capturedAt); put("source",o.source); put("raw",o.raw); put("status",o.status)
         }
-        return writableDatabase.insertOrThrow("offers",null,v)
+        val id = writableDatabase.insertOrThrow("offers",null,v)
+        val receivedAt = System.currentTimeMillis()
+        val observedAt = o.capturedAt.coerceAtMost(receivedAt).coerceAtLeast(1L)
+        val evidence = EvidenceReference("manual-offer:$id", "manual_offer_input")
+        val facts = linkedMapOf(
+            "offer_state" to ObservedFact("observed", listOf(evidence)),
+            "platform" to ObservedFact(o.platform, listOf(evidence)),
+            "pickup" to ObservedFact(o.pickup.takeIf { it.isNotBlank() }, listOf(evidence)),
+            "destination" to ObservedFact(o.destination.takeIf { it.isNotBlank() }, listOf(evidence)),
+            "fare" to ObservedFact(o.fare.toString(), listOf(evidence)),
+            "bonus" to ObservedFact(o.bonus.toString(), listOf(evidence)),
+            "pickup_km" to ObservedFact(o.pickupKm.toString(), listOf(evidence)),
+            "trip_km" to ObservedFact(o.tripKm.toString(), listOf(evidence)),
+            "duration_min" to ObservedFact(o.durationMin.toString(), listOf(evidence)),
+            "passenger_rating" to ObservedFact(o.passengerRating?.toString(), listOf(evidence))
+        )
+        captureObservation(ObservationEnvelope(
+            observationId = "manual-offer:$id",
+            source = ObservationSource(
+                sourceId = "busybee.manual_offer",
+                provider = o.platform,
+                kind = if (o.source.equals("manual", ignoreCase = true) || o.source.equals("notification-review", ignoreCase = true)) ObservationSourceKind.MANUAL else ObservationSourceKind.IMPORT,
+                adapterVersion = "busybee-manual-offer/1"
+            ),
+            observedAtUnixMs = observedAt,
+            receivedAtUnixMs = receivedAt,
+            subjectId = "manual-offer:$id",
+            facts = facts,
+            evidence = listOf(evidence)
+        ))
+        return id
     }
     fun offers(limit:Int=100):List<DriverOffer> {
         val out=mutableListOf<DriverOffer>()
@@ -108,6 +171,132 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
         return out
     }
     fun updateOfferStatus(id:Long,status:String) { writableDatabase.execSQL("UPDATE offers SET status=? WHERE id=?", arrayOf(status,id)) }
+
+    /**
+     * Append a validated, versioned observation. Exact replays are ignored,
+     * while changed payloads reusing an observation ID are retained as
+     * separate variants for later reconciliation.
+     */
+    @Synchronized internal fun captureObservation(envelope: ObservationEnvelope): Boolean {
+        if (envelope.validationError() != null) return false
+        val payload = envelope.toWireJson()
+        val fingerprint = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(payload.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        val values = ContentValues().apply {
+            put("observation_id", envelope.observationId)
+            put("fingerprint", fingerprint)
+            put("source_id", envelope.source.sourceId)
+            put("provider", envelope.source.provider)
+            put("observed_at", envelope.observedAtUnixMs)
+            put("received_at", envelope.receivedAtUnixMs)
+            put("payload_json", payload)
+        }
+        val inserted = writableDatabase.insertWithOnConflict(
+            "observation_ledger", null, values, SQLiteDatabase.CONFLICT_IGNORE
+        ) != -1L
+        if (inserted) {
+            // Rust owns provider-neutral interpretation. Keep capture operational
+            // even on devices where the native library is unavailable.
+            val candidate = runCatching {
+                NativeBridge.classifyOfferObservation(payload)
+            }.getOrNull()
+            if (!candidate.isNullOrBlank()) persistCanonicalEvent(candidate)
+        }
+        return inserted
+    }
+
+    private fun persistCanonicalEvent(candidateJson: String) {
+        val event = runCatching { JSONObject(candidateJson) }.getOrNull() ?: return
+        if (!event.has("event_id") || !event.has("lifecycle_id") || !event.has("kind")) return
+        val eventId = event.optString("event_id")
+        val lifecycleId = event.optString("lifecycle_id")
+        val eventType = event.optString("kind")
+        if (eventId.isBlank() || lifecycleId.isBlank() || eventType.isBlank()) return
+        if (event.optString("result") == "no_event" || event.has("error")) return
+
+        val fingerprint = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(candidateJson.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        val db = writableDatabase
+        db.rawQuery(
+            "SELECT 1 FROM canonical_event_ledger WHERE event_id=? AND fingerprint=? LIMIT 1",
+            arrayOf(eventId, fingerprint)
+        ).use { if (it.moveToFirst()) return }
+        val hasPriorVersion = db.rawQuery(
+            "SELECT 1 FROM canonical_event_ledger WHERE event_id=? LIMIT 1",
+            arrayOf(eventId)
+        ).use { it.moveToFirst() }
+        val status = if (hasPriorVersion) "conflict" else event.optString("status", "candidate")
+        if (hasPriorVersion) {
+            val prior = mutableListOf<Pair<Long, String>>()
+            db.rawQuery(
+                "SELECT id,payload_json FROM canonical_event_ledger WHERE event_id=?",
+                arrayOf(eventId)
+            ).use { cursor ->
+                while (cursor.moveToNext()) prior.add(cursor.getLong(0) to cursor.getString(1))
+            }
+            prior.forEach { (id, payload) ->
+                val conflictedPayload = runCatching { JSONObject(payload).put("status", "conflict").toString() }
+                    .getOrDefault(payload)
+                db.execSQL(
+                    "UPDATE canonical_event_ledger SET status='conflict',payload_json=? WHERE id=?",
+                    arrayOf(conflictedPayload, id)
+                )
+            }
+            event.put("status", "conflict")
+        }
+        val values = ContentValues().apply {
+            put("event_id", eventId)
+            put("fingerprint", fingerprint)
+            put("lifecycle_id", lifecycleId)
+            put("event_type", eventType)
+            put("status", status)
+            if (event.isNull("occurred_at_unix_ms")) putNull("occurred_at")
+            else put("occurred_at", event.optLong("occurred_at_unix_ms"))
+            put("payload_json", event.toString())
+        }
+        db.insertWithOnConflict("canonical_event_ledger", null, values, SQLiteDatabase.CONFLICT_IGNORE)
+    }
+
+    /** Re-run interpretation over stored evidence after interrupted native processing. */
+    @Synchronized fun replayObservationLedger(limit: Int = 500) {
+        observationPayloads(limit).forEach { payload ->
+            val candidate = runCatching {
+                NativeBridge.classifyOfferObservation(payload)
+            }.getOrNull()
+            if (!candidate.isNullOrBlank()) persistCanonicalEvent(candidate)
+        }
+    }
+
+    /** Ordered canonical event payloads for BusyBee surfaces and replay. */
+    fun canonicalEventPayloads(limit: Int = 100): List<String> {
+        val out = mutableListOf<String>()
+        readableDatabase.rawQuery(
+            "SELECT payload_json,status FROM canonical_event_ledger ORDER BY occurred_at DESC,id DESC LIMIT ?",
+            arrayOf(limit.coerceIn(1, 1000).toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val payload = runCatching {
+                    JSONObject(cursor.getString(0)).put("status", cursor.getString(1)).toString()
+                }.getOrDefault(cursor.getString(0))
+                out.add(payload)
+            }
+        }
+        return out
+    }
+
+    /** Ordered raw envelopes for deterministic replay/reconciliation. */
+    fun observationPayloads(limit: Int = 100): List<String> {
+        val out = mutableListOf<String>()
+        readableDatabase.rawQuery(
+            "SELECT payload_json FROM observation_ledger ORDER BY observed_at,id LIMIT ?",
+            arrayOf(limit.coerceIn(1, 1000).toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) out.add(cursor.getString(0))
+        }
+        return out
+    }
 
     @Synchronized fun captureNotice(platform:String,title:String,body:String,at:Long=System.currentTimeMillis()) {
         val fingerprint=java.security.MessageDigest.getInstance("SHA-256").digest("$platform|$title|$body".toByteArray()).joinToString(""){"%02x".format(it)}

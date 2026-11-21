@@ -87,6 +87,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
+        worker.execute { commands.replayObservationLedger() }
         locationManager=getSystemService(LOCATION_SERVICE) as LocationManager
         MapLibre.getInstance(this)
         window.statusBarColor=BG;window.navigationBarColor=BG
@@ -357,6 +358,37 @@ class MainActivity : AppCompatActivity() {
         root.addView(section("RANKED OFFERS",ranked.size.toString()+" offers meet your rules · sorted by estimated net PLN/hour"))
         if(ranked.isEmpty())root.addView(card().apply{addView(label("No qualifying offers yet.",15f,WHITE,true));addView(label("Enable notification capture or add an offer. No demo offers are inserted.",11f,MUTED,false))})
         ranked.forEach{root.addView(offerCard(it))}
+
+        root.addView(section("BUSYBEE CANONICAL EVENT STREAM","Evidence-backed driver activity candidates. Observations without explicit event evidence remain observations."))
+        val canonicalEvents = commands.canonicalEventPayloads(50)
+        if(canonicalEvents.isEmpty()) {
+            root.addView(card().apply {
+                addView(label("No canonical event candidates yet.",12f,WHITE,true))
+                addView(label("Manual offers enter as OfferObserved candidates. Platform notifications are retained as observations until their content supports a reliable event classification.",10f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+            })
+        }
+        canonicalEvents.forEach { payload ->
+            val event = runCatching { JSONObject(payload) }.getOrNull() ?: return@forEach
+            val fields = event.optJSONObject("fields")
+            val summary = mutableListOf<String>()
+            if(fields != null) {
+                val keys = fields.keys()
+                while(keys.hasNext() && summary.size < 5) {
+                    val key = keys.next()
+                    val field = fields.optJSONObject(key) ?: continue
+                    val value = field.opt("value")
+                    if(value != null && value != JSONObject.NULL) summary.add(key.replace('_',' ')+": "+value.toString())
+                }
+            }
+            val occurredAt = event.optLong("occurred_at_unix_ms",0L)
+            root.addView(card().apply {
+                addView(label(event.optString("kind","driver_event").replace('_',' ').uppercase(Locale.US),11f,MINT,true))
+                addView(label(event.optString("status","candidate").uppercase(Locale.US)+" · "+event.optString("lifecycle_id","unresolved lifecycle"),9f,AMBER,true).apply{setPadding(0,dp(3),0,dp(3))})
+                if(summary.isNotEmpty()) addView(label(summary.joinToString(" · "),10f,WHITE,false))
+                addView(label(if(occurredAt>0L)"Observed "+dateTime(occurredAt) else "Event time not supplied",9f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+            })
+        }
+
         root.addView(section("CAPTURED PLATFORM NOTIFICATIONS","Raw notification text; review and convert into a structured offer."))
         val notices=commands.notices()
         if(notices.isEmpty())root.addView(card().apply{addView(label("No ride-platform notifications captured.",11f,MUTED,false))})
@@ -558,8 +590,57 @@ class MainActivity : AppCompatActivity() {
             val name=contentResolver.query(uri,null,null,null,null)?.use{c->val i=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);if(c.moveToFirst()&&i>=0)c.getString(i)else"platform-export.csv"}?:"platform-export.csv"
             val text=contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use{it.readText()}?:error("File could not be opened")
             val rows=DriverCsv.parse(text);require(rows.isNotEmpty()){"No data rows found"};val result=mirror.importRows(name,rows)
+            captureCsvObservations(name, rows)
             Toast.makeText(this,"Imported "+result.second+" new records from "+result.first+" rows",Toast.LENGTH_LONG).show();showTab("EARNINGS")
         }catch(e:Exception){Toast.makeText(this,"Import failed: "+e.message,Toast.LENGTH_LONG).show()}
+    }
+
+    /**
+     * Keep the original Driver Mirror import, but also feed every normalised
+     * row into the shared observation ledger for future canonical event work.
+     */
+    private fun captureCsvObservations(sourceName: String, rows: List<Map<String, String>>) {
+        val receivedAt = System.currentTimeMillis()
+        rows.forEachIndexed { index, row ->
+            val platform = row["platform"].orEmpty().ifBlank { "Unknown" }
+            val recordType = row["record_type"].orEmpty().trim().lowercase().ifBlank { "unknown" }
+            val raw = row.entries.sortedBy { it.key }.joinToString("&") { "${it.key}=${it.value}" }
+            val digestInput = "${sourceName}|${index + 1}|${raw}"
+            val observationId = "csv:" + java.security.MessageDigest.getInstance("SHA-256")
+                .digest(digestInput.toByteArray(Charsets.UTF_8))
+                .joinToString("") { "%02x".format(it) }
+            val evidence = EvidenceReference(
+                evidenceId = observationId,
+                evidenceType = "csv_import_row",
+                localRef = "${sourceName}#${index + 1}"
+            )
+            val facts = row.mapValues { (_, value) ->
+                ObservedFact(value.takeIf { it.isNotBlank() }, listOf(evidence))
+            }.toMutableMap()
+            if (recordType == "offer") {
+                facts["offer_state"] = ObservedFact("observed", listOf(evidence))
+            }
+            val externalId = row["external_id"]?.takeIf { it.isNotBlank() }
+            val subject = if (recordType == "offer") {
+                "csv-offer:${platform.lowercase()}:${externalId ?: observationId}"
+            } else {
+                externalId ?: observationId
+            }
+            commands.captureObservation(ObservationEnvelope(
+                observationId = observationId,
+                source = ObservationSource(
+                    sourceId = "busybee.csv_import",
+                    provider = platform,
+                    kind = ObservationSourceKind.IMPORT,
+                    adapterVersion = "busybee-csv-import/1"
+                ),
+                observedAtUnixMs = receivedAt,
+                receivedAtUnixMs = receivedAt,
+                subjectId = subject,
+                facts = facts,
+                evidence = listOf(evidence)
+            ))
+        }
     }
 
     private fun buildSourcesScreen():View{
