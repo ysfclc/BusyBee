@@ -4,6 +4,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import org.json.JSONArray
+import org.json.JSONObject
 
 data class DriverOffer(
     val id: Long = 0,
@@ -62,7 +64,20 @@ data class CapturedNotice(val id: Long, val platform: String, val title: String,
 data class CommunityDocument(val id: Long, val title: String, val content: String, val importedAt: Long)
 data class RoadReport(val id: Long, val category: String, val description: String, val latitude: Double, val longitude: Double, val createdAt: Long)
 
-class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 2) {
+class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 3) {
+    private fun createObservationLedger(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE IF NOT EXISTS observation_ledger(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            observation_id TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            observed_at INTEGER NOT NULL,
+            received_at INTEGER NOT NULL,
+            payload_json TEXT NOT NULL,
+            UNIQUE(observation_id,fingerprint))""")
+        db.execSQL("CREATE INDEX IF NOT EXISTS observation_source_time ON observation_ledger(source_id,observed_at DESC)")
+    }
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE offers(
             id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, pickup TEXT, destination TEXT,
@@ -73,6 +88,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
         db.execSQL("""CREATE TABLE notices(
             id INTEGER PRIMARY KEY AUTOINCREMENT, fingerprint TEXT NOT NULL UNIQUE, platform TEXT NOT NULL,
             title TEXT NOT NULL, body TEXT NOT NULL, captured_at INTEGER NOT NULL)""")
+        createObservationLedger(db)
         db.execSQL("""CREATE TABLE driver_items(
             id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, title TEXT NOT NULL, details TEXT,
             due_at INTEGER, amount REAL, uri TEXT, done INTEGER NOT NULL DEFAULT 0,
@@ -89,6 +105,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             db.execSQL("ALTER TABLE driver_items ADD COLUMN recurrence TEXT")
             db.execSQL("ALTER TABLE driver_items ADD COLUMN completed_at INTEGER")
         }
+        if (oldVersion < 3) createObservationLedger(db)
     }
 
     @Synchronized fun saveOffer(o: DriverOffer): Long {
@@ -108,6 +125,77 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
         return out
     }
     fun updateOfferStatus(id:Long,status:String) { writableDatabase.execSQL("UPDATE offers SET status=? WHERE id=?", arrayOf(status,id)) }
+
+    /**
+     * Append a validated, versioned observation. Exact replays are ignored,
+     * while changed payloads reusing an observation ID are retained as
+     * separate variants for later reconciliation.
+     */
+    @Synchronized fun captureObservation(envelope: ObservationEnvelope): Boolean {
+        if (envelope.validationError() != null) return false
+        val source = JSONObject()
+            .put("sourceId", envelope.source.sourceId)
+            .put("provider", envelope.source.provider)
+            .put("kind", envelope.source.kind.name.lowercase())
+            .put("adapterVersion", envelope.source.adapterVersion)
+        val facts = JSONObject()
+        envelope.facts.forEach { (key, fact) ->
+            val factEvidence = JSONArray()
+            fact.evidence.forEach { ref ->
+                factEvidence.put(JSONObject()
+                    .put("evidenceId", ref.evidenceId)
+                    .put("evidenceType", ref.evidenceType)
+                    .put("localRef", ref.localRef ?: JSONObject.NULL))
+            }
+            facts.put(key, JSONObject()
+                .put("value", fact.value ?: JSONObject.NULL)
+                .put("evidence", factEvidence))
+        }
+        val evidence = JSONArray()
+        envelope.evidence.forEach { ref ->
+            evidence.put(JSONObject()
+                .put("evidenceId", ref.evidenceId)
+                .put("evidenceType", ref.evidenceType)
+                .put("localRef", ref.localRef ?: JSONObject.NULL))
+        }
+        val payload = JSONObject()
+            .put("schemaVersion", envelope.schemaVersion)
+            .put("observationId", envelope.observationId)
+            .put("source", source)
+            .put("observedAtUnixMs", envelope.observedAtUnixMs)
+            .put("receivedAtUnixMs", envelope.receivedAtUnixMs)
+            .put("subjectId", envelope.subjectId ?: JSONObject.NULL)
+            .put("facts", facts)
+            .put("evidence", evidence)
+            .toString()
+        val fingerprint = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(payload.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        val values = ContentValues().apply {
+            put("observation_id", envelope.observationId)
+            put("fingerprint", fingerprint)
+            put("source_id", envelope.source.sourceId)
+            put("provider", envelope.source.provider)
+            put("observed_at", envelope.observedAtUnixMs)
+            put("received_at", envelope.receivedAtUnixMs)
+            put("payload_json", payload)
+        }
+        return writableDatabase.insertWithOnConflict(
+            "observation_ledger", null, values, SQLiteDatabase.CONFLICT_IGNORE
+        ) != -1L
+    }
+
+    /** Ordered raw envelopes for deterministic replay/reconciliation. */
+    fun observationPayloads(limit: Int = 100): List<String> {
+        val out = mutableListOf<String>()
+        readableDatabase.rawQuery(
+            "SELECT payload_json FROM observation_ledger ORDER BY observed_at,id LIMIT ?",
+            arrayOf(limit.coerceIn(1, 1000).toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) out.add(cursor.getString(0))
+        }
+        return out
+    }
 
     @Synchronized fun captureNotice(platform:String,title:String,body:String,at:Long=System.currentTimeMillis()) {
         val fingerprint=java.security.MessageDigest.getInstance("SHA-256").digest("$platform|$title|$body".toByteArray()).joinToString(""){"%02x".format(it)}
