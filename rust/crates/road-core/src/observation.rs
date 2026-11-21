@@ -270,10 +270,14 @@ pub fn classify_offer_observation(
             observed_at_unix_ms: envelope.observed_at_unix_ms,
             evidence_ids,
         };
-        let certainty = if fact.value.is_some() {
-            FieldCertainty::DirectlyObserved
-        } else {
+        let certainty = if fact.value.is_none() {
             FieldCertainty::Unknown
+        } else if envelope.source.kind == SourceKind::Import && name == "offer_state" {
+            // CSV record_type is source evidence; the normalised offer_state
+            // is a deterministic interpretation of that imported field.
+            FieldCertainty::Derived
+        } else {
+            FieldCertainty::DirectlyObserved
         };
         (name.clone(), CanonicalField {
             value: fact.value.clone(),
@@ -427,6 +431,14 @@ mod tests {
             classify_offer_observation(&offer_observation("expired", "obs-c")).unwrap().unwrap().kind,
             DriverEventKind::OfferExpired
         );
+    }
+
+    #[test]
+    fn imported_offer_state_is_marked_as_derived() {
+        let mut envelope = offer_observation("observed", "obs-import");
+        envelope.source.kind = SourceKind::Import;
+        let candidate = classify_offer_observation(&envelope).unwrap().unwrap();
+        assert_eq!(candidate.fields["offer_state"].certainty, FieldCertainty::Derived);
     }
 
     #[test]
