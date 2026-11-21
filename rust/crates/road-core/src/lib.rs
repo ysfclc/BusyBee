@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+pub mod observation;
+pub use observation::{DriverActivityEvent, DriverEventKind, EventLedger, ObservationEnvelope};
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RoadEvent {
     pub id: String,
@@ -18,7 +21,7 @@ impl RoadEvent {
     }
 }
 
-pub const ENGINE_VERSION: &str = "busybee-road-core/0.1.0";
+pub const ENGINE_VERSION: &str = "busybee-road-core/0.2.0";
 
 #[cfg(test)]
 mod tests {
