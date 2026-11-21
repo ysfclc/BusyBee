@@ -619,8 +619,12 @@ class MainActivity : AppCompatActivity() {
             if (recordType == "offer") {
                 facts["offer_state"] = ObservedFact("observed", listOf(evidence))
             }
-            val subject = row["external_id"]?.takeIf { it.isNotBlank() }
-                ?: if (recordType == "offer") "csv-offer:${platform.lowercase()}:${observationId}" else observationId
+            val externalId = row["external_id"]?.takeIf { it.isNotBlank() }
+            val subject = if (recordType == "offer") {
+                "csv-offer:${platform.lowercase()}:${externalId ?: observationId}"
+            } else {
+                externalId ?: observationId
+            }
             commands.captureObservation(ObservationEnvelope(
                 observationId = observationId,
                 source = ObservationSource(
