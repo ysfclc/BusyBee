@@ -177,7 +177,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
      * while changed payloads reusing an observation ID are retained as
      * separate variants for later reconciliation.
      */
-    @Synchronized fun captureObservation(envelope: ObservationEnvelope): Boolean {
+    @Synchronized internal fun captureObservation(envelope: ObservationEnvelope): Boolean {
         if (envelope.validationError() != null) return false
         val payload = envelope.toWireJson()
         val fingerprint = java.security.MessageDigest.getInstance("SHA-256")
