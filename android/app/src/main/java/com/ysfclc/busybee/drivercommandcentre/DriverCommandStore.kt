@@ -262,6 +262,24 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             arrayOf(eventId)
         ).use { it.moveToFirst() }
         val status = if (hasPriorVersion) "conflict" else event.optString("status", "candidate")
+        if (hasPriorVersion) {
+            val prior = mutableListOf<Pair<Long, String>>()
+            db.rawQuery(
+                "SELECT id,payload_json FROM canonical_event_ledger WHERE event_id=?",
+                arrayOf(eventId)
+            ).use { cursor ->
+                while (cursor.moveToNext()) prior.add(cursor.getLong(0) to cursor.getString(1))
+            }
+            prior.forEach { (id, payload) ->
+                val conflictedPayload = runCatching { JSONObject(payload).put("status", "conflict").toString() }
+                    .getOrDefault(payload)
+                db.execSQL(
+                    "UPDATE canonical_event_ledger SET status='conflict',payload_json=? WHERE id=?",
+                    arrayOf(conflictedPayload, id)
+                )
+            }
+            event.put("status", "conflict")
+        }
         val values = ContentValues().apply {
             put("event_id", eventId)
             put("fingerprint", fingerprint)
@@ -270,10 +288,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             put("status", status)
             if (event.isNull("occurred_at_unix_ms")) putNull("occurred_at")
             else put("occurred_at", event.optLong("occurred_at_unix_ms"))
-            put("payload_json", candidateJson)
-        }
-        if (hasPriorVersion) {
-            db.execSQL("UPDATE canonical_event_ledger SET status='conflict' WHERE event_id=?", arrayOf(eventId))
+            put("payload_json", event.toString())
         }
         db.insertWithOnConflict("canonical_event_ledger", null, values, SQLiteDatabase.CONFLICT_IGNORE)
     }
@@ -282,10 +297,15 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
     fun canonicalEventPayloads(limit: Int = 100): List<String> {
         val out = mutableListOf<String>()
         readableDatabase.rawQuery(
-            "SELECT payload_json FROM canonical_event_ledger ORDER BY occurred_at,id LIMIT ?",
+            "SELECT payload_json,status FROM canonical_event_ledger ORDER BY occurred_at,id LIMIT ?",
             arrayOf(limit.coerceIn(1, 1000).toString())
         ).use { cursor ->
-            while (cursor.moveToNext()) out.add(cursor.getString(0))
+            while (cursor.moveToNext()) {
+                val payload = runCatching {
+                    JSONObject(cursor.getString(0)).put("status", cursor.getString(1)).toString()
+                }.getOrDefault(cursor.getString(0))
+                out.add(payload)
+            }
         }
         return out
     }
