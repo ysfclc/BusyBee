@@ -39,9 +39,20 @@ External apps / Android / imports / public feeds / driver reports
 
 The observation/perception implementation may initially live in the separate App Observer research app because that is a convenient test harness. Its reusable components and contracts must be designed for integration into BusyBee's Android client. The research app itself is not a product dependency and must not become a second permanent product.
 
-## 3. Pipeline responsibilities
+## 3. Current BusyBee baseline (verified 2026-11-21)
 
-### 3.1 Source adapters
+The repository already has useful pieces, but they are separate storage/workflow paths rather than one canonical event pipeline:
+
+- `PlatformNotificationListener` recognises a fixed set of ride-app package names and forwards notification title/body directly to `DriverCommandStore.captureNotice`.
+- `DriverCommandStore` stores notices in a dedicated `notices` table with a content fingerprint. Offers are stored separately in `offers`.
+- `DriverMirrorStore` stores imported CSV rows and their raw evidence separately in `raw_evidence` and `records`.
+- `road-core` currently exposes a small `RoadEvent` type and freshness check; it does not yet define the driver observation envelope, driver activity lifecycle events, evidence links or event reconciliation.
+
+Therefore the first integration is not to add more screen understanding to App Observer. It is to establish a shared driver observation/event contract and route one source through it without losing the existing evidence. The existing notification, manual-offer and CSV paths must be migrated incrementally; do not delete or silently reinterpret their existing records.
+
+## 4. Pipeline responsibilities
+
+### 4.1 Source adapters
 
 Each adapter describes what it can actually observe and how:
 
@@ -55,7 +66,7 @@ Each adapter describes what it can actually observe and how:
 
 Adapters must not claim capabilities they do not have. An adapter declares provider/package, acquisition method, version, capabilities, permission state, coverage gaps, timestamps and retention/privacy class.
 
-### 3.2 Observation ledger
+### 4.2 Observation ledger
 
 An observation is an immutable evidence record, not a business fact.
 
@@ -71,7 +82,7 @@ Minimum envelope:
 
 Keep raw evidence separate from derived interpretation. Persist only data permitted by source terms and the user's choices. Do not retain passwords, typed secrets, tokens, cookies, payment credentials or unrelated screen contents. OCR raw text is ephemeral by default; explicitly authorised content must carry its rule/permission provenance.
 
-### 3.3 Perception and evidence fusion
+### 4.3 Perception and evidence fusion
 
 Convert observations into generic evidence primitives: text regions/shapes, UI elements, controls, containers, images, layout geometry, interaction signals and source activity. A scene graph is an intermediate representation that relates these primitives within an observation.
 
@@ -79,7 +90,7 @@ Temporal identity, relation matching and screen-state inference are supporting t
 
 Fuse sources without adding arbitrary confidence scores. Preserve disagreement, missing sensors, stale evidence and unknowns. Time proximity alone does not prove causality.
 
-### 3.4 Event interpretation
+### 4.4 Event interpretation
 
 Interpret evidence into provider-neutral event candidates. Initial driver activity lifecycle includes:
 
@@ -107,7 +118,7 @@ Each candidate carries:
 
 Do not describe uncalibrated scores as probabilities. Never convert unknown to zero or missing to false.
 
-### 3.5 Canonicalisation and delivery into BusyBee
+### 4.5 Canonicalisation and delivery into BusyBee
 
 The Rust domain core owns provider-neutral event contracts, validation, identity resolution, deduplication, evidence links, conflict handling, freshness and persistence. Kotlin owns Android capture, permissions, lifecycle and UI. Use a narrow, versioned Kotlin-to-Rust boundary; keep Android APIs and provider SDK objects out of canonical domain types.
 
@@ -115,7 +126,7 @@ Store the original observation/evidence link and the normalised event separately
 
 Canonical events then feed existing BusyBee surfaces such as Offer Desk, Driver Data Mirror and analytics. They must not bypass the common ingestion/domain layer to write directly into UI-specific state.
 
-## 4. What App Observer is and is not
+## 5. What App Observer is and is not
 
 App Observer is a temporary research and validation harness for:
 - collecting controlled, user-authorised observations;
@@ -132,7 +143,7 @@ It is not:
 
 Where a capture capability is appropriate for production, port/integrate its reusable implementation into BusyBee's source-adapter architecture. Keep research-only instrumentation out of production.
 
-## 5. First implementation vertical slice
+## 6. First implementation vertical slice
 
 Do not attempt all apps and all event types at once. Prove one end-to-end path using a synthetic ride-hailing app and HTTPS service that we own, then a permitted user-visible observation path.
 
@@ -146,7 +157,7 @@ Do not attempt all apps and all event types at once. Prove one end-to-end path u
 
 The owned-app plaintext POC remains a controlled research test. It proves the observer can see application data at authorised boundaries in an app we own; it does not prove that Uber/Bolt can or may be instrumented.
 
-## 6. Acceptance criteria
+## 7. Acceptance criteria
 
 The pipeline is not complete because a screenshot gets a label or a scene graph gets persisted. It is complete when:
 
@@ -162,7 +173,7 @@ The pipeline is not complete because a screenshot gets a label or a scene graph 
 - Tests measure event precision/recall, false-success/false-expiry rates, field accuracy, latency and device resource cost.
 - BusyBee works in a degraded but honest state when an adapter is unavailable.
 
-## 7. Engineering priorities
+## 8. Engineering priorities
 
 1. **Define and test the versioned observation envelope and canonical event contract.**
 2. **Build one synthetic offer lifecycle end-to-end through capture → interpretation → Rust canonical event → BusyBee UI.**
