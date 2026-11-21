@@ -48,7 +48,10 @@ class ScreenSceneGraphTest {
         assertTrue(graph.nodes.any { it.kind == "interactive_control" })
         assertTrue(graph.nodes.any { it.kind == "interaction_observation" })
         assertTrue(graph.nodes.any { it.kind == "network_activity_signal" })
-        assertTrue(graph.relations.any { it.kind == "aligned_horizontally" || it.kind == "adjacent" })
+        assertTrue(graph.relations.any {
+            it.kind == "aligned_horizontally" ||
+                it.kind == "aligned_vertically" || it.kind == "adjacent"
+        })
     }
 
     @Test
