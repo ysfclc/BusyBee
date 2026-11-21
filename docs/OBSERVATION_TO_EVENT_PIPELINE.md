@@ -193,7 +193,9 @@ The first shared contract and capture-integration slice is now present on the `a
 - The ledger treats exact replays as duplicates. A different payload reusing an event ID is retained alongside the original and both versions are marked `Conflict`; evidence is not silently overwritten.
 - Android: matching Kotlin DTOs and validation rules are defined in `ObservationContract.kt`, with unit tests for timestamp, unknown-field and provenance rules.
 - Existing driver notification capture now creates a versioned observation envelope and appends it to the local SQLite observation ledger. The legacy notices table is retained for compatibility.
-- Manual offer creation also appends a versioned observation while preserving the existing offers table and UI behaviour.
+- Manual offer creation and CSV/Driver Mirror import rows now append versioned observations while preserving the existing offers/imports/records tables and UI behaviour.
+- The Rust classifier is exposed through a narrow JSON JNI method. Android invokes it for newly accepted observations and on replay recovery; explicit offer candidates are persisted in a separate SQLite canonical-event ledger.
+- The Offer Desk now displays recent canonical event candidates, their lifecycle IDs, status and observed time. Unknown times are displayed as unknown rather than inferred.
 - The observation ledger stores immutable JSON payloads with a payload fingerprint. Exact replays are ignored; changed payloads reusing an observation ID are retained as separate variants. Ordered payload retrieval is available for replay.
 
 A deterministic Rust offer-observation classifier now maps explicit `offer_state` values (`observed`, `updated`, `expired`) to candidate event types. It deliberately does not treat `disappeared` or `hidden` as expiry, and preserves unknown fields as unknown. Manual offer creation marks its observation as `offer_state=observed`, so it can enter the same classification path.
