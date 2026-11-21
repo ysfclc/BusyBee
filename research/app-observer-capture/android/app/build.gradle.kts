@@ -1,0 +1,64 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+val persistentKeystoreFile = System.getenv("APP_OBSERVER_KEYSTORE_FILE")
+val persistentKeystorePassword = System.getenv("APP_OBSERVER_KEYSTORE_PASSWORD")
+val persistentKeyAlias = System.getenv("APP_OBSERVER_KEY_ALIAS")
+val persistentKeyPassword = System.getenv("APP_OBSERVER_KEY_PASSWORD")
+
+android {
+    namespace = "com.ysfclc.appobserver"
+    compileSdk = 35
+    defaultConfig {
+        // This is the permanent production package. Do not change it after the first
+        // persistent release is installed; future APKs must use the same signing key.
+        applicationId = "com.ysfclc.appobserver.capture"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 8
+        versionName = "0.5.0-multimodal"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    signingConfigs {
+        create("persistentRelease") {
+            if (!persistentKeystoreFile.isNullOrBlank()) {
+                storeFile = file(persistentKeystoreFile)
+            }
+            storePassword = persistentKeystorePassword
+            keyAlias = persistentKeyAlias
+            keyPassword = persistentKeyPassword
+        }
+    }
+    buildTypes {
+        debug {
+            // Debug APKs remain a separate throwaway identity. They are not release updates.
+            applicationIdSuffix = ".generic.viewer.diagnostics.debug"
+            versionNameSuffix = "-debug"
+        }
+        release {
+            isMinifyEnabled = false
+            // Withhold CI installables until the key is configured. The unsigned
+            // release candidate can be signed offline with the same private key.
+            if (!persistentKeystoreFile.isNullOrBlank() &&
+                !persistentKeystorePassword.isNullOrBlank() &&
+                !persistentKeyAlias.isNullOrBlank() &&
+                !persistentKeyPassword.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("persistentRelease")
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
+}
+
+dependencies {
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:image-labeling:17.0.9")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+}
