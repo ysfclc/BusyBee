@@ -56,8 +56,9 @@ jobs:
           validate-wrappers: false
 
       - name: Test Android app and assemble debug APK
+        working-directory: android
         shell: bash
         run: |
           set -euo pipefail
-          chmod +x android/gradlew
-          android/gradlew --no-daemon testDebugUnitTest assembleDebug
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug
