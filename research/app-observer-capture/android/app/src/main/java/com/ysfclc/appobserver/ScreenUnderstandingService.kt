@@ -213,6 +213,7 @@ object ScreenUnderstandingService {
                         .put("networkProtocols", JSONArray(evidence.networkProtocols.distinct()))
                         .put("networkPortCount", evidence.networkPorts.distinct().size))
                     .put("learningFeatures", JSONArray(featureVector))
+                    .put("sceneGraph", ScreenSceneGraphBuilder.build(evidence).toJson())
                 if (ObservationStore.appendUnderstanding(context, sessionId, record)) {
                     ObserverSignals.recordCaptureDiagnostic(context, "screen_insights_written")
                 } else {
