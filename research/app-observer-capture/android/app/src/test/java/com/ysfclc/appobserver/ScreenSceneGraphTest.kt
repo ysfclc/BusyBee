@@ -61,6 +61,31 @@ class ScreenSceneGraphTest {
         })
     }
 
+    @Test
+    fun preservesAccessibilityParentChildRelations() {
+        val graph = ScreenSceneGraphBuilder.build(
+            sample(elements = listOf(
+                AccessibilityElementEvidence(
+                    className = "android.view.ViewGroup",
+                    resourceId = "com.example:id/card",
+                    region = NormalisedRegion(0.1f, 0.1f, 0.9f, 0.7f),
+                    clickable = false, scrollable = false, editable = false,
+                    elementIndex = 2, parentIndex = 1, depth = 2
+                ),
+                AccessibilityElementEvidence(
+                    className = "android.widget.Button",
+                    resourceId = "com.example:id/confirm",
+                    region = NormalisedRegion(0.2f, 0.5f, 0.8f, 0.6f),
+                    clickable = true, scrollable = false, editable = false,
+                    elementIndex = 3, parentIndex = 2, depth = 3
+                )
+            ))
+        )
+        assertTrue(graph.relations.any {
+            it.from == "ui-2" && it.to == "ui-3" && it.kind == "parent_of"
+        })
+    }
+
     private fun sample(
         lines: List<OcrLineEvidence> = emptyList(),
         elements: List<AccessibilityElementEvidence> = emptyList(),
