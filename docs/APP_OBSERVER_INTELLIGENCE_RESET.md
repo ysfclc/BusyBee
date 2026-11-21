@@ -83,3 +83,16 @@ Report at minimum element detection/localisation precision and recall, relation 
 Preserve its capture/privacy work and stable package/signing identity. Do not treat the current heuristic classifier and Jaccard/Naive Bayes memory as the finished learning engine. The next engineering checkpoint is M1, the generic scene graph, followed by temporal and relational memory. Do not add more fixed screen categories as a substitute for those capabilities.
 
 The PR must remain unmerged until the branch is reconciled with current main, CI passes on the reconciled tree, and product claims accurately distinguish implemented foundations from unverified learning behaviour.
+
+
+## 7. M1 implementation checkpoint — 2026-11-21
+
+The clean reset branch now contains the first generic scene-graph slice:
+
+- Each screen-understanding record includes a versioned scene graph.
+- Nodes represent generic Accessibility elements/controls, OCR text regions reduced to coarse shape categories, whole-screen visual hints, and interaction/notification/network signals.
+- Relations include Accessibility parent/child links, geometry-derived containment, overlap, horizontal/vertical alignment and adjacency, plus explicitly weak temporal associations for interaction/network/notification evidence.
+- Every node/relation carries a source/evidence label. OCR raw text is not copied into the graph.
+- Unit tests cover containment-to-text association, generic controls/signals, hierarchy links and raw OCR text exclusion.
+
+This is deliberately a structural graph, not semantic understanding. It does not yet learn persistent element identity across screenshots, discover semantic relationships, or infer verified outcomes. M1 remains partial until graph replay/export, relation coverage and device resource behaviour are validated. CI on the reconciled branch and physical-device tests remain required.
