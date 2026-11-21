@@ -189,3 +189,52 @@ Still not yet implemented or device-verified:
 - Physical-device memory, latency, battery, storage-retention and long-session stress testing.
 
 Preserve this boundary: a screenshot is visual evidence, a semantic rule is optional user-authored feedback/permission, and a model inference is a separate evidence-backed hypothesis. The current engine identifies candidate screen concepts and recurring states; it does not yet prove business outcomes or perform automation.
+
+
+## 9. Product-goal audit and required correction — 2026-11-21
+
+The implementation above is a useful capture and first-pass perception foundation. It must not be described as the completed learning engine or as general app understanding.
+
+### The actual product goal
+
+Given any user-selected launchable Android app, observe it read-only and progressively construct a reusable, evidence-backed model of how that app is structured and behaves. The machine—not the user—must discover meaningful screens, regions, elements, relationships, states and transitions. User corrections are a feedback channel, not a requirement to draw or name every object. The model must be able to say that it does not know, preserve competing hypotheses and improve from repeated observations and verified outcomes.
+
+The intended output is not merely a label such as "map" or "payment". It is a model containing screen/state instances; visual regions and UI elements; containment, grouping, alignment, adjacency and label/control relationships; entities and attributes that persist or change; interaction-linked transitions including failures and ambiguous outcomes; hypotheses with supporting and contradicting evidence; and reusable app-independent patterns separated from app-specific mappings.
+
+### What the current code actually does
+
+1. MultimodalInference.classify is primarily a hand-authored phrase lexicon, currency regex, a small set of image-label mappings and hard-coded Accessibility class/resource-ID rules. Its output vocabulary is fixed in code except for labels introduced through explicit correction.
+2. Whole-screen ML Kit image labels do not localise objects or explain relations between them. Most machine regions come from OCR line boxes or Accessibility bounds, not learned visual object/element detection.
+3. featureVector converts the same starter lexicon and selected structural cues into categorical flags. It does not learn an open-ended representation of an app's elements or relationships.
+4. LocalLearningMemory.observe clusters these flags with Jaccard similarity and counts transitions. It is recurring-feature clustering, not a learned state model. Merging feature sets into a cluster can blur distinct states.
+5. The optional per-app Naive Bayes classifier learns co-occurrence between fixed features and labels from user corrections. It does not discover new concepts or relationships independently, and the current heuristic prediction remains dominant in the blend.
+6. ScreenUnderstandingService joins nearby records using timestamp windows. This is useful correlation, but it is not yet a shared event/scene graph with explicit identity, causal uncertainty, relation links and replayable evidence.
+7. Confidence values are heuristic evidence scores and are uncalibrated. They must not be presented as probabilities or as proof that a control or business operation was understood.
+
+Therefore the present build is capture + heuristic multimodal classification + simple recurring-feature memory + optional supervised correction. It is not yet the open-ended app-learning system described by the product objective.
+
+### Correct engineering direction
+
+Do not keep adding concepts to the hard-coded vocabulary as the primary way to improve the product. The next engine milestone must establish a generic, replayable screen model:
+
+1. Synchronized observation record: one timestamped observation links screenshot, UI hierarchy, source interaction, notification evidence and network metadata, each with its own source identity, timing uncertainty and availability.
+2. Generic scene graph: represent visual regions, OCR-derived text shapes, Accessibility elements and interaction targets as nodes. Add explicit hierarchy and geometric/semantic relations. Raw OCR text remains ephemeral unless separately authorised by a meaning rule.
+3. Temporal identity and change: match elements and regions between observations; distinguish stable identity from changing content, movement, reordering, insertion and disappearance.
+4. Relational memory: learn recurring element arrangements, containment/grouping, attributes and transitions from graph structure and repeated traces. Retain counterexamples and competing state hypotheses rather than merging everything into one centroid.
+5. Hypothesis and verification loop: infer candidate roles/meanings from all evidence, record why each hypothesis exists, predict observable changes, then strengthen or weaken the hypothesis after the next observation. Correlation alone never proves causation or success.
+6. Open-world learning: allow unknown elements and new concepts. Generalise reusable patterns across apps while retaining app-specific selectors/mappings. Corrections should update a versioned model and be evaluated against held-out traces.
+7. Evaluation before claims: use labelled traces from multiple unrelated apps, repeated workflows, negative/failure cases and app-version changes. Report precision/recall, localisation quality, state/transition accuracy, calibration, missed evidence and resource cost.
+
+### Required acceptance tests for the next milestone
+
+- Discover a previously unseen screen/element without adding a new hard-coded phrase or provider rule.
+- Identify generic controls and content regions when OCR is absent or misleading, using structure and visual evidence.
+- Link a text region to its containing card/control and preserve the relationship in the exported model.
+- Match the same element across screenshots despite text/value changes and small layout movement.
+- Distinguish visually similar screens whose state differs, and avoid merging them solely because their feature sets overlap.
+- Learn a repeated transition from several traces, retain a failed/cancelled counterexample and mark an ambiguous outcome as unknown.
+- Show exactly which sources support and contradict a hypothesis; remove a source and verify graceful degradation.
+- Demonstrate a reusable pattern in a second unrelated app without copying the first app's hard-coded labels.
+- Measure false positives, false negatives, localisation errors, latency, memory, battery and storage on the Redmi Android 14 pilot device.
+
+Until these tests pass, describe the engine as experimental and do not call it production-grade app understanding. The next implementation should focus on the generic scene graph and temporal/relational memory—not another round of screen-category heuristics.
