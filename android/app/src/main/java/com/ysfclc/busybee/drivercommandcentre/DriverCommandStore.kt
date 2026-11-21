@@ -115,7 +115,36 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             put("duration_min",o.durationMin); if(o.passengerRating==null) putNull("passenger_rating") else put("passenger_rating",o.passengerRating)
             put("captured_at",o.capturedAt); put("source",o.source); put("raw",o.raw); put("status",o.status)
         }
-        return writableDatabase.insertOrThrow("offers",null,v)
+        val id = writableDatabase.insertOrThrow("offers",null,v)
+        val receivedAt = System.currentTimeMillis()
+        val observedAt = o.capturedAt.coerceAtMost(receivedAt).coerceAtLeast(1L)
+        val evidence = EvidenceReference("manual-offer:$id", "manual_offer_input")
+        val facts = linkedMapOf(
+            "platform" to ObservedFact(o.platform, listOf(evidence)),
+            "pickup" to ObservedFact(o.pickup.takeIf { it.isNotBlank() }, listOf(evidence)),
+            "destination" to ObservedFact(o.destination.takeIf { it.isNotBlank() }, listOf(evidence)),
+            "fare" to ObservedFact(o.fare.toString(), listOf(evidence)),
+            "bonus" to ObservedFact(o.bonus.toString(), listOf(evidence)),
+            "pickup_km" to ObservedFact(o.pickupKm.toString(), listOf(evidence)),
+            "trip_km" to ObservedFact(o.tripKm.toString(), listOf(evidence)),
+            "duration_min" to ObservedFact(o.durationMin.toString(), listOf(evidence)),
+            "passenger_rating" to ObservedFact(o.passengerRating?.toString(), listOf(evidence))
+        )
+        captureObservation(ObservationEnvelope(
+            observationId = "manual-offer:$id",
+            source = ObservationSource(
+                sourceId = "busybee.manual_offer",
+                provider = o.platform,
+                kind = if (o.source.equals("manual", ignoreCase = true)) ObservationSourceKind.MANUAL else ObservationSourceKind.IMPORT,
+                adapterVersion = "busybee-manual-offer/1"
+            ),
+            observedAtUnixMs = observedAt,
+            receivedAtUnixMs = receivedAt,
+            subjectId = "manual-offer:$id",
+            facts = facts,
+            evidence = listOf(evidence)
+        ))
+        return id
     }
     fun offers(limit:Int=100):List<DriverOffer> {
         val out=mutableListOf<DriverOffer>()
