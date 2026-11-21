@@ -294,7 +294,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
     }
 
     /** Re-run interpretation over stored evidence after interrupted native processing. */
-    fun replayObservationLedger(limit: Int = 500) {
+    @Synchronized fun replayObservationLedger(limit: Int = 500) {
         observationPayloads(limit).forEach { payload ->
             val candidate = runCatching {
                 NativeBridge.classifyOfferObservation(payload)
@@ -305,7 +305,6 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
 
     /** Ordered canonical event payloads for BusyBee surfaces and replay. */
     fun canonicalEventPayloads(limit: Int = 100): List<String> {
-        replayObservationLedger()
         val out = mutableListOf<String>()
         readableDatabase.rawQuery(
             "SELECT payload_json,status FROM canonical_event_ledger ORDER BY occurred_at DESC,id DESC LIMIT ?",
