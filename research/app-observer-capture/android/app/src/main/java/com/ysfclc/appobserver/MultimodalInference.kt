@@ -21,7 +21,14 @@ data class AccessibilityElementEvidence(
     val region: NormalisedRegion?,
     val clickable: Boolean,
     val scrollable: Boolean,
-    val editable: Boolean
+    val editable: Boolean,
+    val elementIndex: Int = -1,
+    val parentIndex: Int = -1,
+    val depth: Int = 0,
+    val childIndex: Int = 0,
+    val enabled: Boolean = true,
+    val selected: Boolean = false,
+    val checked: Boolean = false
 )
 
 data class LearningEvidence(
