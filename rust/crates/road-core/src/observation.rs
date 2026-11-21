@@ -228,6 +228,76 @@ impl EventLedger {
     }
 }
 
+/// Interpret a normalised offer observation into a canonical candidate.
+/// This deliberately requires an explicit offer state: a notification or
+/// screen merely disappearing is not evidence that an offer expired.
+pub fn classify_offer_observation(
+    envelope: &ObservationEnvelope,
+) -> Result<Option<DriverActivityEvent>, ContractError> {
+    envelope.validate()?;
+    let lifecycle_id = envelope
+        .subject_id
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| envelope.facts.get("offer_id").and_then(|fact| fact.value.as_deref()))
+        .ok_or(ContractError::MissingIdentity)?;
+    let state = envelope
+        .facts
+        .get("offer_state")
+        .and_then(|fact| fact.value.as_deref())
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+
+    let (kind, kind_key) = match state.as_str() {
+        "observed" | "new" | "offered" => (DriverEventKind::OfferObserved, "offer_observed"),
+        "updated" | "changed" => (DriverEventKind::OfferUpdated, "offer_updated"),
+        "expired" => (DriverEventKind::OfferExpired, "offer_expired"),
+        // In particular, "disappeared", "hidden" and unknown states do not
+        // prove expiry. Keep the observation in the ledger without an event.
+        _ => return Ok(None),
+    };
+
+    let fields = envelope.facts.iter().map(|(name, fact)| {
+        let evidence_ids = if fact.evidence.is_empty() {
+            envelope.evidence.iter().map(|item| item.evidence_id.clone()).collect()
+        } else {
+            fact.evidence.iter().map(|item| item.evidence_id.clone()).collect()
+        };
+        let provenance = FieldProvenance {
+            observation_id: envelope.observation_id.clone(),
+            source_id: envelope.source.source_id.clone(),
+            observed_at_unix_ms: envelope.observed_at_unix_ms,
+            evidence_ids,
+        };
+        let certainty = if fact.value.is_some() {
+            FieldCertainty::DirectlyObserved
+        } else {
+            FieldCertainty::Unknown
+        };
+        (name.clone(), CanonicalField {
+            value: fact.value.clone(),
+            certainty,
+            provenance: vec![provenance],
+        })
+    }).collect();
+
+    let event = DriverActivityEvent {
+        schema_version: EVENT_SCHEMA_VERSION,
+        event_id: format!("{}:{}:{}", lifecycle_id, kind_key, envelope.observation_id),
+        lifecycle_id: lifecycle_id.to_string(),
+        kind,
+        status: EventStatus::Candidate,
+        occurred_at_unix_ms: Some(envelope.observed_at_unix_ms),
+        first_observed_at_unix_ms: envelope.observed_at_unix_ms,
+        last_observed_at_unix_ms: envelope.observed_at_unix_ms,
+        fields,
+        contributing_observation_ids: vec![envelope.observation_id.clone()],
+    };
+    event.validate()?;
+    Ok(Some(event))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContractError {
     UnsupportedSchemaVersion,
@@ -310,6 +380,67 @@ mod tests {
         let mut candidate = event("25.00");
         candidate.contributing_observation_ids.clear();
         assert_eq!(candidate.validate(), Err(ContractError::MissingProvenance));
+    }
+
+    fn offer_observation(state: &str, observation_id: &str) -> ObservationEnvelope {
+        let mut facts = BTreeMap::new();
+        facts.insert("offer_state".into(), ObservedFact {
+            value: Some(state.into()),
+            evidence: vec![EvidenceRef {
+                evidence_id: format!("evidence-{observation_id}"),
+                evidence_type: "synthetic_offer_state".into(),
+                local_ref: None,
+            }],
+        });
+        facts.insert("fare".into(), ObservedFact {
+            value: Some("25.00".into()),
+            evidence: vec![],
+        });
+        ObservationEnvelope {
+            schema_version: OBSERVATION_SCHEMA_VERSION,
+            observation_id: observation_id.into(),
+            source: SourceIdentity {
+                source_id: "synthetic-app".into(),
+                provider: "synthetic-provider".into(),
+                kind: SourceKind::OwnedAppInstrumentation,
+                adapter_version: "test/1".into(),
+            },
+            observed_at_unix_ms: 1_000,
+            received_at_unix_ms: 1_000,
+            subject_id: Some("offer-123".into()),
+            facts,
+            evidence: vec![],
+        }
+    }
+
+    #[test]
+    fn classifies_explicit_offer_lifecycle_states() {
+        assert_eq!(
+            classify_offer_observation(&offer_observation("observed", "obs-a")).unwrap().unwrap().kind,
+            DriverEventKind::OfferObserved
+        );
+        assert_eq!(
+            classify_offer_observation(&offer_observation("updated", "obs-b")).unwrap().unwrap().kind,
+            DriverEventKind::OfferUpdated
+        );
+        assert_eq!(
+            classify_offer_observation(&offer_observation("expired", "obs-c")).unwrap().unwrap().kind,
+            DriverEventKind::OfferExpired
+        );
+    }
+
+    #[test]
+    fn disappearance_does_not_become_offer_expiry() {
+        assert!(classify_offer_observation(&offer_observation("disappeared", "obs-d")).unwrap().is_none());
+    }
+
+    #[test]
+    fn offer_candidate_keeps_unknown_fields_unknown() {
+        let mut envelope = offer_observation("observed", "obs-e");
+        envelope.facts.insert("pickup".into(), ObservedFact { value: None, evidence: vec![] });
+        let candidate = classify_offer_observation(&envelope).unwrap().unwrap();
+        assert_eq!(candidate.fields["pickup"].certainty, FieldCertainty::Unknown);
+        assert_eq!(candidate.fields["pickup"].value, None);
     }
 
     #[test]
