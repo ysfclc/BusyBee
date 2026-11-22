@@ -212,3 +212,24 @@ Detailed design: [Native Provider Bridge](NATIVE_PROVIDER_BRIDGE.md).
 
 Verification boundary:
 - This checkpoint is design only. No Android app code, database schema, provider integration or APK was changed. The next implementation issue tracks the Provider Bridge contract and unified timeline.
+
+
+## 2026-11-22 — Nearby-driver alerts roadmap clarification
+
+**Status:** documentation-only checkpoint. No implementation started.
+
+User intent clarified:
+- BusyBee should eventually notify a driver when another mutually opted-in trusted driver is within a chosen nearby area.
+- The primary interaction is a lightweight "friend nearby" alert, not a public map of people or automatic exact-location sharing.
+- Both drivers must consent; presence is time-bounded and controlled by the participants.
+- Area entry triggers an alert; remaining in the area must not cause repeated notifications. Exit/re-entry, cooldowns, stale location and GPS jitter need explicit handling.
+- Approximate presence is the default. Exact location sharing remains a separate deliberate action.
+- Notifications and meetup actions must respect safe-driving constraints.
+
+Roadmap changes:
+- Clarified DC-01 in [Driver Community and Meetups](DRIVER-COMMUNITY-ROADMAP.md) as area/radius-based trusted-driver proximity alerts.
+- Made the capability explicit as a proposed Phase 7+ track in [ROADMAP.md](ROADMAP.md), without changing current Phase 3–6 priorities.
+- Preserved discovery, architecture, privacy, security, battery and driving-safety gates before any implementation.
+
+Verification boundary:
+- Documentation only. No Android code, permission declarations, location/background services, account system, backend, database, APK or deployment was changed or built.
