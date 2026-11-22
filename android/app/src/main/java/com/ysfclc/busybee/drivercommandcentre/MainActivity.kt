@@ -75,9 +75,12 @@ class MainActivity : AppCompatActivity() {
     private val navButtons=mutableMapOf<String,TextView>()
     private var activeTab="MAP"
     private var activityFilter="ALL"
+    private var activityProviderFilter:String?=null
     private var activityItems:List<UnifiedActivityItem> = emptyList()
     private var activityContainer:LinearLayout?=null
+    private var activityProviderFilterContainer:LinearLayout?=null
     private val activityFilterButtons=mutableMapOf<String,TextView>()
+    private val activityProviderFilterButtons=mutableMapOf<String,TextView>()
     private val locationListener=object:LocationListener {
         override fun onLocationChanged(location:Location) {
             lastLocation=location
@@ -622,6 +625,13 @@ class MainActivity : AppCompatActivity() {
             filters.addView(chip,LinearLayout.LayoutParams(0,dp(34),1f).apply{marginEnd=dp(5)})
         }
         root.addView(filters)
+
+        root.addView(label("PROVIDER SOURCE",8f,MUTED,true).apply{setPadding(dp(2),0,0,dp(5))})
+        val providerScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false }
+        activityProviderFilterContainer=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+        providerScroll.addView(activityProviderFilterContainer)
+        root.addView(providerScroll,LinearLayout.LayoutParams(-1,dp(42)))
+
         val scroll=ScrollView(this).apply { isFillViewport=true }
         activityContainer=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         scroll.addView(activityContainer)
@@ -637,6 +647,33 @@ class MainActivity : AppCompatActivity() {
             button.setTextColor(if(selected)BG else MUTED)
             button.background=rounded(if(selected)MINT else 0xFF263B46.toInt(),10)
         }
+        activityProviderFilterButtons.forEach { (provider,button) ->
+            val selected=if(provider=="ALL") activityProviderFilter==null else provider.equals(activityProviderFilter,ignoreCase=true)
+            button.setTextColor(if(selected)BG else MUTED)
+            button.background=rounded(if(selected)MINT else 0xFF263B46.toInt(),10)
+        }
+    }
+
+    private fun renderProviderFilters() {
+        val target=activityProviderFilterContainer ?: return
+        target.removeAllViews()
+        activityProviderFilterButtons.clear()
+        val providers=ActivityTimelineFilters.providers(activityItems)
+        (listOf("ALL")+providers).forEach { provider ->
+            val chip=label(if(provider=="ALL")"ALL PROVIDERS" else provider.uppercase(Locale.getDefault()),8f,MUTED,true).apply {
+                gravity=Gravity.CENTER
+                setPadding(dp(11),dp(8),dp(11),dp(8))
+                background=rounded(0xFF263B46.toInt(),10)
+                setOnClickListener {
+                    activityProviderFilter=provider.takeUnless { it=="ALL" }
+                    updateActivityFilterStyles()
+                    renderUnifiedActivity()
+                }
+            }
+            activityProviderFilterButtons[provider]=chip
+            target.addView(chip,LinearLayout.LayoutParams(-2,dp(34)).apply{marginEnd=dp(6)})
+        }
+        updateActivityFilterStyles()
     }
 
     private fun refreshUnifiedActivity() {
@@ -666,12 +703,8 @@ class MainActivity : AppCompatActivity() {
     private fun renderUnifiedActivity() {
         val target=activityContainer ?: return
         target.removeAllViews()
-        updateActivityFilterStyles()
-        val visible=when(activityFilter) {
-            "OBSERVATIONS" -> activityItems.filter{it.sourceKind=="observation"}
-            "EVENTS" -> activityItems.filter{it.sourceKind=="provider_event"}
-            else -> activityItems
-        }
+        renderProviderFilters()
+        val visible=ActivityTimelineFilters.filter(activityItems,activityFilter,activityProviderFilter)
         if(visible.isEmpty()) {
             target.addView(card().apply {
                 addView(label(if(activityFilter=="EVENTS")"NO CANONICAL EVENTS YET" else "NO LOCAL ACTIVITY YET",11f,MINT,true))
@@ -714,8 +747,34 @@ class MainActivity : AppCompatActivity() {
             item.payloadJson?.let {
                 entry.addView(label("PAYLOAD · ${it.take(220)}",8f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
             }
+            entry.addView(action("INSPECT EVIDENCE",false){showActivityEvidence(item)},LinearLayout.LayoutParams(-1,dp(34)).apply{topMargin=dp(8)})
             activityContainer?.addView(entry)
         }
+    }
+
+    private fun showActivityEvidence(item:UnifiedActivityItem) {
+        val message=buildString {
+            appendLine("Record: ${item.id}")
+            appendLine("Kind: ${item.sourceKind} / ${item.itemType}")
+            appendLine("Provider: ${item.provider ?: "Unknown"}")
+            appendLine("Source method: ${item.sourceMethod}")
+            appendLine("Classification: ${item.classification}")
+            appendLine("Source event time: ${item.sourceOccurredAtMillis?.let(::dateTime) ?: "Unknown"}")
+            appendLine("Received locally: ${dateTime(item.receivedAtMillis)}")
+            appendLine("Lifecycle: ${item.lifecycleId ?: "Not linked"}")
+            appendLine("Evidence row: ${item.evidenceId ?: "Not available"}")
+            appendLine("Evidence reference: ${item.evidenceReference ?: "Not available"}")
+            appendLine("Evidence SHA-256: ${item.evidenceDigest ?: "Not available"}")
+            appendLine("Status: ${item.status ?: "Unknown"}")
+            appendLine("Amount: ${item.amount?.let { String.format(Locale.US,"%.2f",it) } ?: "Unknown"} ${item.currency ?: ""}")
+            appendLine("Pickup: ${item.pickup ?: "Unknown"}")
+            appendLine("Destination: ${item.destination ?: "Unknown"}")
+            appendLine("Distance: ${item.distanceKm?.let { String.format(Locale.US,"%.1f km",it) } ?: "Unknown"}")
+            appendLine("Duration: ${item.durationMinutes?.let { String.format(Locale.US,"%.0f min",it) } ?: "Unknown"}")
+            item.payloadJson?.let { appendLine("\nCanonical payload:\n$it") }
+        }
+        AlertDialog.Builder(this).setTitle("ACTIVITY EVIDENCE").setMessage(message)
+            .setPositiveButton("CLOSE",null).show()
     }
 
     private fun buildSourcesScreen():View{
