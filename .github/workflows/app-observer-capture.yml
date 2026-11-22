@@ -1,0 +1,181 @@
+name: App Observer — tests and persistent release APK
+
+on:
+  push:
+    branches:
+      - fix/app-observer-capture-0.2.1
+      - app-observer-intelligence-reset
+      - fix/app-observer-ui-diagnostics-0.2.2
+    paths:
+      - 'research/app-observer-capture/**'
+      - '.github/workflows/app-observer-capture.yml'
+      - 'android/gradlew'
+      - 'android/gradle/**'
+  pull_request:
+    paths:
+      - 'research/app-observer-capture/**'
+      - '.github/workflows/app-observer-capture.yml'
+      - 'android/gradlew'
+      - 'android/gradle/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build persistent App Observer release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      APP_OBSERVER_KEYSTORE_BASE64: ${{ secrets.APP_OBSERVER_KEYSTORE_BASE64 }}
+      APP_OBSERVER_KEYSTORE_PASSWORD: ${{ secrets.APP_OBSERVER_KEYSTORE_PASSWORD }}
+      APP_OBSERVER_KEY_ALIAS: ${{ secrets.APP_OBSERVER_KEY_ALIAS }}
+      APP_OBSERVER_KEY_PASSWORD: ${{ secrets.APP_OBSERVER_KEY_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: research/app-observer-capture/android/**/*.gradle.kts
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android 35 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Package Android apksigner for persistent bootstrap signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIGNER="$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar"
+          test -s "$SIGNER"
+          mkdir -p "$RUNNER_TEMP/app-observer-apksigner"
+          cp "$SIGNER" "$RUNNER_TEMP/app-observer-apksigner/apksigner.jar"
+          sha256sum "$RUNNER_TEMP/app-observer-apksigner/apksigner.jar" > "$RUNNER_TEMP/app-observer-apksigner/SHA256SUMS"
+
+      - name: Upload Android apksigner bootstrap tool
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-observer-apksigner-35-${{ github.run_number }}
+          path: ${{ runner.temp }}/app-observer-apksigner/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Test source and build release candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x android/gradlew
+          android/gradlew -p research/app-observer-capture/android --no-daemon --stacktrace testDebugUnitTest testReleaseUnitTest assembleDebug assembleRelease
+
+      - name: Verify side-by-side debug APK and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="research/app-observer-capture/android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture.generic.viewer.diagnostics.debug' versionCode='9' versionName='0.6.0-scene-graph-debug'"
+          sha256sum "$APK" | tee research/app-observer-capture/android/app/build/outputs/apk/debug/SHA256SUMS
+
+      - name: Upload side-by-side debug APK for device acceptance
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-observer-debug-device-test-${{ github.run_number }}
+          path: |
+            research/app-observer-capture/android/app/build/outputs/apk/debug/app-debug.apk
+            research/app-observer-capture/android/app/build/outputs/apk/debug/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Explain persistent signing setup
+        if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 == '' }}
+        shell: bash
+        run: |
+          {
+            echo "## Unsigned stable release candidate produced"
+            echo
+            echo "The permanent package and production version have been built, but this artifact is intentionally unsigned and cannot be installed yet."
+            echo "It can be signed locally with the long-lived private key. For automated future updates, add APP_OBSERVER_KEYSTORE_BASE64, APP_OBSERVER_KEYSTORE_PASSWORD, APP_OBSERVER_KEY_ALIAS and APP_OBSERVER_KEY_PASSWORD in repository Actions secrets."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify unsigned stable package and checksum
+        if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="research/app-observer-capture/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$APK"
+          ALIGNED="$RUNNER_TEMP/app-release-aligned-unsigned.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -p 4 "$APK" "$ALIGNED"
+          mv "$ALIGNED" "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture' versionCode='9' versionName='0.6.0-scene-graph'"
+          sha256sum "$APK" | tee research/app-observer-capture/android/app/build/outputs/apk/release/SHA256SUMS
+
+      - name: Upload unsigned stable release candidate (for offline persistent signing only)
+        if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-observer-unsigned-release-candidate-${{ github.run_number }}
+          path: |
+            research/app-observer-capture/android/app/build/outputs/apk/release/app-release-unsigned.apk
+            research/app-observer-capture/android/app/build/outputs/apk/release/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Validate signing secrets and decode persistent keystore
+        if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$APP_OBSERVER_KEYSTORE_PASSWORD"
+          test -n "$APP_OBSERVER_KEY_ALIAS"
+          test -n "$APP_OBSERVER_KEY_PASSWORD"
+          KEYSTORE="$RUNNER_TEMP/app-observer-release.jks"
+          printf '%s' "$APP_OBSERVER_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          test -s "$KEYSTORE"
+          echo "APP_OBSERVER_KEYSTORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+
+      - name: Build signed persistent release APK
+        if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          android/gradlew -p research/app-observer-capture/android --no-daemon --stacktrace testReleaseUnitTest assembleRelease
+
+      - name: Verify permanent package, version and release signer
+        if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="research/app-observer-capture/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apk-signature.txt"
+          grep -F "Signer #1 certificate SHA-256 digest: 6c268b04e8deef08ffd000a22cbdf21ec4ab47a816838a59e6fa71ce18bcec6a" "$RUNNER_TEMP/apk-signature.txt"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.ysfclc.appobserver.capture' versionCode='9' versionName='0.6.0-scene-graph'"
+          sha256sum "$APK" | tee research/app-observer-capture/android/app/build/outputs/apk/release/SHA256SUMS
+
+      - name: Upload persistent release APK
+        if: ${{ env.APP_OBSERVER_KEYSTORE_BASE64 != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-observer-persistent-release-${{ github.run_number }}
+          path: |
+            research/app-observer-capture/android/app/build/outputs/apk/release/app-release.apk
+            research/app-observer-capture/android/app/build/outputs/apk/release/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
