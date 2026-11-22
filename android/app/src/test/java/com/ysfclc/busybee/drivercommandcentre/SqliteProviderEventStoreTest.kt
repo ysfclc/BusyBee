@@ -55,29 +55,33 @@ class SqliteProviderEventStoreTest {
     @Test
     fun repositoryMergesObservationsAndCanonicalEventsWithoutInventingSourceTime() {
         val ledger = UnifiedActivityLedger(context)
-        val db = ledger.writableDatabase
-        db.execSQL(
-            """INSERT INTO activity_observations
-               (origin_key,provider,observation_kind,source_method,source_occurred_at_ms,
-                received_at_ms,classification)
-               VALUES('notice:1','Uber','notification','ANDROID_NOTIFICATION',NULL,1000,'unclassified')"""
-        )
-        SqliteProviderEventStore(context).use { it.append(sampleEvent()) }
+        try {
+            val db = ledger.writableDatabase
+            db.execSQL(
+                """INSERT INTO activity_observations
+                   (origin_key,provider,observation_kind,source_method,source_occurred_at_ms,
+                    received_at_ms,classification,status,amount,currency,pickup,destination,distance_km,duration_min)
+                   VALUES('notice:1','Uber','notification','ANDROID_NOTIFICATION',NULL,1000,'unclassified',
+                          'new',12.5,'PLN','Old Town','Airport',8.2,20)"""
+            )
+            SqliteProviderEventStore(context).use { it.append(sampleEvent()) }
 
-        UnifiedActivityRepository(context).use { repository ->
-            val items = repository.timeline()
-            assertEquals(2, items.size)
-            assertEquals("provider_event", items[0].sourceKind)
-            assertNull(items[0].sourceOccurredAtMillis)
-            assertEquals(2000L, items[0].timelineTimestampMillis)
-            assertEquals("observation", items[1].sourceKind)
-            assertNull(items[1].sourceOccurredAtMillis)
-            assertEquals(1000L, items[1].timelineTimestampMillis)
-            assertEquals("new", items[1].status)
-            assertEquals(12.5, items[1].amount!!, 0.001)
-            assertEquals("Airport", items[1].destination)
+            UnifiedActivityRepository(context).use { repository ->
+                val items = repository.timeline()
+                assertEquals(2, items.size)
+                assertEquals("provider_event", items[0].sourceKind)
+                assertNull(items[0].sourceOccurredAtMillis)
+                assertEquals(2000L, items[0].timelineTimestampMillis)
+                assertEquals("observation", items[1].sourceKind)
+                assertNull(items[1].sourceOccurredAtMillis)
+                assertEquals(1000L, items[1].timelineTimestampMillis)
+                assertEquals("new", items[1].status)
+                assertEquals(12.5, items[1].amount!!, 0.001)
+                assertEquals("Airport", items[1].destination)
+            }
+        } finally {
+            ledger.close()
         }
-        ledger.close()
     }
 
     @Test
