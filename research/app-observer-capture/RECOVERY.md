@@ -38,7 +38,9 @@ No action executor, request replay, target-app automation, provider-process inst
 The source reset branch was CI-verified at commit `8d8a9945c88352e85ee58ae3d282533c20fb3363`:
 - App Observer workflow #328 passed tests, debug/release compilation, package/version checks and ZIP alignment.
 - The workflow uploaded an unsigned release candidate because persistent Actions signing secrets were absent.
-- The exact clean-mainline 0.6.0 candidate is pending its own CI run.
+- Clean-mainline PR #28 CI run [#331](https://github.com/ysfclc/BusyBee/actions/runs/44977961020) passed on commit `0240101d5c2aa17a2c80e160d63f35896be60ae3`: unit tests, debug/release compilation, package/version/ZIP-alignment checks and debug APK signature checks passed.
+- Debug device-test artifact: `app-observer-debug-device-test-331` (ID `14736318462`, 43,670,448 bytes; 14-day retention).
+- Unsigned stable release candidate: artifact `app-observer-unsigned-release-candidate-331` (ID `14736462362`). Persistent release-signing steps were skipped because Actions secrets are absent.
 - Physical Redmi/Android 14 acceptance, screenshot coverage across representative apps, PCAPdroid interoperability, classifier accuracy, battery/latency and privacy acceptance remain unverified.
 
 A CI build does not establish that screenshots work for every app or that inferred concepts/business events are correct.
