@@ -5,7 +5,6 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import org.json.JSONObject
-import java.io.File
 import java.security.MessageDigest
 import java.time.Instant
 
@@ -73,7 +72,8 @@ class UnifiedActivityLedgerMigrator(
         source.use { db ->
             tables.forEach { table ->
                 if (!tableExists(db, table)) {
-                    results.add(TableResult(databaseName, table, 0, 0, 0, true))
+                    // A missing table may indicate an older or incompatible schema; never report it migrated.
+                    results.add(TableResult(databaseName, table, 0, 0, 0, false))
                 } else {
                     results.add(copyTable(db, databaseName, table))
                 }
@@ -98,6 +98,8 @@ class UnifiedActivityLedgerMigrator(
             arrayOf(source.version, databaseName, table)
         )
 
+        val importTimes = if (databaseName == "busybee_driver_mirror.db" &&
+            table in setOf("raw_evidence", "records")) loadImportTimes(source) else emptyMap()
         var copied = 0
         var skipped = 0
         source.rawQuery("SELECT * FROM $table ORDER BY id", null).use { cursor ->
@@ -116,9 +118,11 @@ class UnifiedActivityLedgerMigrator(
                         databaseName == "busybee_driver_mirror.db" && table == "imports" ->
                             copyImportMetadata(db, databaseName, table, cursor, origin, rowId)
                         databaseName == "busybee_driver_mirror.db" && table == "raw_evidence" ->
-                            copyMirrorEvidence(db, databaseName, table, cursor, origin, rowId)
+                            copyMirrorEvidence(db, databaseName, table, cursor, origin, rowId,
+                                importTimes[cursor.longOrNull("import_id")])
                         databaseName == "busybee_driver_mirror.db" && table == "records" ->
-                            copyMirrorRecord(db, databaseName, table, cursor, origin, rowId)
+                            copyMirrorRecord(db, databaseName, table, cursor, origin, rowId,
+                                importTimes[cursor.longOrNull("import_id")])
                         databaseName == "busybee_command_centre.db" && table == "offers" ->
                             copyOffer(db, databaseName, table, cursor, origin, rowId)
                         databaseName == "busybee_command_centre.db" && table == "notices" ->
@@ -146,12 +150,13 @@ class UnifiedActivityLedgerMigrator(
             "SELECT COUNT(*) FROM migration_rows WHERE source_database=? AND source_table=?",
             arrayOf(databaseName, table)
         ).use { if (it.moveToFirst()) it.getInt(0) else 0 }
-        val complete = migratedCount == sourceCount
-        val digest = digestSourceIds(source, table)
+        val sourceDigest = digestSourceIds(source, table)
+        val migratedDigest = digestMigratedIds(target.readableDatabase, databaseName, table)
+        val complete = migratedCount == sourceCount && sourceDigest == migratedDigest
         target.writableDatabase.execSQL(
             """UPDATE migration_sources SET completed_at_ms=?,source_row_count=?,
                migrated_row_count=?,verification_digest=?,state=? WHERE source_database=? AND source_table=?""",
-            arrayOf(if (complete) now() else null, sourceCount, migratedCount, digest,
+            arrayOf(if (complete) now() else null, sourceCount, migratedCount, sourceDigest,
                 if (complete) "complete" else "incomplete", databaseName, table)
         )
         return TableResult(databaseName, table, sourceCount, copied, skipped, complete)
@@ -166,20 +171,23 @@ class UnifiedActivityLedgerMigrator(
             put("row_count", c.longOrNull("row_count"))
             put("inserted_count", c.longOrNull("inserted_count"))
         }.toString()
+        val importedAt = c.longOrNull("imported_at")
         return insertEvidence(db, database, table, origin, rowId, null,
-            c.longOrNull("imported_at"), "import_metadata", content, sha256(content), null)
+            importedAt, importedAt, "import_metadata", content, sha256(content), null)
     }
 
     private fun copyMirrorEvidence(
-        db: SQLiteDatabase, database: String, table: String, c: Cursor, origin: String, rowId: String
+        db: SQLiteDatabase, database: String, table: String, c: Cursor, origin: String, rowId: String,
+        receivedAt: Long?
     ): Long {
         val raw = c.stringOrNull("raw").orEmpty()
-        return insertEvidence(db, database, table, origin, rowId, null, null,
+        return insertEvidence(db, database, table, origin, rowId, null, null, receivedAt,
             "csv_row", raw, c.stringOrNull("fingerprint") ?: sha256(raw), c.stringOrNull("source_name"))
     }
 
     private fun copyMirrorRecord(
-        db: SQLiteDatabase, database: String, table: String, c: Cursor, origin: String, rowId: String
+        db: SQLiteDatabase, database: String, table: String, c: Cursor, origin: String, rowId: String,
+        receivedAt: Long?
     ): Long {
         val fingerprint = c.stringOrNull("fingerprint")
         val evidenceId = fingerprint?.let {
@@ -190,13 +198,12 @@ class UnifiedActivityLedgerMigrator(
             ).use { rows -> if (rows.moveToFirst()) rows.getLong(0) else null }
         }
         val provider = c.stringOrNull("platform")
-        val receivedAt = importTime(c.longOrNull("import_id"))
         val values = ContentValues().apply {
             put("origin_key", origin)
             put("provider", provider)
             put("observation_kind", c.stringOrNull("record_type")?.lowercase() ?: "unknown")
             put("source_method", ProviderSourceMethod.USER_EXPORT.name)
-            putNull("source_occurred_at_ms") // CSV date strings are not assumed to be epoch timestamps.
+            putNullableLong("source_occurred_at_ms", parseSourceTimestamp(c.stringOrNull("occurred_at")))
             put("received_at_ms", receivedAt ?: now())
             put("classification", "unclassified")
             put("lifecycle_id", c.stringOrNull("external_id"))
@@ -229,7 +236,7 @@ class UnifiedActivityLedgerMigrator(
             put("status", c.stringOrNull("status"))
         }.toString()
         val evidenceId = insertEvidence(db, database, table, origin, rowId,
-            c.stringOrNull("platform"), capturedAt, "local_offer_record", snapshot, sha256(snapshot), null)
+            c.stringOrNull("platform"), capturedAt, capturedAt, "local_offer_record", snapshot, sha256(snapshot), null)
         val values = ContentValues().apply {
             put("origin_key", origin)
             put("provider", c.stringOrNull("platform"))
@@ -261,7 +268,7 @@ class UnifiedActivityLedgerMigrator(
         val capturedAt = c.longOrNull("captured_at") ?: now()
         val content = JSONObject().apply { put("title", title); put("body", body) }.toString()
         val evidenceId = insertEvidence(db, database, table, origin, rowId, platform,
-            capturedAt, "notification", content, sha256("$platform|$title|$body"), null)
+            capturedAt, capturedAt, "notification", content, sha256("$platform|$title|$body"), null)
         val values = ContentValues().apply {
             put("origin_key", origin)
             put("provider", platform)
@@ -286,7 +293,7 @@ class UnifiedActivityLedgerMigrator(
 
     private fun insertEvidence(
         db: SQLiteDatabase, database: String, table: String, origin: String, rowId: String,
-        provider: String?, capturedAt: Long?, kind: String, content: String, digest: String, contentRef: String?
+        provider: String?, capturedAt: Long?, receivedAt: Long?, kind: String, content: String, digest: String, contentRef: String?
     ): Long {
         val values = ContentValues().apply {
             put("origin_key", origin)
@@ -295,7 +302,7 @@ class UnifiedActivityLedgerMigrator(
             put("source_row_id", rowId)
             put("provider", provider)
             if (capturedAt == null) putNull("captured_at_ms") else put("captured_at_ms", capturedAt)
-            put("received_at_ms", capturedAt ?: now())
+            put("received_at_ms", receivedAt ?: now())
             put("evidence_kind", kind)
             put("content_digest", digest)
             put("content", content)
@@ -307,15 +314,13 @@ class UnifiedActivityLedgerMigrator(
         }
     }
 
-    private fun importTime(importId: Long?): Long? {
-        if (importId == null) return null
-        val file = appContext.getDatabasePath("busybee_driver_mirror.db")
-        if (!file.isFile) return null
-        SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { source ->
-            return source.rawQuery("SELECT imported_at FROM imports WHERE id=?", arrayOf(importId.toString())).use {
-                if (it.moveToFirst()) it.longOrNull("imported_at") else null
-            }
+    private fun loadImportTimes(source: SQLiteDatabase): Map<Long, Long> {
+        if (!tableExists(source, "imports")) return emptyMap()
+        val result = mutableMapOf<Long, Long>()
+        source.rawQuery("SELECT id,imported_at FROM imports WHERE imported_at IS NOT NULL", null).use { c ->
+            while (c.moveToNext()) result[c.getLong(0)] = c.getLong(1)
         }
+        return result
     }
 
     private fun migrationRowExists(database: String, table: String, rowId: String): Boolean =
@@ -328,12 +333,33 @@ class UnifiedActivityLedgerMigrator(
         db.rawQuery("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", arrayOf(table)).use { it.moveToFirst() }
 
     private fun digestSourceIds(db: SQLiteDatabase, table: String): String {
-        val ids = mutableListOf<String>()
+        val digest = MessageDigest.getInstance("SHA-256")
         db.rawQuery("SELECT id FROM $table ORDER BY id", null).use { c ->
-            while (c.moveToNext()) ids.add(c.getString(0))
+            while (c.moveToNext()) {
+                digest.update(c.getString(0).toByteArray())
+                digest.update(0)
+            }
         }
-        return sha256(ids.joinToString("|"))
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
+
+    private fun digestMigratedIds(db: SQLiteDatabase, database: String, table: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        db.rawQuery(
+            """SELECT source_row_id FROM migration_rows
+               WHERE source_database=? AND source_table=? ORDER BY CAST(source_row_id AS INTEGER)""",
+            arrayOf(database, table)
+        ).use { c ->
+            while (c.moveToNext()) {
+                digest.update(c.getString(0).toByteArray())
+                digest.update(0)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun parseSourceTimestamp(value: String?): Long? =
+        value?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
 
     private fun Cursor.stringOrNull(column: String): String? {
         val index = getColumnIndex(column)
@@ -352,6 +378,10 @@ class UnifiedActivityLedgerMigrator(
     }
 
     private fun ContentValues.putNullableDouble(key: String, value: Double?) {
+        if (value == null) putNull(key) else put(key, value)
+    }
+
+    private fun ContentValues.putNullableLong(key: String, value: Long?) {
         if (value == null) putNull(key) else put(key, value)
     }
 

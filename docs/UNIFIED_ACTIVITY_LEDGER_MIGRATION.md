@@ -39,7 +39,8 @@ The third database is `busybee_driver_activity.db`. It is a new local read/query
 5. Copies offers and notifications as observations with their raw/structured evidence. Notification title/body is not automatically interpreted as an offer, trip, or expiry.
 6. Leaves source event timestamps unknown when the old source does not provide a trustworthy epoch timestamp. Capture/import time is kept separately as local received time.
 7. Commits each copied row and its `migration_rows` marker in one target transaction. A restart skips already committed origins and resumes the remaining rows.
-8. Records table completion only when the target migration-marker count matches the source row count.
+8. Preloads import timestamps once per source database, avoiding a second database open for every imported row.
+9. Verifies both source and target row-identity digests as well as row counts before marking a table complete. Missing source tables remain incomplete.
 
 This slice is deliberately not wired into startup or the UI yet. That keeps the existing screens unchanged until the migrated data has passed parity checks on-device.
 
@@ -65,7 +66,10 @@ Robolectric fixture tests cover:
 
 - absent legacy databases are not created;
 - both legacy stores can be copied into the new schema;
-- source time remains unknown when the imported date is not a trustworthy epoch;
+- ISO-8601 source timestamps are parsed; unparseable timestamps remain unknown;
+- duplicate raw evidence rows are retained independently;
+- source/target identity digests are recorded and compared;
+- missing source tables are not reported as successfully migrated;
 - notifications remain unclassified observations, not canonical events;
 - rerunning the migration adds no duplicate evidence or observations.
 
@@ -73,8 +77,7 @@ Still required before switching screens: fixtures for partially interrupted batc
 
 ## 7. Next implementation steps
 
-1. Run the new migration fixture tests and fix any platform/runtime issues.
-2. Add interruption/restart and source/target identity-digest verification.
-3. Add a unified repository query layer and compare its results against both existing stores.
-4. Only after parity passes, wire the timeline and existing screens to the unified repository.
-5. Keep legacy stores intact for at least one release and retain an explicit rollback/backup plan before considering any legacy-write deprecation.
+1. Extend interruption/restart coverage with process-kill simulation and large-import fixtures.
+2. Add a unified repository query layer and compare its results against both existing stores.
+3. Only after parity passes, wire the timeline and existing screens to the unified repository.
+4. Keep legacy stores intact for at least one release and retain an explicit rollback/backup plan before considering any legacy-write deprecation.

@@ -212,3 +212,26 @@ Detailed design: [Native Provider Bridge](NATIVE_PROVIDER_BRIDGE.md).
 
 Verification boundary:
 - This checkpoint is design only. No Android app code, database schema, provider integration or APK was changed. The next implementation issue tracks the Provider Bridge contract and unified timeline.
+
+
+## 2026-11-22 — Native Provider Bridge and unified activity migration (implementation checkpoint)
+
+**Status:** implementation committed on `feature/native-provider-bridge-slice-1-2026-11-22`; PR #29 remains open and unmerged.
+
+Delivered:
+- Added a provider-neutral Kotlin bridge contract, adapter registry, capability/health types, typed event payloads and evidence envelope.
+- Added idempotent event-ingestion validation. Delayed/out-of-order evidence is retained; offer expiry requires explicit evidence.
+- Added a local model inventory and app-private model storage catalogue. Discovery never makes a model inference-eligible without compatible runtime/capability metadata.
+- Added the first read-only migration from `busybee_driver_mirror.db` and `busybee_command_centre.db` into `busybee_driver_activity.db`.
+- Migration copies import metadata, every raw CSV evidence row, normalized CSV observations, saved offers and captured notifications. It leaves unrelated driver hub/map tables in place.
+- Each source row and migration marker are committed together. Stable source identity keys prevent duplicate copies on restart. Source databases are opened read-only and never rewritten.
+- Missing/ambiguous source timestamps remain unknown; ISO-8601 timestamps are parsed only when explicit. Imported notifications remain unclassified observations and do not become invented offers/trips/expiry events.
+- Added Robolectric database fixtures for missing databases/tables, duplicate evidence retention, timestamp handling, notification provenance and idempotent reruns.
+- Added CI APK artifact upload so pull-request builds can provide a retrievable validation APK rather than only building it on the runner.
+
+Verification:
+- CI run 449 passed actionlint, Rust domain tests, Android unit tests (including Robolectric migration fixtures) and debug APK assembly.
+- Persistent Android release-signing secrets are absent, so the release-signing steps were skipped. The debug APK uses a separate `.debug` application ID and cannot update the release package.
+- Run 449 was a pull-request build and did not publish a release asset. The next CI run includes the APK artifact upload step.
+- No migration is invoked automatically yet; existing screens still use the legacy stores. The migration must pass on-device parity checks before the UI is switched.
+- PR: https://github.com/ysfclc/BusyBee/pull/29

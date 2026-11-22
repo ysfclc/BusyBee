@@ -1,6 +1,5 @@
 package com.ysfclc.busybee.drivercommandcentre
 
-import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -22,7 +21,7 @@ class UnifiedActivityLedgerMigratorTest {
             UnifiedActivityLedgerSchema.DATABASE_NAME,
             "busybee_driver_mirror.db",
             "busybee_command_centre.db"
-        ).forEach(context::deleteDatabase)
+        ).forEach { context.deleteDatabase(it) }
     }
 
     @After
@@ -47,23 +46,38 @@ class UnifiedActivityLedgerMigratorTest {
 
         val report = UnifiedActivityLedgerMigrator(context) { 9_999L }.migrateIfNeeded()
         assertTrue(report.complete)
-        assertEquals(5, report.copiedRows)
+        assertEquals(7, report.copiedRows)
 
         val db = UnifiedActivityLedger(context).readableDatabase
-        assertEquals(4, scalar(db, "SELECT COUNT(*) FROM activity_evidence"))
-        assertEquals(3, scalar(db, "SELECT COUNT(*) FROM activity_observations"))
-        assertEquals(5, scalar(db, "SELECT COUNT(*) FROM migration_rows"))
+        assertEquals(5, scalar(db, "SELECT COUNT(*) FROM activity_evidence"))
+        assertEquals(4, scalar(db, "SELECT COUNT(*) FROM activity_observations"))
+        assertEquals(7, scalar(db, "SELECT COUNT(*) FROM migration_rows"))
         assertEquals(5, scalar(db, "SELECT COUNT(*) FROM migration_sources WHERE state='complete'"))
         assertEquals(0, scalar(db, "SELECT COUNT(*) FROM provider_events"))
-
+        assertEquals(2, scalar(db, "SELECT COUNT(*) FROM activity_evidence WHERE source_table='raw_evidence'"))
+        assertEquals(1, scalar(db, "SELECT COUNT(*) FROM activity_observations WHERE evidence_id IS NOT NULL AND origin_key LIKE '%:records:%'"))
         db.rawQuery(
-            "SELECT source_occurred_at_ms,received_at_ms,classification FROM activity_observations WHERE origin_key LIKE '%:records:%'",
+            "SELECT verification_digest FROM migration_sources WHERE source_table='records'",
+            null
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(64, cursor.getString(0).length)
+        }
+        db.rawQuery(
+            "SELECT source_occurred_at_ms,received_at_ms,classification FROM activity_observations WHERE origin_key LIKE '%:records:1'",
+            null
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(java.time.Instant.parse("2026-11-21T12:00:00Z").toEpochMilli(), cursor.getLong(0))
+            assertEquals(1_500L, cursor.getLong(1))
+            assertEquals("unclassified", cursor.getString(2))
+        }
+        db.rawQuery(
+            "SELECT source_occurred_at_ms FROM activity_observations WHERE origin_key LIKE '%:records:2'",
             null
         ).use { cursor ->
             assertTrue(cursor.moveToFirst())
             assertTrue(cursor.isNull(0))
-            assertEquals(1_500L, cursor.getLong(1))
-            assertEquals("unclassified", cursor.getString(2))
         }
         db.rawQuery(
             "SELECT source_method,source_occurred_at_ms FROM activity_observations WHERE observation_kind='notification'",
@@ -86,12 +100,27 @@ class UnifiedActivityLedgerMigratorTest {
 
         assertTrue(first.complete)
         assertTrue(second.complete)
-        assertEquals(5, first.copiedRows)
+        assertEquals(7, first.copiedRows)
         assertEquals(0, second.copiedRows)
-        assertEquals(5, second.tables.sumOf { it.alreadyCopiedRows })
+        assertEquals(7, second.tables.sumOf { it.alreadyCopiedRows })
         val db = UnifiedActivityLedger(context).readableDatabase
-        assertEquals(4, scalar(db, "SELECT COUNT(*) FROM activity_evidence"))
-        assertEquals(3, scalar(db, "SELECT COUNT(*) FROM activity_observations"))
+        assertEquals(5, scalar(db, "SELECT COUNT(*) FROM activity_evidence"))
+        assertEquals(4, scalar(db, "SELECT COUNT(*) FROM activity_observations"))
+    }
+
+    @Test
+    fun missingSourceTableIsNotReportedAsSuccessfullyMigrated() {
+        val file = context.getDatabasePath("busybee_driver_mirror.db")
+        file.parentFile?.mkdirs()
+        SQLiteDatabase.openOrCreateDatabase(file, null).use { db ->
+            db.execSQL("CREATE TABLE imports(id INTEGER PRIMARY KEY,source_name TEXT,imported_at INTEGER,row_count INTEGER,inserted_count INTEGER)")
+            db.version = 1
+        }
+        createCommandFixture()
+        val report = UnifiedActivityLedgerMigrator(context).migrateIfNeeded()
+        assertFalse(report.complete)
+        assertFalse(report.tables.single { it.table == "raw_evidence" }.complete)
+        assertFalse(report.tables.single { it.table == "records" }.complete)
     }
 
     private fun createMirrorFixture() {
@@ -106,9 +135,13 @@ class UnifiedActivityLedgerMigratorTest {
                 fees REAL,bonus REAL,currency TEXT,status TEXT,raw TEXT,source_name TEXT)""")
             db.execSQL("INSERT INTO imports VALUES(1,'driver.csv',1500,1,1)")
             db.execSQL("INSERT INTO raw_evidence VALUES(1,1,1,'fingerprint-1','platform=Uber&record_type=trip','driver.csv')")
+            db.execSQL("INSERT INTO raw_evidence VALUES(2,1,2,'fingerprint-1','duplicate raw row','driver.csv')")
             db.execSQL("""INSERT INTO records VALUES(
-                1,'fingerprint-1',1,'Uber','trip','trip-42','not-an-epoch','Old Town','Airport',
+                1,'fingerprint-1',1,'Uber','trip','trip-42','2026-11-21T12:00:00Z','Old Town','Airport',
                 12.5,50.0,5.0,0.0,'PLN','completed','raw-trip','driver.csv')""")
+            db.execSQL("""INSERT INTO records VALUES(
+                2,'fingerprint-2',1,'Uber','trip','trip-43','not-an-epoch','Old Town','Airport',
+                NULL,NULL,NULL,NULL,'PLN',NULL,'raw-trip-2','driver.csv')""")
             db.version = 1
         }
     }
