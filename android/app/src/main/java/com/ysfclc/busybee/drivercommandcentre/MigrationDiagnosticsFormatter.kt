@@ -3,7 +3,7 @@ package com.ysfclc.busybee.drivercommandcentre
 /** Stable, shareable migration evidence for validating an existing installation. */
 object MigrationDiagnosticsFormatter {
     fun format(report: UnifiedActivityLedgerMigrator.MigrationReport?): String {
-        if (report == null) return "MIGRATION CHECK NOT RUN\\nUse REFRESH MIGRATION CHECK to inspect existing local data."
+        if (report == null) return "MIGRATION CHECK NOT RUN\nUse REFRESH MIGRATION CHECK to inspect existing local data."
         return buildString {
             appendLine(if (report.complete) "MIGRATION COMPLETE" else "MIGRATION NEEDS ATTENTION")
             appendLine("Rows copied in this check: ${report.copiedRows}")
