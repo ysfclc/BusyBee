@@ -14,16 +14,24 @@ This is a distinct product capability from community road intelligence. A road r
 
 ## 2. Proposed capability set
 
-### DC-01 — Trusted-driver proximity and nearby notifications (core)
+### DC-01 — Nearby-driver alerts from trusted circles (first delivery slice)
 
-- Create private trusted circles and invite known contacts.
-- Presence and location sharing are mutual: both people explicitly accept before proximity matching starts.
-- Offer time-limited sharing sessions and an always-visible sharing state, with immediate pause, revoke, mute and block controls.
-- Notify both parties when they enter a configurable general proximity range; use approximate proximity by default, not an automatically exposed exact pin.
-- Add cooldowns, deduplication, stale-location handling and quiet hours so alerts are useful rather than noisy.
-- Let either person send a lightweight "meet now?" invitation with accept, decline and ignore actions.
-- Keep exact location sharing a separate, explicit action with its own expiry.
-- No public nearby-driver map, stranger discovery, hidden sharing or one-sided tracking.
+This is the first user-facing capability to validate: **tell a driver when another driver they trust is within their chosen nearby area**, so they can decide whether to meet. It is a proximity notification feature, not a public social map.
+
+- Let a driver invite known people into a private trusted-driver circle. A connection alone does not grant location access.
+- Proximity matching starts only after both people accept the connection and explicitly opt in to a time-bounded presence-sharing session. Each person can independently pause or end sharing.
+- Let each driver choose the radius at which they want to be notified. The product should test sensible distance presets and a custom radius during discovery; do not hard-code a default distance before user research.
+- When a trusted driver transitions from outside the recipient's selected radius to inside it, send a nearby alert such as "Alex is nearby". The alert is an arrival/entry event, not a continuous stream of distance updates.
+- Notify each opted-in person according to their own radius and notification preferences. One person opting out must immediately stop their location being used for the other person's proximity alerts.
+- Deduplicate repeated observations and apply a cooldown. Do not repeat an alert while the same person remains inside the area; allow a new alert only after a confirmed exit and re-entry, subject to the cooldown.
+- Use coarse distance bands or an "in your area" state by default. Do not reveal an exact live pin or precise coordinates as a side effect of receiving a proximity alert.
+- Treat stale, low-accuracy, unavailable or contradictory location fixes as unknown; they must not create a nearby alert or be mistaken for proof that someone has left the area.
+- Provide clear sharing status and immediate pause, revoke, mute and block controls. Revocation must stop future matching and notifications promptly.
+- Keep exact live-location sharing as a separate, explicit action with its own recipient, purpose and expiry.
+- A nearby alert may offer a simple "Meet up?" action, but accepting, declining or ignoring it is always optional. No automatic message, call, meetup or location disclosure.
+- Never show a public map of people, discover strangers, permit hidden sharing or enable one-sided tracking.
+
+
 
 ### DC-02 — Availability and break intent
 
