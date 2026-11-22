@@ -53,7 +53,7 @@ object UnifiedActivityLedgerSchema {
         "CREATE INDEX activity_observations_time_idx ON activity_observations(source_occurred_at_ms DESC, received_at_ms DESC)",
         "CREATE INDEX activity_observations_provider_idx ON activity_observations(provider, observation_kind)",
         """CREATE TABLE provider_events (
-            event_id TEXT PRIMARYPRIMARY KEY,
+            event_id TEXT PRIMARY KEY,
             idempotency_key TEXT NOT NULL UNIQUE,
             provider TEXT NOT NULL,
             adapter_id TEXT NOT NULL,
@@ -69,7 +69,7 @@ object UnifiedActivityLedgerSchema {
             evidence_ref TEXT,
             expiry_evidence TEXT,
             payload_json TEXT NOT NULL
-        )""".replace("event_id TEXT PRIMARYPRIMARY KEY","event_id TEXT PRIMARY KEY"),
+        )""",
         """CREATE TABLE migration_sources (
             source_database TEXT NOT NULL,
             source_table TEXT NOT NULL,
