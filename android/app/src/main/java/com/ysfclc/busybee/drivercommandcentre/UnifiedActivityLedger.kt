@@ -12,7 +12,7 @@ import android.database.sqlite.SQLiteOpenHelper
  */
 object UnifiedActivityLedgerSchema {
     const val DATABASE_NAME = "busybee_driver_activity.db"
-    const val VERSION = 1
+    const val VERSION = 2
 
     val createStatements: List<String> = listOf(
         """CREATE TABLE activity_evidence (
@@ -67,6 +67,7 @@ object UnifiedActivityLedgerSchema {
             received_at_ms INTEGER NOT NULL,
             expires_at_ms INTEGER,
             evidence_ref TEXT,
+            evidence_digest TEXT,
             expiry_evidence TEXT,
             payload_json TEXT NOT NULL
         )""",
@@ -109,6 +110,9 @@ class UnifiedActivityLedger(context: Context) : SQLiteOpenHelper(
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Never drop evidence. Future upgrades must be explicit, additive migrations.
+        // Additive only: preserve all observations and provider events from v1.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE provider_events ADD COLUMN evidence_digest TEXT")
+        }
     }
 }

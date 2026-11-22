@@ -39,7 +39,7 @@ class UnifiedActivityLedgerMigrator(
         val copiedRows: Int get() = tables.sumOf { it.copiedRows }
     }
 
-    fun migrateIfNeeded(): MigrationReport {
+    fun migrateIfNeeded(): MigrationReport = synchronized(MIGRATION_LOCK) {
         val results = mutableListOf<TableResult>()
         val missing = mutableListOf<String>()
         val mirrorName = "busybee_driver_mirror.db"
@@ -47,7 +47,7 @@ class UnifiedActivityLedgerMigrator(
 
         migrateDatabase(mirrorName, listOf("imports", "raw_evidence", "records"), results, missing)
         migrateDatabase(commandName, listOf("offers", "notices"), results, missing)
-        return MigrationReport(results, missing)
+        MigrationReport(results, missing)
     }
 
     private fun migrateDatabase(
@@ -108,6 +108,9 @@ class UnifiedActivityLedgerMigrator(
                     ?: throw IllegalStateException("$databaseName.$table has no stable id column")
                 val origin = "$databaseName:$table:$rowId"
                 if (migrationRowExists(databaseName, table, rowId)) {
+                    if (databaseName == "busybee_command_centre.db" && table == "offers") {
+                        refreshOfferObservation(cursor, origin)
+                    }
                     skipped++
                     continue
                 }
@@ -323,6 +326,13 @@ class UnifiedActivityLedgerMigrator(
         return result
     }
 
+    private fun refreshOfferObservation(cursor: Cursor, origin: String) {
+        target.writableDatabase.execSQL(
+            "UPDATE activity_observations SET status=? WHERE origin_key=?",
+            arrayOf(cursor.stringOrNull("status"), origin)
+        )
+    }
+
     private fun migrationRowExists(database: String, table: String, rowId: String): Boolean =
         target.readableDatabase.rawQuery(
             "SELECT 1 FROM migration_rows WHERE source_database=? AND source_table=? AND source_row_id=?",
@@ -386,6 +396,10 @@ class UnifiedActivityLedgerMigrator(
     }
 
     private fun sumNullable(a: Double?, b: Double?): Double? = if (a == null && b == null) null else (a ?: 0.0) + (b ?: 0.0)
+
+    private companion object {
+        val MIGRATION_LOCK = Any()
+    }
 
     private fun sha256(value: String): String =
         MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }

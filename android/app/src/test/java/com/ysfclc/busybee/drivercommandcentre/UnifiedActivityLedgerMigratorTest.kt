@@ -90,12 +90,17 @@ class UnifiedActivityLedgerMigratorTest {
     }
 
     @Test
-    fun rerunningMigrationDoesNotDuplicateCopiedRows() {
+    fun rerunningMigrationDoesNotDuplicateCopiedRowsAndRefreshesOfferState() {
         createMirrorFixture()
         createCommandFixture()
         val migrator = UnifiedActivityLedgerMigrator(context) { 10_000L }
 
         val first = migrator.migrateIfNeeded()
+        SQLiteDatabase.openDatabase(
+            context.getDatabasePath("busybee_command_centre.db").absolutePath,
+            null,
+            SQLiteDatabase.OPEN_READWRITE
+        ).use { it.execSQL("UPDATE offers SET status='skipped' WHERE id=1") }
         val second = migrator.migrateIfNeeded()
 
         assertTrue(first.complete)
@@ -106,6 +111,10 @@ class UnifiedActivityLedgerMigratorTest {
         val db = UnifiedActivityLedger(context).readableDatabase
         assertEquals(5, scalar(db, "SELECT COUNT(*) FROM activity_evidence"))
         assertEquals(4, scalar(db, "SELECT COUNT(*) FROM activity_observations"))
+        db.rawQuery("SELECT status FROM activity_observations WHERE origin_key LIKE '%:offers:1'", null).use {
+            assertTrue(it.moveToFirst())
+            assertEquals("skipped", it.getString(0))
+        }
     }
 
     @Test

@@ -1,6 +1,6 @@
 # Unified Driver Activity Ledger — migration implementation
 
-**Status:** first migration implementation and database-fixture tests are on the feature branch. The migration is not yet called by app startup, the existing screens still read the legacy stores, and no canonical provider events are inferred from imported observations.
+**Status:** read-only migration, persistent provider-event storage, merged timeline query layer and background legacy-store synchronization are implemented on the feature branch. Existing screens still read the legacy stores, and no canonical provider events are inferred from imported observations.
 
 ## 1. Existing on-device stores
 
@@ -42,7 +42,7 @@ The third database is `busybee_driver_activity.db`. It is a new local read/query
 8. Preloads import timestamps once per source database, avoiding a second database open for every imported row.
 9. Verifies both source and target row-identity digests as well as row counts before marking a table complete. Missing source tables remain incomplete.
 
-This slice is deliberately not wired into startup or the UI yet. That keeps the existing screens unchanged until the migrated data has passed parity checks on-device.
+Migration now runs in the background on app startup and after CSV imports, manual offer saves/status changes, and newly captured platform notifications. Existing screens still read the legacy stores until the migrated data has passed parity checks on-device.
 
 ## 4. Timeline and event semantics
 
@@ -73,11 +73,11 @@ Robolectric fixture tests cover:
 - notifications remain unclassified observations, not canonical events;
 - rerunning the migration adds no duplicate evidence or observations.
 
-Still required before switching screens: fixtures for partially interrupted batches, older/missing source tables, larger imports, and on-device parity checks against Driver Mirror summaries, import history, evidence previews, Offer Desk entries and notification history.
+Still required before switching screens: process-kill interruption simulation, larger imports, and on-device parity checks against Driver Mirror summaries, import history, evidence previews, Offer Desk entries and notification history.
 
 ## 7. Next implementation steps
 
 1. Extend interruption/restart coverage with process-kill simulation and large-import fixtures.
-2. Add a unified repository query layer and compare its results against both existing stores.
-3. Only after parity passes, wire the timeline and existing screens to the unified repository.
+2. Build the user-facing timeline and evidence/provenance inspection surface over the unified repository.
+3. Only after parity passes, wire existing screens to the unified repository.
 4. Keep legacy stores intact for at least one release and retain an explicit rollback/backup plan before considering any legacy-write deprecation.

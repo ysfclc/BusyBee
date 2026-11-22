@@ -84,9 +84,24 @@ class MainActivity : AppCompatActivity() {
     private val chatPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importCommunity(uri)}
     private val csvPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importCsv(uri)}
 
+    private fun syncUnifiedActivityLedger() {
+        worker.execute {
+            try {
+                val report = UnifiedActivityLedgerMigrator(applicationContext).migrateIfNeeded()
+                android.util.Log.d(
+                    "BusyBeeLedger",
+                    "Legacy sync copied=${report.copiedRows}, complete=${report.complete}, missing=${report.missingDatabases.joinToString()}"
+                )
+            } catch (error: Exception) {
+                android.util.Log.e("BusyBeeLedger", "Legacy activity sync failed", error)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
+        syncUnifiedActivityLedger()
         locationManager=getSystemService(LOCATION_SERVICE) as LocationManager
         MapLibre.getInstance(this)
         window.statusBarColor=BG;window.navigationBarColor=BG
@@ -379,7 +394,7 @@ class MainActivity : AppCompatActivity() {
             addView(label("Pickup "+o.pickupKm+" km · trip "+o.tripKm+" km · passenger "+(o.passengerRating?.toString()?:"not supplied"),10f,MUTED,false).apply{setPadding(0,dp(3),0,dp(9))})
             val actions=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
             actions.addView(action("OPEN "+o.platform.uppercase()+" TO REVIEW",true){openPlatform(o.platform)},LinearLayout.LayoutParams(0,dp(40),1f))
-            actions.addView(action("SKIP",false){commands.updateOfferStatus(o.id,"skipped");showTab("OFFERS")},LinearLayout.LayoutParams(dp(74),dp(40)).apply{marginStart=dp(7)})
+            actions.addView(action("SKIP",false){commands.updateOfferStatus(o.id,"skipped");syncUnifiedActivityLedger();showTab("OFFERS")},LinearLayout.LayoutParams(dp(74),dp(40)).apply{marginStart=dp(7)})
             addView(actions)
             addView(label("BusyBee ranks the offer; you make the acceptance decision inside the platform.",9f,MUTED,false).apply{setPadding(0,dp(7),0,0)})
         }
@@ -397,6 +412,7 @@ class MainActivity : AppCompatActivity() {
             val f=value(fare);val pk=value(pickupKm);val tk=value(tripKm);val du=value(duration)
             if(f==null||pk==null||tk==null||du==null||f<0||pk<0||tk<0||du<=0){Toast.makeText(this,"Fare, distances and duration must be valid numbers.",Toast.LENGTH_LONG).show();return@setPositiveButton}
             commands.saveOffer(DriverOffer(platform=platform.text.toString().ifBlank{"Other"},pickup=pickup.text.toString(),destination=destination.text.toString(),fare=f,bonus=value(bonus)?:0.0,pickupKm=pk,tripKm=tk,durationMin=du,passengerRating=value(rating),source=if(raw.isBlank())"manual" else "notification-review",raw=evidence.text.toString()))
+            syncUnifiedActivityLedger()
             showTab("OFFERS")
         }.show()
     }
@@ -558,6 +574,7 @@ class MainActivity : AppCompatActivity() {
             val name=contentResolver.query(uri,null,null,null,null)?.use{c->val i=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);if(c.moveToFirst()&&i>=0)c.getString(i)else"platform-export.csv"}?:"platform-export.csv"
             val text=contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use{it.readText()}?:error("File could not be opened")
             val rows=DriverCsv.parse(text);require(rows.isNotEmpty()){"No data rows found"};val result=mirror.importRows(name,rows)
+            syncUnifiedActivityLedger()
             Toast.makeText(this,"Imported "+result.second+" new records from "+result.first+" rows",Toast.LENGTH_LONG).show();showTab("EARNINGS")
         }catch(e:Exception){Toast.makeText(this,"Import failed: "+e.message,Toast.LENGTH_LONG).show()}
     }

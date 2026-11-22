@@ -7,7 +7,11 @@ class ProviderBridgeTest {
     private class FakeStore : ProviderEventStore {
         val events = mutableListOf<ProviderEventEnvelope>()
         override fun containsIdempotencyKey(key: String) = events.any { it.idempotencyKey == key }
-        override fun append(event: ProviderEventEnvelope) { events.add(event) }
+        override fun append(event: ProviderEventEnvelope): Boolean {
+            if (events.any { it.idempotencyKey == event.idempotencyKey }) return false
+            events.add(event)
+            return true
+        }
     }
 
     private fun offerEvent(

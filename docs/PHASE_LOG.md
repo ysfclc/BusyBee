@@ -238,3 +238,21 @@ Verification:
 - Persistent Android release-signing secrets are absent, so release-signing steps were skipped. The verified debug APK uses a separate `.debug` application ID and cannot update the release package. The pull-request build did not publish a GitHub Release asset.
 - No migration is invoked automatically yet; existing screens still use the legacy stores. The migration must pass on-device parity checks before the UI is switched.
 - PR: https://github.com/ysfclc/BusyBee/pull/29
+
+
+## 2026-11-22 — Persistent provider events and live ledger synchronization
+
+**Status:** implementation committed in the next slice; CI verification pending.
+
+Delivered:
+- Upgraded the unified ledger schema additively to version 2 with a dedicated `evidence_digest` field for canonical provider events. Existing v1 ledgers upgrade without dropping data.
+- Added `SqliteProviderEventStore`, persisting the complete event envelope and typed payload JSON. The database uniqueness constraint decides duplicate races; duplicate inserts are returned as duplicates.
+- Updated `ProviderEventStore.append` to report whether the insert succeeded, closing the race between a prior idempotency read and concurrent inserts.
+- Added `UnifiedActivityRepository`, merging raw observations and canonical provider events into a single timeline query while keeping unknown source time null.
+- Wired legacy-store migration/synchronization to app startup, CSV imports, manual offer creation/status updates and new notification captures. All work runs off the UI thread.
+- Subsequent syncs refresh the current status of already-migrated offers without duplicating their evidence or observation.
+- Added Robolectric coverage for persistent idempotency across store instances, v1-to-v2 schema upgrade, merged timeline ordering, unknown source time and offer status refresh.
+
+Verification pending:
+- CI run for this slice must pass Android unit tests and signed-debug APK verification.
+- No screen has been switched to the new repository yet. On-device parity and rollback verification remain mandatory before that change.

@@ -140,7 +140,7 @@ interface ProviderEventStore {
     /** Must be backed by a UNIQUE constraint in a persistent implementation. */
     fun containsIdempotencyKey(key: String): Boolean
     /** Append without discarding delayed or out-of-order evidence. */
-    fun append(event: ProviderEventEnvelope)
+    fun append(event: ProviderEventEnvelope): Boolean
 }
 
 sealed class ProviderIngestResult {
@@ -161,7 +161,7 @@ class ProviderEventIngestor(private val store: ProviderEventStore) {
         if (store.containsIdempotencyKey(event.idempotencyKey)) {
             return ProviderIngestResult.Duplicate(event.idempotencyKey)
         }
-        store.append(event)
+        if (!store.append(event)) return ProviderIngestResult.Duplicate(event.idempotencyKey)
         return ProviderIngestResult.Accepted(event.eventId)
     }
 
