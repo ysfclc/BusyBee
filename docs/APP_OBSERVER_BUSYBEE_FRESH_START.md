@@ -45,11 +45,12 @@ The documented stable identity is `com.ysfclc.appobserver.capture`, version `0.5
 
 ## 4. Branch and PR situation
 
-- PR [#22](https://github.com/ysfclc/BusyBee/pull/22), “Build machine-first multimodal App Observer and local learning engine”, remains open and draft. Its head is `fix/app-observer-capture-0.2.1`. Android CI run #265 passed on commit `1f725eac2492c3137ac0d0940869740fccbbe0be`; the current PR head is `811f516e2e1cca5537c1454d02e8a9f4e74237ec`, five documentation-only commits later. The CI run uploaded an unsigned candidate; offline signing is separately documented but not independently verified here. The reported Vercel status failure is a deployment-rate limit and is not an Android build result.
+- PR [#22](https://github.com/ysfclc/BusyBee/pull/22), the older 0.5.0 capture draft, was closed without merge on 2026-11-22 as superseded by PR #28. Its source branch `fix/app-observer-capture-0.2.1` remains preserved. Android CI run #265 passed on the code commit `1f725eac2492c3137ac0d0940869740fccbbe0be`; later PR commits were documentation-only. The CI artifact was unsigned; offline signing is separately documented but was not independently verified in this audit.
 - Branch `app-observer-intelligence-reset` contains additional work beyond the older capture PR: a generic scene-graph slice, a Rust observation/event contract, a Kotlin observation contract, an observation ledger path in BusyBee, JNI classification and canonical offer-event candidates in the Offer Desk.
 - At this checkpoint, the reset branch compares as 103 commits ahead and 3 behind current `main`. It is not the same history as PR #22's head; comparing the two development lines reports divergence (104 commits unique to reset and 225 unique to the PR head, with a common ancestor at the restoration checkpoint).
 - Therefore neither “merge PR #22” nor “merge the reset branch” is a safe cleanup operation. The branch histories and their code must be reconciled deliberately.
-- Preserve all existing branches and PRs during this audit. No branch deletion, force-push, blind merge or history rewrite is authorised by this checkpoint.
+- PR [#28](https://github.com/ysfclc/BusyBee/pull/28) is the clean-mainline Capture 0.6.0 import: 41 files, research-only, no BusyBee product/event code, stable package retained and versionCode incremented to 9. CI run #331 passed on its initial source commit and produced debug artifact `14736318462` plus unsigned release candidate `14736462362`. Later commits on the branch update only recovery/signing documentation. Physical device acceptance remains pending.
+- Preserve all existing branches and PR source histories during this audit. No branch deletion, force-push, blind merge or history rewrite was performed.
 
 ## 5. BusyBee production baseline
 
@@ -73,7 +74,7 @@ BusyBee remains the canonical owner of provider-neutral driver events and produc
 ## 7. Explicit non-actions at this checkpoint
 
 - No Android, Rust, database, permission, signing or product code changed.
-- No PR was merged or closed.
+- No PR was merged. Older PR #22 was closed as superseded by PR #28; its source branch was retained.
 - No branch was deleted, force-pushed or rewritten.
 - No signing key or repository secret was accessed or changed.
 - No physical-device acceptance is claimed.
