@@ -18,20 +18,28 @@ data class DiscoveredLocalModel(
 
 /**
  * Scans only the explicit BusyBee-managed model directory. It never searches
- * arbitrary user storage. Files are inventory entries, not executable models.
+ * arbitrary user storage. Inventory entries are not executable models.
+ *
+ * Model identity is content-based, so moving/renaming an identical file does
+ * not change its ID. Canonical-path checks prevent symlinks escaping the
+ * managed directory from being inventoried.
  */
 class LocalModelInventory(private val managedDirectory: File) {
     fun scan(): List<DiscoveredLocalModel> {
         if (!managedDirectory.exists() || !managedDirectory.isDirectory) return emptyList()
+        val root = try { managedDirectory.canonicalFile } catch (_: Exception) { return emptyList() }
         return managedDirectory.walkTopDown()
             .filter { it.isFile && recognizedFormat(it.extension) != DiscoveredModelFormat.UNKNOWN }
-            .map { file ->
+            .mapNotNull { file ->
+                val canonical = try { file.canonicalFile } catch (_: Exception) { return@mapNotNull null }
+                if (!canonical.path.startsWith(root.path + File.separator) && canonical != root) return@mapNotNull null
+                val digest = try { sha256(file) } catch (_: Exception) { return@mapNotNull null }
                 DiscoveredLocalModel(
-                    id = sha256(file.absolutePath.toByteArray()).take(24),
+                    id = digest.take(24),
                     fileName = file.name,
                     absolutePath = file.absolutePath,
                     sizeBytes = file.length(),
-                    sha256 = sha256(file),
+                    sha256 = digest,
                     format = recognizedFormat(file.extension)
                 )
             }
@@ -60,8 +68,5 @@ class LocalModelInventory(private val managedDirectory: File) {
             }
             return digest.digest().joinToString("") { "%02x".format(it) }
         }
-
-        private fun sha256(bytes: ByteArray): String =
-            MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
     }
 }
