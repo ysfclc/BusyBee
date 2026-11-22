@@ -91,7 +91,14 @@ The reset branch contains a real first slice, but it is not yet the complete obs
 - **Observer-to-BusyBee adapter is not present:** the research capture app is isolated, as intended, but its exported evidence is not yet mapped through a tested adapter into BusyBee's `ObservationEnvelope`/canonical ledger. The current BusyBee event path is fed by BusyBee's own manual, CSV and notification adapters.
 - **Learning claims need careful wording:** the richer Observer has on-device OCR/image labelling, heuristics, recurring-state clustering and correction-trained classification. Its own reset notes correctly state that this is not open-ended semantic learning, a validated behaviour model, calibrated confidence or verified business-outcome detection.
 
-The CI evidence inspected for the richer app is from the `fix/app-observer-capture-0.2.1` line, not the `app-observer-intelligence-reset` head. The reset branch's latest exact head has not been verified by a successful CI run or physical-device acceptance in this audit.
+The reset branch's exact head is `8d8a9945c88352e85ee58ae3d282533c20fb3363`. Its current CI is verified:
+
+- App Observer workflow run #328 (`44957222504`) passed on that exact head: unit tests, debug/release compilation, package/version checks and ZIP alignment. It uploaded unsigned release candidate artifact `14728675390`; persistent-signing steps were skipped because the four Actions signing secrets were absent.
+- BusyBee observation/event contract CI run #11 (`44957222502`) passed on the same head: Rust workspace tests, Android unit tests and debug APK assembly.
+- BusyBee Android workflow run #422 (`44957222582`) also passed on the same head: actionlint, Rust tests, native Android Rust library builds, Android tests and debug APK assembly. Release signing and publication were skipped because persistent signing secrets were absent.
+- The Vercel check on this branch is failed only because the account hit the daily deployment limit; it is not an Android/Rust CI failure.
+
+Therefore the reset branch is **CI-verified at source/build level**, unlike what the older PR #22 evidence alone established. Physical Redmi acceptance, capture coverage, real app classification accuracy, battery/latency behaviour, and event correctness on-device remain unverified. The capture branch still reports versionCode 8 / `0.5.0-multimodal` despite the additional scene-graph code; before distributing a replacement update to an existing v8 installation, increment the versionCode and retain the same persistent signing identity.
 
 ## 9. Next engineering gate
 
