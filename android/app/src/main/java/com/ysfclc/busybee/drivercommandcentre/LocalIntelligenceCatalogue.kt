@@ -89,6 +89,35 @@ class LocalIntelligenceCatalogue {
     private val runtimes = linkedMapOf<String, LocalInferenceRuntime>()
 
     @Synchronized fun registerModel(model: ModelDescriptor) { models[model.id] = model }
+
+    /**
+     * Synchronizes file inventory as metadata-only model descriptors.
+     * Unknown version, licence and capabilities remain unknown/empty; files
+     * discovered this way are not automatically eligible for inference.
+     */
+    @Synchronized
+    fun registerInventory(inventory: List<DiscoveredLocalModel>) {
+        inventory.forEach { discovered ->
+            val format = when (discovered.format) {
+                DiscoveredModelFormat.LITERT_LM -> ModelFormat.LITERT_LM
+                DiscoveredModelFormat.GGUF -> ModelFormat.GGUF
+                DiscoveredModelFormat.ONNX -> ModelFormat.ONNX
+                DiscoveredModelFormat.TFLITE -> ModelFormat.TFLITE
+                DiscoveredModelFormat.UNKNOWN -> ModelFormat.OTHER
+            }
+            registerModel(ModelDescriptor(
+                id = discovered.id,
+                displayName = discovered.fileName,
+                version = "unknown",
+                format = format,
+                sizeBytes = discovered.sizeBytes,
+                licence = null,
+                capabilities = discovered.capabilities,
+                installedPath = discovered.absolutePath
+            ))
+        }
+    }
+
     @Synchronized fun registerRuntime(runtime: LocalInferenceRuntime) { runtimes[runtime.descriptor.id] = runtime }
     @Synchronized fun models(): List<ModelDescriptor> = models.values.toList()
     @Synchronized fun runtimes(): List<RuntimeDescriptor> = runtimes.values.map { it.descriptor }
