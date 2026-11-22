@@ -295,3 +295,19 @@ Verification:
 - Package/version: `com.ysfclc.busybee.drivercommandcentre.debug`, `0.1.463-debug`.
 - Debug signing is CI validation only; persistent release-signing secrets remain unavailable. This artifact cannot update the release application ID.
 - Physical-device validation and legacy-screen parity/rollback checks remain outstanding.
+
+
+## 2026-11-22 — On-device migration parity diagnostics
+
+**Status:** implemented on the Native Provider Bridge feature branch; CI verification pending.
+
+Delivered:
+- Sources screen includes a local migration status panel and manual re-check action.
+- The panel reports missing legacy databases, per-table source counts, copied/already-present rows and identity-digest verification.
+- A share action exports the diagnostic report as plain text, allowing device validation without logcat or screenshots.
+- Migration exceptions are shown in the panel; the old databases remain read-only and are not modified or deleted.
+- Added formatter tests for not-run, complete and incomplete reports.
+
+Acceptance boundary:
+- A complete migration report verifies source-row identity/count parity for the migrated tables. It does not prove every legacy screen calculation is visually or semantically identical.
+- Physical-device validation on a pre-existing installation and rollback testing are still required before migrating legacy screen reads.
