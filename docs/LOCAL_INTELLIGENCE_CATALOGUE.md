@@ -39,11 +39,16 @@ It is a subsystem of BusyBee's intelligence plane, separate from:
 - Model discovery must not scan arbitrary private storage. Future discovery should use explicit app-managed model directories, supported document providers, or user-selected files.
 - No model downloads, inference engines, network calls, background services, or UI are introduced in this slice.
 
+## Device profiler increment
+
+`DeviceCapabilityProfiler.kt` now reads total RAM, app-volume free storage, supported Android ABIs, thermal status where supported, and battery percentage where available. It deliberately reports NPU availability as unknown because there is no reliable vendor-neutral Android probe. Missing measurements remain null.
+
+`ModelDeviceCompatibility` centrally rejects models whose declared minimum RAM/storage, ABI requirements, or NPU requirements are not met. Unknown values do not satisfy a declared requirement. Runtime adapters still perform their own deeper compatibility checks.
+
 ## Planned increments
 
-1. **Registry contract (this slice):** metadata, runtime adapter contract, device profile, privacy-aware routing, unit tests.
-2. **Device profiler:** collect supported Android hardware facts and runtime constraints without claiming unsupported NPU acceleration.
-3. **Runtime adapters:** integrate selected engines independently, beginning with one runtime proven on supported devices.
+1. **Registry contract and profiler (implemented):** metadata, runtime adapter contract, Android device profile, conservative hardware filtering, privacy-aware routing, unit tests.
+2. **Runtime adapters:** integrate selected engines independently, beginning with one runtime proven on supported devices.
 4. **Model inventory:** enumerate app-managed and user-authorized models; verify file format, size, digest and licence metadata.
 5. **Benchmark and suitability:** measure load time, tokens/sec or task latency, peak memory, thermal throttling and battery impact.
 6. **Task execution:** typed input/output contracts, cancellation, resource limits, provenance, and error handling.
