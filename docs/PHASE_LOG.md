@@ -254,5 +254,7 @@ Delivered:
 - Added Robolectric coverage for persistent idempotency across store instances, v1-to-v2 schema upgrade, merged timeline ordering, unknown source time and offer status refresh.
 
 Verification pending:
-- CI run for this slice must pass Android unit tests and signed-debug APK verification.
+- CI run #456 compiled the new code and executed 57 Android tests; 56 passed. One Robolectric test failed because the SDK runtime could not cast the SQLiteOpenHelper to AutoCloseable through Kotlin use. The test now closes the helper explicitly with try/finally.
+- The migration now preloads existing row markers once per source table instead of issuing a target database query for every source row; unchanged offer statuses are not rewritten.
+- CI must rerun the corrected test and pass debug APK signature verification.
 - No screen has been switched to the new repository yet. On-device parity and rollback verification remain mandatory before that change.

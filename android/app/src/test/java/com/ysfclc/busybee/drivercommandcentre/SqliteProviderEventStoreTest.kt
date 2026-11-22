@@ -38,12 +38,17 @@ class SqliteProviderEventStoreTest {
             assertFalse(reopened.append(event))
         }
 
-        val db = UnifiedActivityLedger(context).readableDatabase
-        assertEquals(1, scalar(db, "SELECT COUNT(*) FROM provider_events"))
-        db.rawQuery("SELECT evidence_digest,payload_json FROM provider_events WHERE event_id='event-1'", null).use {
-            assertTrue(it.moveToFirst())
-            assertEquals("digest-1", it.getString(0))
-            assertTrue(it.getString(1).contains("\"fare\":12.5"))
+        val helper = UnifiedActivityLedger(context)
+        try {
+            val db = helper.readableDatabase
+            assertEquals(1, scalar(db, "SELECT COUNT(*) FROM provider_events"))
+            db.rawQuery("SELECT evidence_digest,payload_json FROM provider_events WHERE event_id='event-1'", null).use {
+                assertTrue(it.moveToFirst())
+                assertEquals("digest-1", it.getString(0))
+                assertTrue(it.getString(1).contains("\"fare\":12.5"))
+            }
+        } finally {
+            helper.close()
         }
     }
 
@@ -87,7 +92,8 @@ class SqliteProviderEventStoreTest {
         old.writableDatabase
         old.close()
 
-        UnifiedActivityLedger(context).use { helper ->
+        val helper = UnifiedActivityLedger(context)
+        try {
             val db = helper.writableDatabase
             var found = false
             db.rawQuery("PRAGMA table_info(provider_events)", null).use { c ->
@@ -95,6 +101,8 @@ class SqliteProviderEventStoreTest {
             }
             assertTrue(found)
             assertEquals(2, db.version)
+        } finally {
+            helper.close()
         }
     }
 

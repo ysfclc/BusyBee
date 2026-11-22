@@ -100,6 +100,7 @@ class UnifiedActivityLedgerMigrator(
 
         val importTimes = if (databaseName == "busybee_driver_mirror.db" &&
             table in setOf("raw_evidence", "records")) loadImportTimes(source) else emptyMap()
+        val migratedIds = loadMigratedRowIds(databaseName, table)
         var copied = 0
         var skipped = 0
         source.rawQuery("SELECT * FROM $table ORDER BY id", null).use { cursor ->
@@ -107,7 +108,7 @@ class UnifiedActivityLedgerMigrator(
                 val rowId = cursor.longOrNull("id")?.toString()
                     ?: throw IllegalStateException("$databaseName.$table has no stable id column")
                 val origin = "$databaseName:$table:$rowId"
-                if (migrationRowExists(databaseName, table, rowId)) {
+                if (rowId in migratedIds) {
                     if (databaseName == "busybee_command_centre.db" && table == "offers") {
                         refreshOfferObservation(cursor, origin)
                     }
@@ -142,10 +143,11 @@ class UnifiedActivityLedgerMigrator(
                     }
                     db.insertOrThrow("migration_rows", null, marker)
                     db.setTransactionSuccessful()
-                    copied++
                 } finally {
                     db.endTransaction()
                 }
+                migratedIds.add(rowId)
+                copied++
             }
         }
 
@@ -328,16 +330,21 @@ class UnifiedActivityLedgerMigrator(
 
     private fun refreshOfferObservation(cursor: Cursor, origin: String) {
         target.writableDatabase.execSQL(
-            "UPDATE activity_observations SET status=? WHERE origin_key=?",
+            "UPDATE activity_observations SET status=? WHERE origin_key=? AND status IS NOT ?",
             arrayOf(cursor.stringOrNull("status"), origin)
         )
     }
 
-    private fun migrationRowExists(database: String, table: String, rowId: String): Boolean =
+    private fun loadMigratedRowIds(database: String, table: String): MutableSet<String> {
+        val ids = mutableSetOf<String>()
         target.readableDatabase.rawQuery(
-            "SELECT 1 FROM migration_rows WHERE source_database=? AND source_table=? AND source_row_id=?",
-            arrayOf(database, table, rowId)
-        ).use { it.moveToFirst() }
+            "SELECT source_row_id FROM migration_rows WHERE source_database=? AND source_table=?",
+            arrayOf(database, table)
+        ).use { cursor ->
+            while (cursor.moveToNext()) ids.add(cursor.getString(0))
+        }
+        return ids
+    }
 
     private fun tableExists(db: SQLiteDatabase, table: String): Boolean =
         db.rawQuery("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", arrayOf(table)).use { it.moveToFirst() }
