@@ -33,4 +33,14 @@ class LocalModelInventoryTest {
         assertEquals(DiscoveredModelFormat.LITERT_LM, LocalModelInventory.recognizedFormat("litertlm"))
         assertEquals(DiscoveredModelFormat.UNKNOWN, LocalModelInventory.recognizedFormat("zip"))
     }
+    @Test fun modelIdentityIsContentBasedAcrossRename() {
+        val root = createTempDir(prefix = "busybee-identity-")
+        try {
+            val first = File(root, "first.gguf").apply { writeBytes(byteArrayOf(9, 8, 7)) }
+            val firstId = LocalModelInventory(root).scan().single().id
+            val second = File(root, "second.gguf").apply { writeBytes(first.readBytes()) }
+            assertEquals(firstId, LocalModelInventory(root).scan().first { it.fileName == second.name }.id)
+        } finally { root.deleteRecursively() }
+    }
+
 }
