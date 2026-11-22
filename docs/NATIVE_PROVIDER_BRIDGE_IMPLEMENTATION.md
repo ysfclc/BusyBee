@@ -11,6 +11,8 @@
 - Ledger schema version 2 adds `evidence_digest` to provider events with an additive upgrade from v1. Existing evidence and observations are not dropped.
 - `UnifiedActivityRepository` merges source observations and canonical provider events into one read-only timeline. Unknown provider time remains null; receive time is used only as the display-order fallback.
 - A new `ACTIVITY` tab exposes the merged timeline with All / Observations / Events filters. Each card distinguishes source time from receive time and shows classification, source method, status/route/amount fields, evidence digest and a bounded payload preview.
+- The Activity tab now derives provider filters from providers actually present in the local ledger. Provider and source-type filters compose, and missing provider identity is grouped as `UNKNOWN PROVIDER` rather than silently omitted.
+- Each Activity card has an evidence-inspection action showing record identity, provenance, source/receive timestamps, lifecycle linkage, evidence row/reference/digest, known payload fields and the complete stored canonical payload where present.
 - Local model inventory and app-private model storage. File discovery is metadata-only and cannot make a model eligible for inference without a compatible runtime and verified capabilities.
 - New `busybee_driver_activity.db` schema for evidence, observations, canonical provider events and migration tracking.
 - `UnifiedActivityLedgerMigrator` copies the existing Driver Mirror import metadata, raw CSV evidence, normalized records, saved offers and captured notifications. Legacy databases are opened read-only; unrelated Driver Hub/map data remains in the original database.
@@ -25,15 +27,18 @@
 - Robolectric database fixtures cover absent legacy databases, missing source tables, duplicate raw evidence, timestamp parsing, notification provenance, digest checks, offer status refresh, idempotent reruns, persistent event idempotency, schema upgrade and merged timeline ordering.
 - CI run 453 passed actionlint, Rust domain tests, Android native-library build, Android unit tests, debug APK assembly, debug APK signature verification and artifact upload.
 - The debug APK is a validation build with a separate `.debug` application ID. Persistent release-signing secrets are not configured, so no install-over-existing release APK was produced.
+- CI run #463 passed actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, APK v2 signature verification and artifact upload. Run: https://github.com/ysfclc/BusyBee/actions/runs/45063014977.
+- Run #463 artifact `busybee-debug-apk-463` (artifact ID `14770805750`) contains a 48,942,546-byte APK. APK SHA-256: `a777850852b36cbd66b2ac70ee54a7b5ad7f9e59481a7122bbfccbcc81acb934`; artifact ZIP SHA-256: `9c0684a3c54f597fcb3d6235df92c4eef841a7bf716b4a2394baa634a1a260c6`.
+- Debug package is `com.ysfclc.busybee.drivercommandcentre.debug` (version `0.1.463-debug`). Release-signing secrets are not configured; this debug APK cannot update or preserve data from the release package. Physical-device acceptance remains outstanding.
 
 ## Deliberately deferred
 
 - Live provider adapters or a claim of an Uber/Bolt API connection.
 - Classifying raw notification text into provider events. Notifications currently remain user-visible observations unless an explicit adapter produces a typed event.
-- Connected Apps UI, richer evidence inspection and on-device parity testing.
+- Connected Apps capability/health UI and on-device parity testing.
 - Local inference runtime execution; current catalogue/inventory is metadata and selection policy only.
 - A richer offer-status history: legacy offers expose current status, not a complete transition log.
 
 ## Next slice
 
-Expand the Activity timeline with evidence drill-down and provider-specific filters. Keep existing Driver Mirror and Offer Desk screens available until on-device parity and rollback checks pass.
+Validate the migrated ledger against pre-existing user data on a physical Android device, record parity for legacy Driver Mirror and Offer Desk surfaces, and exercise rollback. Keep the legacy screens available until parity and rollback checks pass; do not silently switch their data source.
