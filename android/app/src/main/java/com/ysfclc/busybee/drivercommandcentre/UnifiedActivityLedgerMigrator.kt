@@ -329,9 +329,10 @@ class UnifiedActivityLedgerMigrator(
     }
 
     private fun refreshOfferObservation(cursor: Cursor, origin: String) {
+        val status = cursor.stringOrNull("status")
         target.writableDatabase.execSQL(
             "UPDATE activity_observations SET status=? WHERE origin_key=? AND status IS NOT ?",
-            arrayOf(cursor.stringOrNull("status"), origin)
+            arrayOf(status, origin, status)
         )
     }
 
