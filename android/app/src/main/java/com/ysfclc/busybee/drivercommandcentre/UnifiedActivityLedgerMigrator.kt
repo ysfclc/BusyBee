@@ -119,10 +119,10 @@ class UnifiedActivityLedgerMigrator(
                             copyImportMetadata(db, databaseName, table, cursor, origin, rowId)
                         databaseName == "busybee_driver_mirror.db" && table == "raw_evidence" ->
                             copyMirrorEvidence(db, databaseName, table, cursor, origin, rowId,
-                                importTimes[cursor.longOrNull("import_id")])
+                                cursor.longOrNull("import_id")?.let(importTimes::get))
                         databaseName == "busybee_driver_mirror.db" && table == "records" ->
                             copyMirrorRecord(db, databaseName, table, cursor, origin, rowId,
-                                importTimes[cursor.longOrNull("import_id")])
+                                cursor.longOrNull("import_id")?.let(importTimes::get))
                         databaseName == "busybee_command_centre.db" && table == "offers" ->
                             copyOffer(db, databaseName, table, cursor, origin, rowId)
                         databaseName == "busybee_command_centre.db" && table == "notices" ->
