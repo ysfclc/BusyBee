@@ -253,8 +253,9 @@ Delivered:
 - Subsequent syncs refresh the current status of already-migrated offers without duplicating their evidence or observation.
 - Added Robolectric coverage for persistent idempotency across store instances, v1-to-v2 schema upgrade, merged timeline ordering, unknown source time and offer status refresh.
 
-Verification pending:
-- CI run #456 compiled the new code and executed 57 Android tests; 56 passed. One Robolectric test failed because the SDK runtime could not cast the SQLiteOpenHelper to AutoCloseable through Kotlin use. The test now closes the helper explicitly with try/finally.
+Verification:
+- CI run #456 compiled the new code and executed 57 Android tests; 56 passed. One Robolectric test exposed an SDK runtime incompatibility with treating the SQLiteOpenHelper as AutoCloseable. The test was corrected to close the helper explicitly with try/finally.
 - The migration now preloads existing row markers once per source table instead of issuing a target database query for every source row; unchanged offer statuses are not rewritten.
-- CI must rerun the corrected test and pass debug APK signature verification.
+- CI run #458 passed actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification with `apksigner`, and artifact upload.
+- Run 458 uploaded `busybee-debug-apk-458` (artifact ID 14767985689; expires 2026-12-06). Extracted APK size: 48,926,162 bytes; SHA-256: `f7d7c8476b4b83c76183a4ffe0c8347a40f2250992bd814a62667c7dcb6804a0`.
 - No screen has been switched to the new repository yet. On-device parity and rollback verification remain mandatory before that change.
