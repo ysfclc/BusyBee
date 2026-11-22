@@ -120,11 +120,17 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 - Shared reports are traceable, moderated, time-bounded and separated from private data.
 - Security/privacy review and real-world pilot acceptance pass.
 
-## Proposed future capability — driver community and meetups
+## Phase 7+ proposal — trusted-driver proximity and meetups
 
-A separate future opportunity is to help trusted drivers coordinate real-world meetups and practical activities through mutual, time-bounded presence. This is **discovery only** and does not change the current Phase 3–6 delivery order or authorise location permissions, contact access or a backend.
+**Status: discovery / roadmap only — not currently being built or committed for implementation.**
 
-See [Driver Community and Meetups roadmap](DRIVER-COMMUNITY-ROADMAP.md) for the full proposal: mutual nearby notifications, short-lived availability/break intent, group convergence, temporary event circles, shared routines/shift overlap, practical handoffs and optional safety check-ins. Keep this distinct from road intelligence reports and from the private Driver Data Mirror. Any implementation requires a separate architecture, privacy, security, GDPR, Android background-location, battery and safe-driving review.
+The first capability to evaluate is straightforward: **notify a driver when another mutually opted-in, trusted driver enters the area around them.** Each driver chooses their own notification radius. The alert should say that the person is nearby (with only a coarse distance band if useful), not expose an exact live location. It should trigger on entering the radius, avoid repeated alerts while the person stays nearby, and re-alert only after a genuine exit/re-entry and cooldown.
+
+The intended flow is private and reciprocal: invite people you already know, accept the trusted connection, explicitly start a temporary sharing session, choose the nearby radius, and receive a quiet notification when a trusted driver enters that area. Either driver can pause or revoke sharing at any time. A "Meet up?" action may follow the alert, but no meeting or message is initiated automatically.
+
+This is an optional driver-coordination capability, separate from road reports and the private Driver Data Mirror. Future extensions may include availability/break intent, group meetups, temporary event circles, shared routines, practical handoffs and mutual safety check-ins.
+
+See [Driver Community and Meetups roadmap](DRIVER-COMMUNITY-ROADMAP.md) for requirements, delivery gates and safeguards. This proposal does not reorder the current Phase 3–6 work, authorise new background-location collection, contact access or a backend, or mark any part of the feature as implemented. Any implementation requires a separate architecture, privacy, security, GDPR, Android background-location, battery and safe-driving review.
 
 ## Non-goals
 
