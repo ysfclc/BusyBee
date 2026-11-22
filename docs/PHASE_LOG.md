@@ -259,3 +259,20 @@ Verification:
 - CI run #458 passed actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification with `apksigner`, and artifact upload.
 - Run 458 uploaded `busybee-debug-apk-458` (artifact ID 14767985689; expires 2026-12-06). Extracted APK size: 48,926,162 bytes; SHA-256: `f7d7c8476b4b83c76183a4ffe0c8347a40f2250992bd814a62667c7dcb6804a0`.
 - No screen has been switched to the new repository yet. On-device parity and rollback verification remain mandatory before that change.
+
+
+## 2026-11-22 — First unified Activity timeline surface
+
+**Status:** implementation committed on the feature branch; CI verification pending.
+
+Delivered:
+- Added an ACTIVITY destination to the existing navigation without removing MAP, OFFERS, EARNINGS, DRIVER HUB or SOURCES.
+- The screen reads from `UnifiedActivityRepository` off the UI thread and merges imported observations with canonical provider events.
+- Added All / Observations / Events filters and provenance-first cards.
+- Cards distinguish source event time from local receive time. Unknown provider time is explicitly labelled unknown rather than inferred from capture time.
+- Observation cards show source method, classification, current status, route, amount/currency, distance/duration and evidence digest. Canonical event cards show their bounded typed payload preview.
+- Existing Driver Mirror and Offer Desk screens remain on their legacy data sources pending on-device parity; the new Activity surface does not silently replace them.
+
+Verification pending:
+- Android CI must pass after the new Activity UI and repository projection changes.
+- Device-level visual/layout testing on a narrow Android screen remains required.

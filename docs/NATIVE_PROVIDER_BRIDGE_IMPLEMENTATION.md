@@ -1,6 +1,6 @@
 # Native Provider Bridge — implementation checkpoint
 
-**Status:** provider-neutral contract, local model inventory, first read-only migration, persistent SQLite provider-event storage, merged timeline query layer and legacy-ledger synchronization are implemented on the feature branch. Live provider adapters and UI integration remain pending.
+**Status:** provider-neutral contract, local model inventory, read-only migration, persistent SQLite provider-event storage, merged timeline query layer, legacy-ledger synchronization and a first user-facing Activity timeline are implemented on the feature branch. Live provider adapters and full screen migration remain pending.
 
 ## Implemented
 
@@ -10,6 +10,7 @@
 - `SqliteProviderEventStore` persists typed event envelopes and payload JSON. The database's unique idempotency constraint is authoritative under concurrent writes; duplicate inserts are rejected without overwriting the original event.
 - Ledger schema version 2 adds `evidence_digest` to provider events with an additive upgrade from v1. Existing evidence and observations are not dropped.
 - `UnifiedActivityRepository` merges source observations and canonical provider events into one read-only timeline. Unknown provider time remains null; receive time is used only as the display-order fallback.
+- A new `ACTIVITY` tab exposes the merged timeline with All / Observations / Events filters. Each card distinguishes source time from receive time and shows classification, source method, status/route/amount fields, evidence digest and a bounded payload preview.
 - Local model inventory and app-private model storage. File discovery is metadata-only and cannot make a model eligible for inference without a compatible runtime and verified capabilities.
 - New `busybee_driver_activity.db` schema for evidence, observations, canonical provider events and migration tracking.
 - `UnifiedActivityLedgerMigrator` copies the existing Driver Mirror import metadata, raw CSV evidence, normalized records, saved offers and captured notifications. Legacy databases are opened read-only; unrelated Driver Hub/map data remains in the original database.
@@ -29,10 +30,10 @@
 
 - Live provider adapters or a claim of an Uber/Bolt API connection.
 - Classifying raw notification text into provider events. Notifications currently remain user-visible observations unless an explicit adapter produces a typed event.
-- Unified timeline / Connected Apps UI and on-device parity testing.
+- Connected Apps UI, richer evidence inspection and on-device parity testing.
 - Local inference runtime execution; current catalogue/inventory is metadata and selection policy only.
 - A richer offer-status history: legacy offers expose current status, not a complete transition log.
 
 ## Next slice
 
-Build the first user-facing unified activity timeline and source/provenance inspection surface. Keep existing Driver Mirror and Offer Desk screens available until on-device parity and rollback checks pass.
+Expand the Activity timeline with evidence drill-down and provider-specific filters. Keep existing Driver Mirror and Offer Desk screens available until on-device parity and rollback checks pass.

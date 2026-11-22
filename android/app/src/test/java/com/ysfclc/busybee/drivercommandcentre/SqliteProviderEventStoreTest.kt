@@ -73,6 +73,9 @@ class SqliteProviderEventStoreTest {
             assertEquals("observation", items[1].sourceKind)
             assertNull(items[1].sourceOccurredAtMillis)
             assertEquals(1000L, items[1].timelineTimestampMillis)
+            assertEquals("new", items[1].status)
+            assertEquals(12.5, items[1].amount!!, 0.001)
+            assertEquals("Airport", items[1].destination)
         }
         ledger.close()
     }

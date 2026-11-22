@@ -73,6 +73,11 @@ class MainActivity : AppCompatActivity() {
     private var weatherText:TextView?=null
     private val selectedLayers= mutableSetOf("Roadworks","Hazards","Driver reports")
     private val navButtons=mutableMapOf<String,TextView>()
+    private var activeTab="MAP"
+    private var activityFilter="ALL"
+    private var activityItems:List<UnifiedActivityItem> = emptyList()
+    private var activityContainer:LinearLayout?=null
+    private val activityFilterButtons=mutableMapOf<String,TextView>()
     private val locationListener=object:LocationListener {
         override fun onLocationChanged(location:Location) {
             lastLocation=location
@@ -92,6 +97,7 @@ class MainActivity : AppCompatActivity() {
                     "BusyBeeLedger",
                     "Legacy sync copied=${report.copiedRows}, complete=${report.complete}, missing=${report.missingDatabases.joinToString()}"
                 )
+                runOnUiThread { if (activeTab == "ACTIVITY") refreshUnifiedActivity() }
             } catch (error: Exception) {
                 android.util.Log.e("BusyBeeLedger", "Legacy activity sync failed", error)
             }
@@ -134,13 +140,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildNavigation() {
         nav.removeAllViews()
-        listOf("MAP","OFFERS","EARNINGS","DRIVER HUB","SOURCES").forEach { tab ->
-            val b=label(tab,9f,MUTED,true).apply{gravity=Gravity.CENTER;setPadding(dp(4),dp(12),dp(4),dp(12));setOnClickListener{showTab(tab)}}
+        listOf("MAP","OFFERS","ACTIVITY","EARNINGS","DRIVER HUB","SOURCES").forEach { tab ->
+            val display = if (tab == "DRIVER HUB") "HUB" else tab
+            val b=label(display,8f,MUTED,true).apply{gravity=Gravity.CENTER;setPadding(dp(3),dp(12),dp(3),dp(12));setOnClickListener{showTab(tab)}}
             navButtons[tab]=b;nav.addView(b,LinearLayout.LayoutParams(0,-1,1f))
         }
     }
 
     private fun showTab(tab:String) {
+        activeTab=tab
         content.removeAllViews()
         navButtons.forEach{(key,b)->b.setTextColor(if(key==tab)MINT else MUTED);b.background=rounded(if(key==tab)0xFF1B343B.toInt() else Color.TRANSPARENT,11)}
         val view=when(tab) {
@@ -148,6 +156,7 @@ class MainActivity : AppCompatActivity() {
             "OFFERS"->buildOffersScreen()
             "EARNINGS"->buildEarningsScreen()
             "DRIVER HUB"->buildDriverHubScreen()
+            "ACTIVITY"->buildActivityScreen()
             else->buildSourcesScreen()
         }
         content.addView(view,FrameLayout.LayoutParams(-1,-1))
@@ -577,6 +586,136 @@ class MainActivity : AppCompatActivity() {
             syncUnifiedActivityLedger()
             Toast.makeText(this,"Imported "+result.second+" new records from "+result.first+" rows",Toast.LENGTH_LONG).show();showTab("EARNINGS")
         }catch(e:Exception){Toast.makeText(this,"Import failed: "+e.message,Toast.LENGTH_LONG).show()}
+    }
+
+    private fun buildActivityScreen():View {
+        val root=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(13),dp(12),dp(13),dp(8))
+            setBackgroundColor(BG)
+        }
+        val intro=card()
+        intro.addView(label("UNIFIED ACTIVITY",12f,MINT,true))
+        intro.addView(label("Local evidence ledger · provider observations and canonical events",10f,MUTED,false).apply {
+            setPadding(0,dp(4),0,dp(7))
+        })
+        intro.addView(action("↻ REFRESH LOCAL LEDGER",true){refreshUnifiedActivity()},LinearLayout.LayoutParams(-1,dp(38)))
+        root.addView(intro)
+
+        val filters=LinearLayout(this).apply {
+            orientation=LinearLayout.HORIZONTAL
+            setPadding(0,0,0,dp(8))
+        }
+        activityFilterButtons.clear()
+        listOf("ALL","OBSERVATIONS","EVENTS").forEach { filter ->
+            val chip=label(filter,8f,MUTED,true).apply {
+                gravity=Gravity.CENTER
+                setPadding(dp(9),dp(9),dp(9),dp(9))
+                background=rounded(0xFF263B46.toInt(),10)
+                setOnClickListener {
+                    activityFilter=filter
+                    updateActivityFilterStyles()
+                    renderUnifiedActivity()
+                }
+            }
+            activityFilterButtons[filter]=chip
+            filters.addView(chip,LinearLayout.LayoutParams(0,dp(34),1f).apply{marginEnd=dp(5)})
+        }
+        root.addView(filters)
+        val scroll=ScrollView(this).apply { isFillViewport=true }
+        activityContainer=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        scroll.addView(activityContainer)
+        root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        updateActivityFilterStyles()
+        refreshUnifiedActivity()
+        return root
+    }
+
+    private fun updateActivityFilterStyles() {
+        activityFilterButtons.forEach { (filter,button) ->
+            val selected=filter==activityFilter
+            button.setTextColor(if(selected)BG else MUTED)
+            button.background=rounded(if(selected)MINT else 0xFF263B46.toInt(),10)
+        }
+    }
+
+    private fun refreshUnifiedActivity() {
+        val target=activityContainer ?: return
+        target.removeAllViews()
+        target.addView(label("READING LOCAL ACTIVITY…",10f,MUTED,false).apply{setPadding(dp(4),dp(12),dp(4),dp(12))})
+        worker.execute {
+            val result=runCatching {
+                UnifiedActivityRepository(applicationContext).use { it.timeline(250) }
+            }
+            runOnUiThread {
+                if(activeTab!="ACTIVITY") return@runOnUiThread
+                if(result.isSuccess) {
+                    activityItems=result.getOrDefault(emptyList())
+                    renderUnifiedActivity()
+                } else {
+                    activityContainer?.removeAllViews()
+                    activityContainer?.addView(card().apply {
+                        addView(label("LEDGER UNAVAILABLE",11f,AMBER,true))
+                        addView(label(result.exceptionOrNull()?.message ?: "Could not read local activity.",10f,MUTED,false))
+                    })
+                }
+            }
+        }
+    }
+
+    private fun renderUnifiedActivity() {
+        val target=activityContainer ?: return
+        target.removeAllViews()
+        updateActivityFilterStyles()
+        val visible=when(activityFilter) {
+            "OBSERVATIONS" -> activityItems.filter{it.sourceKind=="observation"}
+            "EVENTS" -> activityItems.filter{it.sourceKind=="provider_event"}
+            else -> activityItems
+        }
+        if(visible.isEmpty()) {
+            target.addView(card().apply {
+                addView(label(if(activityFilter=="EVENTS")"NO CANONICAL EVENTS YET" else "NO LOCAL ACTIVITY YET",11f,MINT,true))
+                addView(label(
+                    if(activityFilter=="EVENTS") "Typed provider adapters have not produced canonical events yet. Captured notifications remain observations until explicitly interpreted."
+                    else "Import a driver statement or allow a supported app notification to be captured. Evidence stays on this device.",
+                    10f,MUTED,false
+                ).apply{setPadding(0,dp(5),0,0)})
+            })
+            return
+        }
+        visible.forEach { item ->
+            val entry=card()
+            val head=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+            head.addView(label((item.provider ?: "UNKNOWN PROVIDER").uppercase(Locale.getDefault()),9f,MINT,true))
+            head.addView(View(this),LinearLayout.LayoutParams(0,1,1f))
+            head.addView(label(if(item.sourceKind=="provider_event")"CANONICAL EVENT" else "OBSERVATION",8f,if(item.sourceKind=="provider_event")MINT else AMBER,true))
+            entry.addView(head)
+            entry.addView(label(item.itemType.replace('_',' ').uppercase(Locale.getDefault()),12f,WHITE,true).apply{setPadding(0,dp(7),0,dp(4))})
+            val timeText=if(item.sourceOccurredAtMillis==null) {
+                "RECEIVED · ${dateTime(item.receivedAtMillis)} · SOURCE TIME UNKNOWN"
+            } else {
+                "SOURCE · ${dateTime(item.sourceOccurredAtMillis)}  /  RECEIVED · ${dateTime(item.receivedAtMillis)}"
+            }
+            entry.addView(label(timeText,8f,MUTED,false).apply{setPadding(0,0,0,dp(6))})
+            val details=mutableListOf<String>()
+            item.status?.let{details.add("STATUS · ${it.uppercase(Locale.getDefault())}")}
+            item.amount?.let{details.add("AMOUNT · ${String.format(Locale.US,"%.2f",it)} ${item.currency ?: ""}".trim())}
+            item.pickup?.let{details.add("FROM · $it")}
+            item.destination?.let{details.add("TO · $it")}
+            item.distanceKm?.let{details.add("DISTANCE · ${String.format(Locale.US,"%.1f",it)} km")}
+            item.durationMinutes?.let{details.add("DURATION · ${String.format(Locale.US,"%.0f",it)} min")}
+            item.lifecycleId?.let{details.add("LIFECYCLE · $it")}
+            details.add("METHOD · ${item.sourceMethod}")
+            details.forEach { entry.addView(label(it,9f,WHITE,false).apply{setPadding(0,dp(2),0,dp(2))}) }
+            entry.addView(label("CLASSIFICATION · ${item.classification.uppercase(Locale.getDefault())}",8f,AMBER,true).apply{setPadding(0,dp(6),0,0)})
+            item.evidenceDigest?.let {
+                entry.addView(label("EVIDENCE SHA-256 · ${it.take(20)}…",8f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+            }
+            item.payloadJson?.let {
+                entry.addView(label("PAYLOAD · ${it.take(220)}",8f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+            }
+            activityContainer?.addView(entry)
+        }
     }
 
     private fun buildSourcesScreen():View{

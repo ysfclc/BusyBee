@@ -42,7 +42,7 @@ The third database is `busybee_driver_activity.db`. It is a new local read/query
 8. Preloads import timestamps once per source database, avoiding a second database open for every imported row.
 9. Verifies both source and target row-identity digests as well as row counts before marking a table complete. Missing source tables remain incomplete.
 
-Migration now runs in the background on app startup and after CSV imports, manual offer saves/status changes, and newly captured platform notifications. Existing screens still read the legacy stores until the migrated data has passed parity checks on-device.
+Migration runs in the background on app startup and after CSV imports, manual offer saves/status changes, and newly captured platform notifications. The new ACTIVITY tab reads the merged repository; existing Driver Mirror and Offer Desk screens still read their legacy stores until parity checks pass on-device.
 
 ## 4. Timeline and event semantics
 
@@ -78,6 +78,6 @@ Still required before switching screens: process-kill interruption simulation, l
 ## 7. Next implementation steps
 
 1. Extend interruption/restart coverage with process-kill simulation and large-import fixtures.
-2. Build the user-facing timeline and evidence/provenance inspection surface over the unified repository.
-3. Only after parity passes, wire existing screens to the unified repository.
+2. Add evidence drill-down and provider-specific filtering to the ACTIVITY tab.
+3. Only after parity passes, wire existing Driver Mirror and Offer Desk screens to the unified repository.
 4. Keep legacy stores intact for at least one release and retain an explicit rollback/backup plan before considering any legacy-write deprecation.
