@@ -14,15 +14,21 @@ This is a distinct product capability from community road intelligence. A road r
 
 ## 2. Proposed capability set
 
-### DC-01 — Trusted-driver proximity and nearby notifications (core)
+### DC-01 — Trusted-driver proximity and nearby-area alerts (core)
 
-- Create private trusted circles and invite known contacts.
-- Presence and location sharing are mutual: both people explicitly accept before proximity matching starts.
-- Offer time-limited sharing sessions and an always-visible sharing state, with immediate pause, revoke, mute and block controls.
-- Notify both parties when they enter a configurable general proximity range; use approximate proximity by default, not an automatically exposed exact pin.
-- Add cooldowns, deduplication, stale-location handling and quiet hours so alerts are useful rather than noisy.
-- Let either person send a lightweight "meet now?" invitation with accept, decline and ignore actions.
-- Keep exact location sharing a separate, explicit action with its own expiry.
+The primary behavior is simple: **when two mutually opted-in driver friends are within an area they have chosen, BusyBee notifies them that the other is nearby.** This is an opt-in proximity alert, not a public people-finder or a requirement to expose exact live positions.
+
+- Create private trusted circles and invite people the driver already knows.
+- Presence matching and alerts are mutual: both people must accept the trusted connection and the relevant temporary sharing/visibility session before either can trigger or receive a proximity alert.
+- Let drivers choose a configurable nearby radius or area for a circle/session. The initial default and available range presets are discovery decisions, not hard-coded product assumptions.
+- Trigger a nearby alert when a trusted member crosses from outside to inside the agreed area. Notify both opted-in parties, subject to each person's notification settings.
+- Treat the alert as an arrival/nearby transition, not a continuous stream: do not repeat while people remain inside the area. Re-arm only after a meaningful exit, with a configurable cooldown/hysteresis to prevent GPS jitter and notification loops.
+- Use coarse proximity by default. The notification can say "A friend is nearby" and optionally show an approximate distance band; it must not reveal exact coordinates or draw an exact pin automatically.
+- Ignore stale, low-quality or unavailable location updates rather than presenting them as live presence. Show freshness/uncertainty where relevant.
+- Offer time-limited sharing sessions with a clear, persistent sharing state and immediate pause, revoke, mute and block controls.
+- Let either person send a lightweight "meet now?" invitation with accept, decline and ignore actions; invitations must never be sent automatically.
+- Keep exact live-location sharing as a separate, deliberate action with its own recipient, purpose and expiry.
+- Add deduplication, per-friend/circle cooldowns and quiet hours so alerts remain useful rather than noisy.
 - No public nearby-driver map, stranger discovery, hidden sharing or one-sided tracking.
 
 ### DC-02 — Availability and break intent
@@ -72,7 +78,7 @@ This is a distinct product capability from community road intelligence. A road r
 4. **Immediate control:** pause, revoke, mute and block are easy to find and take effect promptly.
 5. **No social pressure:** declining or ignoring an invitation is normal; no read receipts, public activity scores, streaks or leaderboards.
 6. **Quiet usefulness:** deduplicate alerts, apply cooldowns and quiet hours, and make freshness/uncertainty visible.
-7. **Driving safety:** suppress interaction prompts while moving; present non-urgent actions only when safely parked or through a legally and safely supported hands-free flow.
+7. **Driving safety:** nearby presence may be processed only within the user's active consent session; suppress interactive meetup prompts while moving and defer non-urgent actions until safely parked or through a legally and safely supported hands-free flow. A notification must not invite typing, browsing or arranging a stop while the vehicle is moving.
 8. **Data minimisation:** no location history by default; retain only what is necessary for short-lived proximity matching and user-visible coordination.
 9. **Separation of concerns:** private driver records, public road intelligence, trusted-circle presence and event invitations remain separate data domains with independent access policies.
 10. **No engagement bait:** success means useful coordination, not more screen time, more notifications or continuous location sharing.
@@ -85,7 +91,9 @@ Before implementation, decide and document:
 
 - Whether this is an optional BusyBee capability and whether users can use the rest of BusyBee without enabling it.
 - Identity, contact discovery/invitation, verification, account recovery and circle membership.
-- Whether proximity can be matched from short-lived coarse location or another privacy-preserving mechanism.
+- Whether proximity can be matched from short-lived coarse location or another privacy-preserving mechanism, and whether matching happens on-device or through a narrowly scoped secure service.
+- How the chosen area/radius is represented, how location freshness is determined, and how entry/exit hysteresis prevents GPS jitter from generating false or repeated alerts.
+- How quickly pause, revoke and block take effect across devices, including when a device is offline or background-restricted.
 - Exact-location sharing rules, encryption, transport, storage, retention and deletion.
 - Android foreground/background location policy, notification controls, OEM restrictions and battery impact.
 - Threat model for stalking, coercion, compromised accounts, spoofing, unwanted invitations and location inference.
@@ -127,4 +135,4 @@ Do not optimise for time in app, alert volume, continuous sharing or social grap
 
 ## 8. Relationship to the existing BusyBee roadmap
 
-This is a proposed extension after the current Driver Data Mirror and Road Intelligence foundations. It does not replace or reorder the current Phase 3–6 commitments. It can be evaluated as a distinct Phase 7+ capability once the existing platform is stable and a separate architecture/privacy decision is approved.
+This is a proposed extension after the current Driver Data Mirror and Road Intelligence foundations. It does not replace or reorder the current Phase 3–6 commitments or make nearby alerts part of the current implementation scope. The core first release to evaluate is mutual trusted-circle proximity: notify both opted-in drivers when they enter a chosen nearby area, using approximate presence and clear pause/revoke controls. It can be evaluated as a distinct Phase 7+ capability once the existing platform is stable and the separate architecture, privacy and safety gates are approved.

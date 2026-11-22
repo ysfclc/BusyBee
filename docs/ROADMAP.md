@@ -120,11 +120,24 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 - Shared reports are traceable, moderated, time-bounded and separated from private data.
 - Security/privacy review and real-world pilot acceptance pass.
 
-## Proposed future capability — driver community and meetups
+## Phase 7+ — Optional trusted-driver proximity and meetups (proposed)
 
-A separate future opportunity is to help trusted drivers coordinate real-world meetups and practical activities through mutual, time-bounded presence. This is **discovery only** and does not change the current Phase 3–6 delivery order or authorise location permissions, contact access or a backend.
+**Status:** discovery/roadmap only; not part of the current build scope and not a dependency for Phases 3–6.
 
-See [Driver Community and Meetups roadmap](DRIVER-COMMUNITY-ROADMAP.md) for the full proposal: mutual nearby notifications, short-lived availability/break intent, group convergence, temporary event circles, shared routines/shift overlap, practical handoffs and optional safety check-ins. Keep this distinct from road intelligence reports and from the private Driver Data Mirror. Any implementation requires a separate architecture, privacy, security, GDPR, Android background-location, battery and safe-driving review.
+The first capability to validate is **nearby-driver alerts**: when two people in a mutually accepted trusted circle enter a configurable nearby area, BusyBee notifies both that the other is close. Drivers choose when they are visible and the area/radius for the session. Alerts are approximate by default; exact live location is a separate, explicitly initiated share.
+
+The wider opportunity is to help trusted drivers coordinate real-world meetups and practical activities through mutual, time-bounded presence:
+
+- Trusted circles and mutual opt-in presence.
+- Area/radius-based entry alerts, with exit/re-entry handling, cooldowns and stale-location protection.
+- Optional short-lived availability and break intent.
+- One-to-one "meet now?" invitations and later group convergence.
+- Temporary event circles, shared routines/shift overlap and practical handoffs.
+- Optional safety check-ins only after separate safety and escalation design.
+
+Keep this capability distinct from road intelligence reports and the private Driver Data Mirror. Exact location, private trip/earnings data and movement history are never exposed by default. The feature remains optional; the rest of BusyBee must remain useful when it is disabled or unavailable.
+
+**Delivery gate before implementation:** discovery with trusted drivers; synthetic concept prototype; Android/background-location, battery and notification feasibility; secure identity/proximity architecture; GDPR, privacy, abuse/stalking and safe-driving review. Do not add location permissions, contact access, a backend or background tracking as part of this roadmap clarification.
 
 ## Non-goals
 
