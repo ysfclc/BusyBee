@@ -103,7 +103,11 @@ class LocalIntelligenceCatalogue {
     @Synchronized
     fun select(task: IntelligenceTask, device: DeviceCapabilityProfile): IntelligenceTarget {
         val selected = models.values.asSequence()
-            .filter { it.isInstalled && task.capability in it.capabilities }
+            .filter {
+                it.isInstalled &&
+                    task.capability in it.capabilities &&
+                    ModelDeviceCompatibility.isCompatible(it.requirements, device)
+            }
             .mapNotNull { model ->
                 val runtime = runtimes.values.firstOrNull {
                     it.descriptor.availability == RuntimeAvailability.AVAILABLE &&
@@ -134,5 +138,23 @@ class LocalIntelligenceCatalogue {
                 IntelligencePrivacyPolicy.CLOUD_ALLOWED -> "Cloud fallback was not explicitly enabled for this task"
             }
         )
+    }
+}
+
+
+/** Conservative device-side filtering; unknown hardware facts never satisfy a requirement. */
+object ModelDeviceCompatibility {
+    fun isCompatible(requirements: ModelRequirements, device: DeviceCapabilityProfile): Boolean {
+        requirements.minimumRamMb?.let { minimum ->
+            if ((device.totalRamMb ?: return false) < minimum) return false
+        }
+        requirements.minimumFreeStorageMb?.let { minimum ->
+            if ((device.availableStorageMb ?: return false) < minimum.toLong()) return false
+        }
+        if (requirements.supportedAbis.isNotEmpty() &&
+            requirements.supportedAbis.intersect(device.supportedAbis.toSet()).isEmpty()
+        ) return false
+        if (requirements.requiresNpu && device.hasNpu != true) return false
+        return true
     }
 }
