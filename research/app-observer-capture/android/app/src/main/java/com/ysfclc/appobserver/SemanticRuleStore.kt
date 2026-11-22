@@ -25,7 +25,7 @@ data class SemanticRule(
 
     fun matchesScreenLayout(screenWidth: Int, screenHeight: Int, tolerance: Float = 0.12f): Boolean {
         if (screenWidth <= 0 || screenHeight <= 0) return false
-        if (screenAspectRatio <= 0f) return true // imported legacy rule without layout metadata
+        if (screenAspectRatio <= 0f) return true
         val actual = screenWidth.toFloat() / screenHeight.toFloat()
         return kotlin.math.abs(actual - screenAspectRatio) <= screenAspectRatio * tolerance
     }
@@ -131,7 +131,8 @@ object SemanticRuleStore {
             it.packageName == rule.packageName && it.label.equals(rule.label, ignoreCase = true) &&
                 it.payloadSource == rule.payloadSource &&
                 kotlin.math.abs(it.left - rule.left) < 0.02f &&
-                kotlin.math.abs(it.top - rule.top) < 0.02f
+                kotlin.math.abs(it.top - rule.top) < 0.02f &&
+                kotlin.math.abs(it.screenAspectRatio - rule.screenAspectRatio) < 0.02f
         } + rule).takeLast(MAX_RULES)
         persist(context, updated)
         return rule
