@@ -273,6 +273,25 @@ Delivered:
 - Observation cards show source method, classification, current status, route, amount/currency, distance/duration and evidence digest. Canonical event cards show their bounded typed payload preview.
 - Existing Driver Mirror and Offer Desk screens remain on their legacy data sources pending on-device parity; the new Activity surface does not silently replace them.
 
-Verification pending:
-- Android CI must pass after the new Activity UI and repository projection changes.
+Verification:
+- CI run #461 passed actionlint, Rust domain tests, Android native-library builds, Android unit tests, debug APK assembly, signature verification and artifact upload.
 - Device-level visual/layout testing on a narrow Android screen remains required.
+
+
+## 2026-11-22 — Activity evidence inspection and provider filters
+
+**Status:** implemented on the existing Native Provider Bridge feature branch; CI run #463 passed.
+
+Delivered:
+- Added provider-specific Activity filters generated from the actual providers present in the local ledger, including a visible unknown-provider group.
+- Provider filters compose with All / Observations / Events filters and use case-insensitive matching.
+- Added an evidence-inspection dialog for each Activity item, exposing record identity, provider/source provenance, source and receive timestamps, lifecycle, evidence row/reference/digest, structured fields and the full stored canonical payload where available.
+- Added deterministic JVM tests for provider-list normalization, unknown providers, case-insensitive matching and combined filters.
+
+Verification:
+- CI run #463: https://github.com/ysfclc/BusyBee/actions/runs/45063014977 — actionlint, Rust domain tests, Android native-library builds, Android unit tests, debug APK assembly, APK v2 signature verification and artifact upload all passed.
+- Artifact: `busybee-debug-apk-463` (ID `14770805750`), 48,942,546-byte APK.
+- APK SHA-256: `a777850852b36cbd66b2ac70ee54a7b5ad7f9e59481a7122bbfccbcc81acb934`.
+- Package/version: `com.ysfclc.busybee.drivercommandcentre.debug`, `0.1.463-debug`.
+- Debug signing is CI validation only; persistent release-signing secrets remain unavailable. This artifact cannot update the release application ID.
+- Physical-device validation and legacy-screen parity/rollback checks remain outstanding.
