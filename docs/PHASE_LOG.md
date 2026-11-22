@@ -234,7 +234,7 @@ Verification:
 - CI run 451 passed actionlint, Rust domain tests, Android Rust-library builds, Android unit tests (including digest, duplicate-row, timestamp and missing-table migration fixtures), and debug APK assembly.
 - CI run 452 was blocked before test execution because Maven Central returned HTTP 429 for a Robolectric transitive dependency. Kotlin compilation had completed; the test runtime dependency could not be downloaded.
 - Added a Google-hosted Maven Central mirror. CI run 453 then passed actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, Android APK signature verification with `apksigner`, and artifact upload.
-- Run 453 uploaded artifact `busybee-debug-apk-453` (artifact ID 14766792681; expires 2026-12-06). Extracted APK size: 48,926,? bytes; SHA-256: `b6fe30282bd7acfba01885446d9d065c5728201508364095e9be171cefd93efb`.
+- Run 453 uploaded artifact `busybee-debug-apk-453` (artifact ID 14766792681; expires 2026-12-06). Extracted APK size: 48,926,162 bytes; SHA-256: `b6fe30282bd7acfba01885446d9d065c5728201508364095e9be171cefd93efb`.
 - Persistent Android release-signing secrets are absent, so release-signing steps were skipped. The verified debug APK uses a separate `.debug` application ID and cannot update the release package. The pull-request build did not publish a GitHub Release asset.
 - No migration is invoked automatically yet; existing screens still use the legacy stores. The migration must pass on-device parity checks before the UI is switched.
 - PR: https://github.com/ysfclc/BusyBee/pull/29
