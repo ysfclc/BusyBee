@@ -99,7 +99,7 @@ The reset branch's exact head is `8d8a9945c88352e85ee58ae3d282533c20fb3363`. Its
 - BusyBee Android workflow run #422 (`44957222582`) also passed on the same head: actionlint, Rust tests, native Android Rust library builds, Android tests and debug APK assembly. Release signing and publication were skipped because persistent signing secrets were absent.
 - The Vercel check on this branch is failed only because the account hit the daily deployment limit; it is not an Android/Rust CI failure.
 
-Therefore the reset branch is **CI-verified at source/build level**, unlike what the older PR #22 evidence alone established. Physical Redmi acceptance, capture coverage, real app classification accuracy, battery/latency behaviour, and event correctness on-device remain unverified. The capture branch still reports versionCode 8 / `0.5.0-multimodal` despite the additional scene-graph code; before distributing a replacement update to an existing v8 installation, increment the versionCode and retain the same persistent signing identity.
+Therefore the reset branch is **CI-verified at source/build level**, unlike what the older PR #22 evidence alone established. Physical Redmi acceptance, capture coverage, real app classification accuracy, battery/latency behaviour, and event correctness on-device remain unverified. The reset branch still reports versionCode 8 / `0.5.0-multimodal` despite the additional scene-graph code. The clean-mainline PR #28 corrects this by using versionCode 9 and retaining the same persistent signing identity.
 
 ## 9. Next engineering gate
 
