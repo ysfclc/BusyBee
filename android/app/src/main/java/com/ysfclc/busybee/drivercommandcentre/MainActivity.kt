@@ -109,7 +109,7 @@ class MainActivity : AppCompatActivity() {
                     if (activeTab == "SOURCES") renderMigrationDiagnostics()
                 }
             } catch (error: Exception) {
-                val status="MIGRATION ERROR\\n${error.javaClass.simpleName}: ${error.message ?: "No details"}"
+                val status="MIGRATION ERROR\n${error.javaClass.simpleName}: ${error.message ?: "No details"}"
                 android.util.Log.e("BusyBeeLedger", "Legacy activity sync failed", error)
                 runOnUiThread { ledgerMigrationStatus=status; if(activeTab=="SOURCES") renderMigrationDiagnostics() }
             }
