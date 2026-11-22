@@ -68,3 +68,20 @@ It is a subsystem of BusyBee's intelligence plane, separate from:
 - Cloud is never selected without both explicit task opt-in and CLOUD_ALLOWED policy.
 - ASK_BEFORE_CLOUD does not count as approval.
 - The catalogue has no dependency on the Activity Ledger or provider-specific adapters.
+
+
+## Managed model storage and inventory synchronization
+
+The app-private model folder is `files/local-intelligence/models`. BusyBee creates
+this folder on demand through `LocalModelStorage`; the inventory scans only
+this managed location. There is no arbitrary external-storage scan, import,
+download, or execution path in this slice.
+
+Inventory synchronization can register metadata-only descriptors in the
+`LocalIntelligenceCatalogue`. Content hash IDs remain stable for identical
+files. File descriptors intentionally retain unknown version/licence metadata
+and empty capabilities; inventory discovery alone cannot make a model
+selectable for inference. A future model verification/import flow must supply
+trusted metadata and explicit capability assignment before runtime selection.
+
+Symlinks whose canonical targets escape the managed directory are excluded.
