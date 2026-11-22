@@ -81,6 +81,8 @@ class MainActivity : AppCompatActivity() {
     private var activityProviderFilterContainer:LinearLayout?=null
     private val activityFilterButtons=mutableMapOf<String,TextView>()
     private val activityProviderFilterButtons=mutableMapOf<String,TextView>()
+    private var ledgerMigrationStatus="Migration diagnostics have not run yet."
+    private var ledgerMigrationContainer:LinearLayout?=null
     private val locationListener=object:LocationListener {
         override fun onLocationChanged(location:Location) {
             lastLocation=location
@@ -96,13 +98,20 @@ class MainActivity : AppCompatActivity() {
         worker.execute {
             try {
                 val report = UnifiedActivityLedgerMigrator(applicationContext).migrateIfNeeded()
+                val status=MigrationDiagnosticsFormatter.format(report)
                 android.util.Log.d(
                     "BusyBeeLedger",
                     "Legacy sync copied=${report.copiedRows}, complete=${report.complete}, missing=${report.missingDatabases.joinToString()}"
                 )
-                runOnUiThread { if (activeTab == "ACTIVITY") refreshUnifiedActivity() }
+                runOnUiThread {
+                    ledgerMigrationStatus=status
+                    if (activeTab == "ACTIVITY") refreshUnifiedActivity()
+                    if (activeTab == "SOURCES") renderMigrationDiagnostics()
+                }
             } catch (error: Exception) {
+                val status="MIGRATION ERROR\\n${error.javaClass.simpleName}: ${error.message ?: "No details"}"
                 android.util.Log.e("BusyBeeLedger", "Legacy activity sync failed", error)
+                runOnUiThread { ledgerMigrationStatus=status; if(activeTab=="SOURCES") renderMigrationDiagnostics() }
             }
         }
     }
@@ -787,6 +796,16 @@ class MainActivity : AppCompatActivity() {
         sourceRow(live,"Android location","Driver position after permission","DEVICE PERMISSION")
         sourceRow(live,"Uber / Bolt / FreeNow / iTaxi / Cabify / Lyft","Visible notifications from supported ride apps after opt-in","USER AUTHORIZATION REQUIRED")
         sourceRow(live,"User exports","Statement and history CSV import","LOCAL IMPORT");root.addView(live)
+        val migrationCard=card()
+        migrationCard.addView(label("LOCAL DATA MIGRATION",11f,MINT,true))
+        migrationCard.addView(label("Read-only legacy inspection · source rows are checked against migrated row identities. This does not modify or delete the old databases.",10f,MUTED,false).apply{setPadding(0,dp(5),0,dp(9))})
+        ledgerMigrationContainer=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
+        migrationCard.addView(ledgerMigrationContainer)
+        migrationCard.addView(action("REFRESH MIGRATION CHECK",true){syncUnifiedActivityLedger()},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(8)})
+        migrationCard.addView(action("SHARE DIAGNOSTIC REPORT",false){shareMigrationDiagnostics()},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(7)})
+        root.addView(migrationCard)
+        renderMigrationDiagnostics()
+
         val gated=card();gated.addView(label("CONNECTOR CATALOGUE · NOT CONNECTED",11f,AMBER,true))
         listOf(
             Pair("TomTom Traffic / Incidents / Routing","Commercial API credentials and storage/display rights"),
@@ -808,6 +827,21 @@ class MainActivity : AppCompatActivity() {
         })
         return root
     }
+    private fun renderMigrationDiagnostics() {
+        val target=ledgerMigrationContainer ?: return
+        target.removeAllViews()
+        target.addView(label(ledgerMigrationStatus,10f,if(ledgerMigrationStatus.startsWith("MIGRATION COMPLETE"))MINT else AMBER,false))
+    }
+
+    private fun shareMigrationDiagnostics() {
+        val intent=Intent(Intent.ACTION_SEND).apply {
+            type="text/plain"
+            putExtra(Intent.EXTRA_SUBJECT,"BusyBee local data migration report")
+            putExtra(Intent.EXTRA_TEXT,ledgerMigrationStatus)
+        }
+        startActivity(Intent.createChooser(intent,"Share migration report"))
+    }
+
     private fun sourceRow(parent:LinearLayout,name:String,detail:String,status:String){
         val row=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(0,dp(9),0,dp(9))}
         row.addView(label(name,12f,WHITE,true));row.addView(label(detail,10f,MUTED,false).apply{setPadding(0,dp(2),0,dp(3))})
