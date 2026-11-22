@@ -43,4 +43,22 @@ class LocalModelInventoryTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun inventoryRejectsModelSymlinkEscapingManagedDirectory() {
+        val root = createTempDir(prefix = "busybee-managed-")
+        val outside = createTempDir(prefix = "busybee-outside-")
+        try {
+            File(outside, "outside.gguf").writeBytes(byteArrayOf(1, 2, 3))
+            val link = File(root, "escape.gguf")
+            try {
+                java.nio.file.Files.createSymbolicLink(link.toPath(), File(outside, "outside.gguf").toPath())
+            } catch (_: Exception) {
+                return // Symlink creation may be unavailable on this CI host.
+            }
+            assertTrue(LocalModelInventory(root).scan().isEmpty())
+        } finally {
+            root.deleteRecursively()
+            outside.deleteRecursively()
+        }
+    }
+
 }
