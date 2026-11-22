@@ -114,4 +114,19 @@ class LocalIntelligenceCatalogueTest {
         assertEquals(1, catalogue.models().size)
         assertEquals("2", catalogue.models().single().version)
     }
+    @Test fun inventorySyncAddsMetadataOnlyModel() {
+        val catalogue = LocalIntelligenceCatalogue()
+        catalogue.registerInventory(listOf(DiscoveredLocalModel(
+            id = "hash123", fileName = "local.gguf", absolutePath = "/app/models/local.gguf",
+            sizeBytes = 123L, sha256 = "a".repeat(64), format = DiscoveredModelFormat.GGUF
+        )))
+        val model = catalogue.models().single()
+        assertEquals("local.gguf", model.displayName)
+        assertEquals(ModelFormat.GGUF, model.format)
+        assertEquals("unknown", model.version)
+        assertTrue(model.capabilities.isEmpty())
+        assertTrue(model.isInstalled)
+        assertNull(model.licence)
+    }
+
 }
