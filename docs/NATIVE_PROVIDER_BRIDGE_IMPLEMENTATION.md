@@ -13,6 +13,7 @@
 - A new `ACTIVITY` tab exposes the merged timeline with All / Observations / Events filters. Each card distinguishes source time from receive time and shows classification, source method, status/route/amount fields, evidence digest and a bounded payload preview.
 - The Activity tab now derives provider filters from providers actually present in the local ledger. Provider and source-type filters compose, and missing provider identity is grouped as `UNKNOWN PROVIDER` rather than silently omitted.
 - Each Activity card has an evidence-inspection action showing record identity, provenance, source/receive timestamps, lifecycle linkage, evidence row/reference/digest, known payload fields and the complete stored canonical payload where present.
+- The Sources screen now exposes an on-device migration diagnostic panel with a manual re-check action and a shareable report. It lists each legacy database/table, source row count, copied/already-present counts, identity-verification state and missing databases; errors are visible instead of being hidden in logcat.
 - Local model inventory and app-private model storage. File discovery is metadata-only and cannot make a model eligible for inference without a compatible runtime and verified capabilities.
 - New `busybee_driver_activity.db` schema for evidence, observations, canonical provider events and migration tracking.
 - `UnifiedActivityLedgerMigrator` copies the existing Driver Mirror import metadata, raw CSV evidence, normalized records, saved offers and captured notifications. Legacy databases are opened read-only; unrelated Driver Hub/map data remains in the original database.
@@ -41,4 +42,4 @@
 
 ## Next slice
 
-Validate the migrated ledger against pre-existing user data on a physical Android device, record parity for legacy Driver Mirror and Offer Desk surfaces, and exercise rollback. Keep the legacy screens available until parity and rollback checks pass; do not silently switch their data source.
+- The next device-validation slice is to verify the migrated ledger against pre-existing user data, record parity for legacy Driver Mirror and Offer Desk surfaces, and exercise rollback. Keep the legacy screens available until those checks pass.
