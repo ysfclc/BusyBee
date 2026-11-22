@@ -212,3 +212,38 @@ Detailed design: [Native Provider Bridge](NATIVE_PROVIDER_BRIDGE.md).
 
 Verification boundary:
 - This checkpoint is design only. No Android app code, database schema, provider integration or APK was changed. The next implementation issue tracks the Provider Bridge contract and unified timeline.
+
+
+## 2026-11-22 — App Observer / BusyBee fresh-start and separation checkpoint
+
+**Status:** source audit completed; two documentation/research PRs open as drafts; no application code merged to `main`.
+
+Product boundary:
+- BusyBee remains the end-user driver operating platform and canonical owner of provider-neutral driver events.
+- App Observer is a separate research instrument for controlled Android observation, experiments, capture/perception validation and reusable evidence. It is not a driver-facing BusyBee surface.
+- Both remain in the same repository, with App Observer Capture isolated under `research/app-observer-capture`. The original survey app under `research/app-observer` remains preserved.
+
+Repository findings:
+- Current `main` retains the isolated App Observer Lab 0.1.0 survey baseline.
+- PR #22 contains the richer App Observer Capture 0.5.0 line but remains an older draft.
+- Branch `app-observer-intelligence-reset` is 103 commits ahead and 3 behind `main`. Its exact head is `8d8a9945c88352e85ee58ae3d282533c20fb3363`.
+- On that exact reset-branch head, App Observer CI #328, BusyBee observation/event-contract CI #11 and BusyBee Android CI #422 all passed. The App Observer release candidate and BusyBee release signing steps were skipped because persistent Actions secrets are absent; the App Observer run produced an unsigned release candidate. Physical Redmi acceptance remains pending.
+- The reset branch contains both research capture code and BusyBee event-pipeline changes. It must not be merged wholesale.
+- Source audit found that the branch's new observation/event ledgers live in `busybee_command_centre.db`, while imported source records/evidence remain in `busybee_driver_mirror.db`. This does not yet satisfy the earlier Native Provider Bridge decision to reconcile the existing stores into one durable activity query with non-destructive migrations. Cross-source lifecycle reconciliation and the owned synthetic offer lifecycle are also incomplete.
+- Ride-platform notifications currently remain observations until a reliable classifier establishes event meaning; manual offers and explicitly typed CSV offer rows are the narrow event-producing inputs. Disappearance is not treated as expiry.
+
+Safe separation work:
+- PR #27: documentation-only Fresh Start and source audit, including this phase-log checkpoint.
+- PR #28: clean-mainline, research-only App Observer Capture 0.6.0 import. It contains no BusyBee Android/Rust product integration. It increments the capture package to versionCode 9 and adds a debug-key-signed side-by-side APK artifact for physical-device acceptance. CI is running; no merge is authorised until build/privacy/device acceptance is reviewed.
+- PR #22 and the reset branch remain preserved as source history; no blind merge, force-push or branch deletion was performed.
+- The trusted-driver proximity alert remains future roadmap work; it was not implemented here.
+
+Next sequence:
+1. Finish PR #28 CI and review the generated debug APK on a physical Android device.
+2. Keep App Observer research UI/data isolated; merge only the reviewed Capture app when acceptance is complete.
+3. Resolve the single-ledger/migration design from Native Provider Bridge before integrating event storage.
+4. Build the owned synthetic Android provider + HTTPS offer lifecycle and prove observed/updated/expired, duplicate/replay, conflict and out-of-order handling.
+5. Port only validated, provider-neutral observation/event primitives into BusyBee in small reversible changes.
+
+Verification boundary:
+- This checkpoint changes documentation only. It does not change Android/Rust product code, permissions, databases, signing keys, secrets, or the BusyBee roadmap. No physical-device acceptance is claimed.
