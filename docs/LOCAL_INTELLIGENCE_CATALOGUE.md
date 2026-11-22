@@ -45,9 +45,13 @@ It is a subsystem of BusyBee's intelligence plane, separate from:
 
 `ModelDeviceCompatibility` centrally rejects models whose declared minimum RAM/storage, ABI requirements, or NPU requirements are not met. Unknown values do not satisfy a declared requirement. Runtime adapters still perform their own deeper compatibility checks.
 
+## Model inventory increment
+
+`LocalModelInventory.kt` scans only a caller-supplied BusyBee-managed directory. It recognizes GGUF, TFLite, ONNX, and LiteRT-LM extensions, records file size and SHA-256, and returns a stable inventory sorted by file name. It ignores unrecognized extensions and a missing directory is an empty inventory. Discovery does not imply that a model is safe, compatible, licensed, or executable; capability metadata remains unknown and empty until verified separately. The inventory does not scan arbitrary storage, import files, load model weights, or execute inference.
+
 ## Planned increments
 
-1. **Registry contract and profiler (implemented):** metadata, runtime adapter contract, Android device profile, conservative hardware filtering, privacy-aware routing, unit tests.
+1. **Registry contract, profiler and managed inventory (implemented):** metadata, runtime adapter contract, Android device profile, conservative hardware filtering, privacy-aware routing, scoped file discovery and fingerprints, unit tests.
 2. **Runtime adapters:** integrate selected engines independently, beginning with one runtime proven on supported devices.
 4. **Model inventory:** enumerate app-managed and user-authorized models; verify file format, size, digest and licence metadata.
 5. **Benchmark and suitability:** measure load time, tokens/sec or task latency, peak memory, thermal throttling and battery impact.
