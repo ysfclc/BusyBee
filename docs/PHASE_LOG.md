@@ -230,8 +230,10 @@ Delivered:
 - Added CI APK artifact upload so pull-request builds can provide a retrievable validation APK rather than only building it on the runner.
 
 Verification:
-- CI run 449 passed actionlint, Rust domain tests, Android unit tests (including Robolectric migration fixtures) and debug APK assembly.
-- Persistent Android release-signing secrets are absent, so the release-signing steps were skipped. The debug APK uses a separate `.debug` application ID and cannot update the release package.
-- Run 449 was a pull-request build and did not publish a release asset. The next CI run includes the APK artifact upload step.
+- CI run 449 passed actionlint, Rust domain tests, Android unit tests (including the initial Robolectric migration fixtures) and debug APK assembly.
+- CI run 451 passed actionlint, Rust domain tests, Android Rust-library builds, Android unit tests (including digest, duplicate-row, timestamp and missing-table migration fixtures), and debug APK assembly.
+- Run 451 uploaded artifact `busybee-debug-apk-451` (APK size 48,926,158 bytes; artifact expires 2026-12-06). The extracted APK SHA-256 is `d750e86a150456f1f6cfb9c7f54a951e7a0ec38fddf6cbf75a9372d94b8b4902`.
+- Persistent Android release-signing secrets are absent, so release-signing steps were skipped. The debug APK uses a separate `.debug` application ID and cannot update the release package.
+- Run 451 was a pull-request build and did not publish a GitHub Release asset. Debug APK signature verification is being added as a separate CI gate.
 - No migration is invoked automatically yet; existing screens still use the legacy stores. The migration must pass on-device parity checks before the UI is switched.
 - PR: https://github.com/ysfclc/BusyBee/pull/29

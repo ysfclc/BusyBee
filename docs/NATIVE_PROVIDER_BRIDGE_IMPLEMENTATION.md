@@ -1,34 +1,34 @@
-# Native Provider Bridge — implementation checkpoint 1
+# Native Provider Bridge — implementation checkpoint
 
-**Status:** Slice 1 domain contract implemented on a feature branch; persistent event storage and the unified migration are not yet implemented.
+**Status:** provider-neutral domain contract, local model inventory and the first non-destructive activity migration are implemented on the feature branch. Durable provider-event storage, live provider adapters and UI integration remain pending.
 
-## Scope
+## Implemented
 
-This checkpoint adds a provider-neutral Kotlin contract only. It deliberately does not change the two existing SQLite stores, notification collection, permissions, screens, provider integrations or BusyBee's current product behaviour.
+- Provider capability and connection-health types, acquisition-method descriptors, typed offer/trip/earning/adjustment payloads and provenance-aware event envelopes.
+- Adapter registry allowing multiple acquisition methods per provider while enforcing unique adapter IDs.
+- Event ingestion validation for required identity, payload/type consistency, idempotency and explicit offer-expiry evidence. Delayed/out-of-order evidence is retained.
+- Local model inventory and app-private model storage. File discovery is metadata-only and cannot make a model eligible for inference without a compatible runtime and verified capabilities.
+- New `busybee_driver_activity.db` schema for evidence, observations, canonical provider events and migration tracking.
+- `UnifiedActivityLedgerMigrator` copies the existing Driver Mirror import metadata, raw CSV evidence, normalized records, saved offers and captured notifications. Legacy databases are opened read-only; unrelated Driver Hub/map data remains in the original database.
+- Each source row and its migration marker are committed in one target transaction. Re-runs are idempotent, source and target row-identity digests are compared, and missing source tables are not reported as complete.
+- Explicit ISO-8601 source timestamps are parsed; unparseable timestamps remain unknown. Capture/import time is preserved separately as local receive time. Imported notifications remain unclassified observations.
 
-## Contract
+## Verification
 
-- Provider capability, connection-health and acquisition-method types.
-- A typed event envelope with adapter identity/version, provider, lifecycle identity, source method, evidence class/reference/digest, source event time and local receive time.
-- Typed offer, trip, earning and adjustment payloads. Unknown values remain nullable.
-- Adapter registry permits multiple acquisition methods per provider but requires unique adapter IDs.
-- Event ingestion validates payload/type consistency and required envelope identity.
-- Persistent stores must enforce a unique idempotency key. The ingestor returns accepted, duplicate or rejected outcomes.
-- Delayed and out-of-order evidence is retained; timeline ordering is a read/query concern, not an ingestion-time discard rule.
-- An offer cannot become expired from disappearance alone. Expiry requires an explicit provider state, explicit provider deadline or user confirmation.
-
-## Verification added
-
-Unit tests cover partial payloads, duplicate idempotency keys, delayed/out-of-order observations, unknown source timestamps, explicit expiry evidence, payload mismatch and adapter registry uniqueness.
+- Provider Bridge unit tests cover partial payloads, duplicate idempotency keys, delayed/out-of-order observations, unknown timestamps, expiry evidence, payload mismatch and adapter identity.
+- Robolectric database fixtures cover absent legacy databases, missing source tables, duplicate raw evidence, timestamp parsing, notification provenance, digest checks and idempotent reruns.
+- CI run 451 passed actionlint, Rust domain tests, Android native-library build, Android unit tests and debug APK assembly.
+- The debug APK is a validation build with a separate `.debug` application ID. Persistent release-signing secrets are not configured, so no install-over-existing release APK was produced.
 
 ## Deliberately deferred
 
-- Durable SQLite implementation and unique index.
-- Migration/reconciliation of `busybee_driver_mirror.db` and `busybee_command_centre.db`.
-- Evidence linkage between imported raw rows, notification records and canonical events.
-- UI timeline and Connected Apps surfaces.
-- Any claim of an Uber/Bolt live connection.
+- Durable SQLite implementation of `ProviderEventStore` and canonical provider-event insertion.
+- Live provider adapters or a claim of an Uber/Bolt API connection.
+- Normalizing future notifications and CSV imports into the unified ledger as they arrive.
+- Unified activity repository queries, Driver Mirror timeline and Connected Apps UI.
+- Local inference runtime execution; current catalogue/inventory is metadata and selection policy only.
+- On-device migration parity and rollback verification.
 
 ## Next slice
 
-Design and implement a non-destructive local activity ledger migration. Preserve both legacy databases and their raw rows; copy source records into the new canonical ledger with source-specific provenance and idempotent migration markers. Re-running migration must not duplicate events. Verify with synthetic legacy databases, including interruption/restart and partially populated tables, before wiring the UI.
+Implement the SQLite-backed provider-event store with its unique idempotency constraint, then add unified repository reads over observations and events. Wire existing notification/import writes into the ledger without removing the legacy stores. Verify data parity before switching any screen to the new repository.
