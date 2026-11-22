@@ -234,7 +234,7 @@ Repository findings:
 
 Safe separation work:
 - PR #27: documentation-only Fresh Start and source audit, including this phase-log checkpoint.
-- PR #28: clean-mainline, research-only App Observer Capture 0.6.0 import. It contains no BusyBee Android/Rust product integration. It increments the capture package to versionCode 9 and adds a debug-key-signed side-by-side APK artifact for physical-device acceptance. CI run #331 passed on the code-bearing commit and produced debug artifact `14736318462` plus unsigned release candidate `14736462362`; subsequent commits update only recovery/signing documentation. Physical-device acceptance remains pending; no merge is authorised yet.
+- PR #28: clean-mainline, research-only App Observer Capture 0.6.0 import. It contains no BusyBee Android/Rust product integration. It increments the capture package to versionCode 9 and adds a debug-key-signed side-by-side APK artifact for physical-device acceptance. Latest PR head CI run #335 passed on commit `b61d93d456b59cf87535fd11993111c5792fa4e9` and produced debug artifact `14736547217` plus unsigned release candidate `14736427945`; the app source and build workflow were unchanged by the documentation-only commits. Physical-device acceptance remains pending; no merge is authorised yet.
 - PR #22 and the reset branch remain preserved as source history; PR #22 is closed as superseded. No blind merge, force-push or branch deletion was performed.
 - The trusted-driver proximity alert remains future roadmap work; it was not implemented here.
 
