@@ -3,30 +3,16 @@ package com.ysfclc.busybee.drivercommandcentre
 /**
  * BusyBee's local intelligence capability registry.
  *
- * This is metadata and orchestration policy only. It does not download models,
- * execute inference, or assume that a runtime is installed. Runtime adapters
- * provide verified availability and execution in later integration slices.
+ * Metadata and orchestration policy only: no model downloads or inference happen
+ * here. Runtime adapters provide verified availability and execution separately.
  */
 enum class IntelligenceCapability {
-    OFFER_EXTRACTION,
-    NOTIFICATION_CLASSIFICATION,
-    DOCUMENT_EXTRACTION,
-    TEXT_SUMMARIZATION,
-    IMAGE_TEXT_RECOGNITION,
-    SPEECH_TO_TEXT,
-    SPEECH_SYNTHESIS,
-    ANOMALY_DETECTION,
-    GENERAL_REASONING
+    OFFER_EXTRACTION, NOTIFICATION_CLASSIFICATION, DOCUMENT_EXTRACTION,
+    TEXT_SUMMARIZATION, IMAGE_TEXT_RECOGNITION, SPEECH_TO_TEXT,
+    SPEECH_SYNTHESIS, ANOMALY_DETECTION, GENERAL_REASONING
 }
 
-enum class ModelFormat {
-    LITERT_LM,
-    GGUF,
-    ONNX,
-    TFLITE,
-    OTHER
-}
-
+enum class ModelFormat { LITERT_LM, GGUF, ONNX, TFLITE, OTHER }
 enum class InferenceLocation { LOCAL, CLOUD }
 enum class IntelligencePrivacyPolicy { LOCAL_ONLY, LOCAL_FIRST, CLOUD_ALLOWED, ASK_BEFORE_CLOUD }
 enum class RuntimeAvailability { AVAILABLE, NOT_INSTALLED, INCOMPATIBLE, DISABLED, UNKNOWN }
@@ -58,7 +44,6 @@ data class ModelDescriptor(
         require(requirements.minimumRamMb == null || requirements.minimumRamMb >= 0)
         require(requirements.minimumFreeStorageMb == null || requirements.minimumFreeStorageMb >= 0)
     }
-
     val isInstalled: Boolean get() = !installedPath.isNullOrBlank()
 }
 
@@ -103,33 +88,21 @@ class LocalIntelligenceCatalogue {
     private val models = linkedMapOf<String, ModelDescriptor>()
     private val runtimes = linkedMapOf<String, LocalInferenceRuntime>()
 
-    @Synchronized
-    fun registerModel(model: ModelDescriptor) {
-        models[model.id] = model
-    }
-
-    @Synchronized
-    fun registerRuntime(runtime: LocalInferenceRuntime) {
-        runtimes[runtime.descriptor.id] = runtime
-    }
-
-    @Synchronized
-    fun models(): List<ModelDescriptor> = models.values.toList()
-
-    @Synchronized
-    fun runtimes(): List<RuntimeDescriptor> = runtimes.values.map { it.descriptor }
-
-    @Synchronized
-    fun modelsFor(capability: IntelligenceCapability): List<ModelDescriptor> =
+    @Synchronized fun registerModel(model: ModelDescriptor) { models[model.id] = model }
+    @Synchronized fun registerRuntime(runtime: LocalInferenceRuntime) { runtimes[runtime.descriptor.id] = runtime }
+    @Synchronized fun models(): List<ModelDescriptor> = models.values.toList()
+    @Synchronized fun runtimes(): List<RuntimeDescriptor> = runtimes.values.map { it.descriptor }
+    @Synchronized fun modelsFor(capability: IntelligenceCapability): List<ModelDescriptor> =
         models.values.filter { capability in it.capabilities }
 
     /**
      * Select only installed models with an available compatible runtime.
-     * Cloud is never selected unless policy explicitly permits it.
+     * Cloud is selected only when both policy and this task explicitly allow it.
+     * ASK_BEFORE_CLOUD is intentionally not an approval: caller must obtain it.
      */
     @Synchronized
     fun select(task: IntelligenceTask, device: DeviceCapabilityProfile): IntelligenceTarget {
-        val candidates = models.values
+        val selected = models.values.asSequence()
             .filter { it.isInstalled && task.capability in it.capabilities }
             .mapNotNull { model ->
                 val runtime = runtimes.values.firstOrNull {
@@ -138,21 +111,14 @@ class LocalIntelligenceCatalogue {
                         it.canRun(model, device)
                 }
                 if (runtime == null) null else model to runtime
-            }
+            }.firstOrNull()
 
-        val selected = candidates.firstOrNull()
-        if (selected != null) {
-            return IntelligenceTarget(
-                InferenceLocation.LOCAL,
-                selected.first.id,
-                selected.second.descriptor.id,
-                "Installed model and compatible local runtime are available"
-            )
-        }
+        if (selected != null) return IntelligenceTarget(
+            InferenceLocation.LOCAL, selected.first.id, selected.second.descriptor.id,
+            "Installed model and compatible local runtime are available"
+        )
 
-        val cloudPermitted = task.allowCloud &&
-            task.privacyPolicy == IntelligencePrivacyPolicy.CLOUD_ALLOWED
-        if (cloudPermitted) {
+        if (task.allowCloud && task.privacyPolicy == IntelligencePrivacyPolicy.CLOUD_ALLOWED) {
             return IntelligenceTarget(
                 InferenceLocation.CLOUD,
                 reason = "No compatible local model; task explicitly permits cloud execution"
@@ -169,14 +135,4 @@ class LocalIntelligenceCatalogue {
             }
         )
     }
-}
-
-/**
- * Calculations and state transitions that have deterministic answers should
- * remain native code, not be routed through a language model.
- */
-object DeterministicDriverOperations {
-    val aiIndependentCapabilities = setOf(
-        IntelligenceCapability.ANOMALY_DETECTION
-    )
 }
