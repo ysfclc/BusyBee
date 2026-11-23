@@ -848,7 +848,8 @@ class MainActivity : AppCompatActivity() {
 
         val providerCoverageCard=card()
         providerCoverageCard.addView(label("PROVIDER DATA COVERAGE",11f,MINT,true))
-        providerCoverageCard.addView(label("Coverage is calculated from this device's local records. App installation or notification permission alone is not a verified provider connection.",10f,MUTED,false).apply{setPadding(0,dp(4),0,dp(8))})
+        providerCoverageCard.addView(label("Coverage is calculated from this device's local records. App installation or notification permission alone is not a verified provider connection.",10f,MUTED,false).apply{setPadding(0,dp(4),0,dp(5))})
+        providerCoverageCard.addView(label("Counts use the latest 1,000 local entries per source table; they are not lifetime totals or provider-side sync counts.",8f,AMBER,false).apply{setPadding(0,0,0,dp(8))})
         providerCoverageContainer=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
         providerCoverageCard.addView(providerCoverageContainer)
         providerCoverageCard.addView(action("REFRESH PROVIDER COVERAGE",false){refreshProviderCoverage()},LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(7)})
@@ -924,7 +925,7 @@ class MainActivity : AppCompatActivity() {
         entry.addView(label("OFFERS · ${summary.manualOfferCount} MANUAL · ${summary.notificationReviewedOfferCount} REVIEWED · ${summary.otherOfferCount} OTHER",9f,WHITE,false).apply{setPadding(0,dp(3),0,0)})
         entry.addView(label("IMPORTED HISTORY · ${summary.importedRecordCount} RECORDS",9f,WHITE,false).apply{setPadding(0,dp(3),0,0)})
         val lastRecord=summary.lastLocalRecordAtMillis?.let(::dateTime) ?: "NOT RECORDED"
-        entry.addView(label("LAST LOCAL RECORD · $lastRecord",8f,MUTED,false).apply{setPadding(0,dp(5),0,0)})
+        entry.addView(label("LATEST NOTICE / OFFER CAPTURE · $lastRecord",8f,MUTED,false).apply{setPadding(0,dp(5),0,0)})
         entry.addView(label("DIRECT PROVIDER API · NOT CONNECTED / NOT VERIFIED",8f,AMBER,true).apply{setPadding(0,dp(4),0,0)})
         summary.dataGaps.forEach { gap ->
             entry.addView(label("GAP · $gap",8f,MUTED,false).apply{setPadding(0,dp(3),0,0)})
