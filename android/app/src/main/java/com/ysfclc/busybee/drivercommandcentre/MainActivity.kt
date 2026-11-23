@@ -914,14 +914,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderProviderCoverage(summary:ProviderCoverageSummary) {
         val target=providerCoverageContainer ?: return
-        val entry=LinearLayout(this).apply{
-            orientation=LinearLayout.VERTICAL
-            setPadding(dp(2),dp(8),dp(2),dp(8))
+        val app=ProviderAppCatalog.forProvider(summary.provider)
+        // A launch intent confirms only that Android can find a launchable app package.
+        // It is not a provider session, API connection or proof of data access.
+        val launchIntent=app?.let { packageManager.getLaunchIntentForPackage(it.packageName) }
+        val appState=when {
+            app==null -> "NO VERIFIED APP HANDOFF"
+            launchIntent!=null -> "INSTALLED / LAUNCHABLE · NOT A CONNECTION"
+            else -> "NOT DETECTED OR NOT LAUNCHABLE"
         }
+        val entry=card()
         val stateColor=if(summary.state==ProviderCoverageState.LOCAL_INPUTS_PRESENT)MINT else AMBER
-        entry.addView(label(summary.provider.uppercase(Locale.getDefault()),11f,WHITE,true))
-        entry.addView(label(summary.statusLabel,8f,stateColor,true).apply{setPadding(0,dp(3),0,dp(6))})
-        entry.addView(label("NOTIFICATIONS · ${summary.visibleNotificationCount} CAPTURED · ${if(summary.notificationAccessGranted) "PERMISSION ON" else "PERMISSION REQUIRED"}",9f,WHITE,false))
+        entry.addView(label(summary.provider.uppercase(Locale.getDefault()),12f,WHITE,true))
+        entry.addView(label(summary.statusLabel,8f,stateColor,true).apply{setPadding(0,dp(3),0,dp(5))})
+        entry.addView(label("APP · $appState",8f,if(launchIntent!=null)MINT else MUTED,true))
+        entry.addView(label("NOTIFICATIONS · ${summary.visibleNotificationCount} CAPTURED · ${if(summary.notificationAccessGranted) "PERMISSION ON" else "PERMISSION REQUIRED"}",9f,WHITE,false).apply{setPadding(0,dp(5),0,0)})
         entry.addView(label("OFFERS · ${summary.manualOfferCount} MANUAL · ${summary.notificationReviewedOfferCount} REVIEWED · ${summary.otherOfferCount} OTHER",9f,WHITE,false).apply{setPadding(0,dp(3),0,0)})
         entry.addView(label("IMPORTED HISTORY · ${summary.importedRecordCount} RECORDS",9f,WHITE,false).apply{setPadding(0,dp(3),0,0)})
         val lastRecord=summary.lastLocalRecordAtMillis?.let(::dateTime) ?: "NOT RECORDED"
@@ -930,8 +937,21 @@ class MainActivity : AppCompatActivity() {
         summary.dataGaps.forEach { gap ->
             entry.addView(label("GAP · $gap",8f,MUTED,false).apply{setPadding(0,dp(3),0,0)})
         }
+        val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        app?.let { definition ->
+            val buttonTitle=if(launchIntent!=null) "OPEN ${definition.displayName.uppercase(Locale.getDefault())}" else "APP NOT DETECTED"
+            actions.addView(action(buttonTitle,launchIntent!=null){
+                if(launchIntent!=null) startActivity(launchIntent)
+                else Toast.makeText(this,"${definition.displayName} is not detected or launchable on this device.",Toast.LENGTH_LONG).show()
+            },LinearLayout.LayoutParams(0,dp(38),1f))
+        }
+        actions.addView(action(if(summary.notificationAccessGranted)"MANAGE NOTIFICATION ACCESS" else "ENABLE NOTIFICATION ACCESS",false){
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        },LinearLayout.LayoutParams(if(app==null)-1 else 0,dp(38),if(app==null)0f else 1f).apply{
+            if(app!=null) marginStart=dp(7)
+        })
+        entry.addView(actions,LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(9)})
         target.addView(entry)
-        target.addView(divider())
     }
 
     private fun renderMigrationDiagnostics() {
