@@ -142,7 +142,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(
         try {
             val id = db.insertOrThrow("offers", null, offerValues(offer))
             val saved = offer.copy(id = id)
-            enqueueProviderOfferEvent(db, ManualOfferEventFactory.observed(saved))
+            enqueueProviderOfferEvent(db, id, ManualOfferEventFactory.observed(saved))
             db.setTransactionSuccessful()
             return saved
         } finally {
@@ -178,6 +178,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(
             val saved = readOffer(db, offerId) ?: return null
             enqueueProviderOfferEvent(
                 db,
+                offerId,
                 ManualOfferEventFactory.decisionObserved(saved, decision, decidedAtMillis)
             )
             db.setTransactionSuccessful()
@@ -270,13 +271,17 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(
             null
         ).use { cursor -> if (cursor.moveToFirst()) cursor.getInt(0) else 0 }
 
-    private fun enqueueProviderOfferEvent(db: SQLiteDatabase, event: ProviderEventEnvelope) {
+    private fun enqueueProviderOfferEvent(
+        db: SQLiteDatabase,
+        offerId: Long,
+        event: ProviderEventEnvelope
+    ) {
+        require(offerId > 0L) { "Offer ID must be positive" }
         val payload = event.payload as? ProviderEventPayload.Offer
             ?: throw IllegalArgumentException("Offer outbox only accepts offer payloads")
         val values = ContentValues().apply {
             put("idempotency_key", event.idempotencyKey)
-            put("offer_id", event.lifecycleId?.substringAfterLast(":")?.toLongOrNull()
-                ?: throw IllegalArgumentException("Offer lifecycle ID is invalid"))
+            put("offer_id", offerId)
             put("event_type", event.eventType.name)
             put("decision", payload.decision)
             if (event.occurredAtMillis == null) putNull("occurred_at_ms")

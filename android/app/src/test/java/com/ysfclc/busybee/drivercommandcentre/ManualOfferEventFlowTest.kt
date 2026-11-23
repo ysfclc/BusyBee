@@ -64,6 +64,14 @@ class ManualOfferEventFlowTest {
             decidedAtMillis = decidedAt
         )
         assertEquals("skipped", skippedOffer?.status)
+        // Repeating the same in-app decision is idempotent and does not
+        // replace the original decision timestamp or create another outbox row.
+        restartedStore.recordOfferDecision(
+            offerId = savedOffer.id,
+            status = "skipped",
+            decision = "skipped_by_driver_in_busybee",
+            decidedAtMillis = decidedAt + 250L
+        )
         assertEquals(2, restartedStore.pendingProviderOfferEventCount())
 
         val upperBound = restartedStore.latestProviderOfferOutboxId()

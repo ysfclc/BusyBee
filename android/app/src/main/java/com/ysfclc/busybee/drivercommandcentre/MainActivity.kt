@@ -499,7 +499,7 @@ class MainActivity : AppCompatActivity() {
                     decidedAtMillis = decidedAt
                 )
                 if (savedDecision == null) {
-                    Toast.makeText(this, "Offer was not found; no decision was recorded.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Offer was not found; no decision was recorded.", Toast.LENGTH_LONG).show()
                     return@action
                 }
                 scheduleProviderEventOutboxDrain()
