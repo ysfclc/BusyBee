@@ -46,6 +46,8 @@ class SqliteProviderEventStoreTest {
                 assertTrue(it.moveToFirst())
                 assertEquals("digest-1", it.getString(0))
                 assertTrue(it.getString(1).contains("\"fare\":12.5"))
+                assertTrue(it.getString(1).contains("\"bonus\":1.5"))
+                assertTrue(it.getString(1).contains("\"passengerRating\":4.8"))
             }
         } finally {
             helper.close()
@@ -128,7 +130,7 @@ class SqliteProviderEventStoreTest {
         receivedAtMillis = 2000L,
         evidenceReference = "notification://one",
         evidenceDigest = "digest-1",
-        payload = ProviderEventPayload.Offer(fare = 12.5, currency = "PLN")
+        payload = ProviderEventPayload.Offer(fare = 12.5, currency = "PLN", bonus = 1.5, passengerRating = 4.8)
     )
 
     private fun scalar(db: SQLiteDatabase, sql: String): Int =

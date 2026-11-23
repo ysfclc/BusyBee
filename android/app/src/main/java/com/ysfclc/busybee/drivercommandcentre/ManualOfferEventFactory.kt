@@ -90,7 +90,9 @@ object ManualOfferEventFactory {
             pickupDistanceKm = offer.pickupKm,
             tripDistanceKm = offer.tripKm,
             estimatedDurationMinutes = offer.durationMin,
-            decision = decision
+            decision = decision,
+            bonus = offer.bonus,
+            passengerRating = offer.passengerRating
         )
 
     private fun normalizeProviderId(value: String): String =

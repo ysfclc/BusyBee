@@ -43,9 +43,11 @@ class ManualOfferEventFactoryTest {
         val payload = event.payload as ProviderEventPayload.Offer
         assertEquals("PLN", payload.currency)
         assertEquals(42.5, payload.fare!!, 0.001)
-        assertEquals(3.0, payload.pickupDistanceKm!!, 0.001)
+        assertEquals(2.5, payload.pickupDistanceKm!!, 0.001)
         assertEquals(14.0, payload.tripDistanceKm!!, 0.001)
         assertEquals(28.0, payload.estimatedDurationMinutes!!, 0.001)
+        assertEquals(3.0, payload.bonus!!, 0.001)
+        assertEquals(4.9, payload.passengerRating!!, 0.001)
         assertNull(payload.decision)
         assertTrue(event.evidenceDigest?.matches(Regex("[a-f0-9]{64}")) == true)
     }

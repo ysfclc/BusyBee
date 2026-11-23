@@ -59,6 +59,8 @@ class SqliteProviderEventStore(context: Context) : ProviderEventStore, AutoClose
                 put("estimatedDurationMinutes", payload.estimatedDurationMinutes ?: JSONObject.NULL)
                 put("providerExpiryAtMillis", payload.providerExpiryAtMillis ?: JSONObject.NULL)
                 put("decision", payload.decision ?: JSONObject.NULL)
+                put("bonus", payload.bonus ?: JSONObject.NULL)
+                put("passengerRating", payload.passengerRating ?: JSONObject.NULL)
             }
             is ProviderEventPayload.Trip -> {
                 put("type", "trip")

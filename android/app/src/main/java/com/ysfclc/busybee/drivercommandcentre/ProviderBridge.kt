@@ -45,7 +45,9 @@ sealed class ProviderEventPayload {
         val tripDistanceKm: Double? = null,
         val estimatedDurationMinutes: Double? = null,
         val providerExpiryAtMillis: Long? = null,
-        val decision: String? = null
+        val decision: String? = null,
+        val bonus: Double? = null,
+        val passengerRating: Double? = null
     ) : ProviderEventPayload()
 
     data class Trip(
