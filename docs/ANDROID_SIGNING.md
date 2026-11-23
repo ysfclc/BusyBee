@@ -59,3 +59,15 @@ The current Build signed BusyBee APK workflow reads these exact repository Actio
 If the workflow summary says release signing is incomplete, check that all four are present under BusyBee → Settings → Secrets and variables → Actions → Repository secrets, not Actions variables or a different repository. The current workflow does not declare an Actions environment, so environment-scoped secrets are not loaded into this job. Do not paste keystore contents or passwords into workflow files, issues, commits or chat.
 
 A successful debug signature check does not verify the release certificate. The release gate is only passed when the workflow assembles app-release.apk and apksigner verifies it with the persistent release certificate.
+
+
+## Release workflow behavior and verification
+
+The release workflow now distinguishes pull-request validation from actual release builds:
+
+- A pull_request run can build and upload a debug validation APK. This APK has the .debug application ID and cannot update the installed release app.
+- A push to main or a manual workflow_dispatch requires all four persistent signing inputs. If they are not available, the workflow fails early and does not publish a debug APK as a release.
+- The PR workflow runs #481 and #482 passed validation but reported that release-signing secrets were not available to the pull-request build. They therefore verified only the Android Debug certificate, not the persistent release certificate.
+- A successful non-PR build must assemble app-release.apk and pass apksigner certificate verification before the release-pipeline acceptance gate is complete.
+
+The current build job does not declare a GitHub Actions Environment. Put the four values in the repository's Actions → Repository secrets scope using the exact names above. Environment-scoped secrets are not injected unless the job references that environment. Never put keystore data or passwords in source files, PR descriptions, issue comments or chat.

@@ -91,3 +91,22 @@ Validation:
 - CI run #478 passed actionlint, Rust tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload: https://github.com/ysfclc/BusyBee/actions/runs/45131173423.
 - Artifact busybee-debug-apk-478 (ID 14798520217), 19,884,619-byte ZIP; SHA-256 2943566d83598a43441af8549cd9e047abc3aa35c2f8275455f8ff703b487e8e; package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.478-debug.
 - Release signing was again skipped because the four configured secret inputs were empty. Debug APK certificate SHA-256 154c6bbad2a197fedd45eaffad98798eafc69fd39e910f37121e707106be9721 is not the persistent release certificate.
+
+
+## Latest increment — explicit Uber / Bolt Connected Apps cards (2026-11-23)
+
+- The Sources panel is now titled CONNECTED APPS · LOCAL PROVIDER COVERAGE and presents a card for each local provider summary.
+- Uber Driver and Bolt Driver have explicit launch handoff cards, showing app detection/launchability separately from notification permission and local data coverage.
+- Cards show visible notices, manual/reviewed/other saved offers, imported history, latest local notice/offer capture, data gaps and an explicit NOT CONNECTED / NOT VERIFIED provider API state.
+- Added Android package-visibility queries for only com.ubercab.driver and ee.mtakso.driver; no broad QUERY_ALL_PACKAGES permission.
+- Added ProviderAppCatalog and tests for Uber/Bolt aliases and unsupported-provider handling. Unknown provider names remain visible but receive no invented app package or launch button.
+- CI #481 passed all actionlint, Rust, Android unit test, APK build and debug-signature steps: https://github.com/ysfclc/BusyBee/actions/runs/45132114510. Debug artifact busybee-debug-apk-481 (ID 14798067702), 19,886,969-byte ZIP, SHA-256 b52c09fb32a4edee8e5f89ac8d435604c71542fa9866fcfaf12d1c43c13d8ab2.
+- CI #482 passed after the final user-facing heading/copy change: https://github.com/ysfclc/BusyBee/actions/runs/45132847686. Debug artifact busybee-debug-apk-482 (ID 14798677356), 19,887,053-byte ZIP, SHA-256 4927f6fbb46ac7039d0063ad934a9559a2f7389652534346fe39ce11e2015362.
+- Both were PR debug builds because release-signing inputs were not available to the pull-request job. They do not verify the persistent release certificate.
+
+## Release workflow safety
+
+- Pull requests may produce debug-only validation APKs.
+- Pushes to main and manual release dispatches now fail before building/publishing when any of the four required persistent signing inputs are unavailable.
+- This closes the previous fallback that could have published a debug APK as a prerelease asset.
+- The first successful non-PR signed run remains the release-certificate acceptance gate.

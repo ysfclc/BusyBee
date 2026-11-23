@@ -390,3 +390,34 @@ Verification:
 - Artifact: busybee-debug-apk-478 (ID 14798520217), 19,884,619-byte ZIP; SHA-256 2943566d83598a43441af8549cd9e047abc3aa35c2f8275455f8ff703b487e8e; expires 2026-12-07.
 - Package/version: com.ysfclc.busybee.drivercommandcentre.debug, 0.1.478-debug.
 - Release keystore preparation and release verification were skipped because the four required repository Actions secret inputs were empty. The verified Android Debug certificate SHA-256 is 154c6bbad2a197fedd45eaffad98798eafc69fd39e910f37121e707106be9721 and is not the persistent release certificate.
+
+
+## 2026-11-23 — Uber / Bolt Connected Apps handoff cards
+
+**Status:** implemented and verified on the Native Provider Bridge branch.
+
+Delivered:
+- Sources now presents per-provider cards under CONNECTED APPS · LOCAL PROVIDER COVERAGE.
+- Uber Driver and Bolt Driver cards report whether Android can detect a launchable app package and provide an explicit button to open the official app.
+- Both cards expose captured notification count, global notification-listener permission state, manual / notification-reviewed / other offer counts, imported-history count, latest notice/offer capture time and outstanding source gaps.
+- Each known card keeps these states separate: app installed/launchable, notification access granted, local records present and direct provider API connection. The API state remains NOT CONNECTED / NOT VERIFIED.
+- Added narrow Android package visibility queries for only com.ubercab.driver and ee.mtakso.driver. No QUERY_ALL_PACKAGES permission was added.
+- ProviderAppCatalog supports only those two explicit app handoffs. Unknown/other provider names remain visible in coverage but do not receive invented package IDs or launch actions.
+- Notification settings can be opened from each card. Returning from Settings refreshes the local coverage view.
+- Added tests for Uber Driver / Uber alias mapping, Bolt / Taxify alias mapping, unsupported providers and the explicit app-catalogue boundary.
+
+Verification:
+- CI run #481: https://github.com/ysfclc/BusyBee/actions/runs/45132114510 — actionlint, Rust domain tests, Android native-library builds, all Android unit tests, APK assembly, debug signature verification and artifact upload passed.
+- Artifact busybee-debug-apk-481 (ID 14798067702), 19,886,969-byte ZIP; SHA-256 b52c09fb32a4edee8e5f89ac8d435604c71542fa9866fcfaf12d1c43c13d8ab2; expires 2026-12-07.
+- CI run #482: https://github.com/ysfclc/BusyBee/actions/runs/45132847686 — all the same validation stages passed after the final Connected Apps heading/copy change.
+- Artifact busybee-debug-apk-482 (ID 14798677356), 19,887,053-byte ZIP; SHA-256 4927f6fbb46ac7039d0063ad934a9559a2f7389652534346fe39ce11e2015362; expires 2026-12-07.
+- The workflow did not receive release-signing secrets in either pull-request run, so both artifacts are debug validation APKs. They are not install-over-existing release builds; their Android Debug certificates are not the persistent release certificate.
+
+### Release-pipeline safety
+
+- The workflow now allows debug-only APK validation on pull requests and fails closed for push to main or manual workflow_dispatch when any of the four persistent release-signing inputs is unavailable.
+- This prevents a debug APK from being published as a release asset. The non-PR release path still needs a successful run to verify the persistent certificate.
+
+Remaining:
+- No production Uber/Bolt API connection or provider-side action is implemented.
+- Real device acceptance of package detection, app handoff and notification capture remains outstanding.
