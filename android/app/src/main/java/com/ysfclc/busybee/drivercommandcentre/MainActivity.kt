@@ -116,6 +116,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
+    private fun publishProviderEvent(event: ProviderEventEnvelope) {
+        worker.execute {
+            try {
+                SqliteProviderEventStore(applicationContext).use { store ->
+                    when (val result = ProviderEventIngestor(store).ingest(event)) {
+                        is ProviderIngestResult.Accepted ->
+                            android.util.Log.d("BusyBeeProvider", "Accepted canonical event ${result.eventId}")
+                        is ProviderIngestResult.Duplicate ->
+                            android.util.Log.d("BusyBeeProvider", "Duplicate canonical event ${result.idempotencyKey}")
+                        is ProviderIngestResult.Rejected ->
+                            android.util.Log.w("BusyBeeProvider", "Rejected canonical event: ${result.reason}")
+                    }
+                }
+                runOnUiThread {
+                    if (activeTab == "ACTIVITY") refreshUnifiedActivity()
+                }
+            } catch (error: Exception) {
+                android.util.Log.e("BusyBeeProvider", "Could not persist provider event", error)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
@@ -415,7 +438,18 @@ class MainActivity : AppCompatActivity() {
             addView(label("Pickup "+o.pickupKm+" km · trip "+o.tripKm+" km · passenger "+(o.passengerRating?.toString()?:"not supplied"),10f,MUTED,false).apply{setPadding(0,dp(3),0,dp(9))})
             val actions=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
             actions.addView(action("OPEN "+o.platform.uppercase()+" TO REVIEW",true){openPlatform(o.platform)},LinearLayout.LayoutParams(0,dp(40),1f))
-            actions.addView(action("SKIP",false){commands.updateOfferStatus(o.id,"skipped");syncUnifiedActivityLedger();showTab("OFFERS")},LinearLayout.LayoutParams(dp(74),dp(40)).apply{marginStart=dp(7)})
+            actions.addView(action("SKIP",false){
+                commands.updateOfferStatus(o.id,"skipped")
+                publishProviderEvent(
+                    ManualOfferEventFactory.decisionObserved(
+                        o,
+                        decision = "skipped_by_driver_in_busybee",
+                        decidedAtMillis = System.currentTimeMillis()
+                    )
+                )
+                syncUnifiedActivityLedger()
+                showTab("OFFERS")
+            },LinearLayout.LayoutParams(dp(74),dp(40)).apply{marginStart=dp(7)})
             addView(actions)
             addView(label("BusyBee ranks the offer; you make the acceptance decision inside the platform.",9f,MUTED,false).apply{setPadding(0,dp(7),0,0)})
         }
@@ -432,7 +466,21 @@ class MainActivity : AppCompatActivity() {
             fun value(e:EditText)=e.text.toString().trim().replace(',','.').toDoubleOrNull()
             val f=value(fare);val pk=value(pickupKm);val tk=value(tripKm);val du=value(duration)
             if(f==null||pk==null||tk==null||du==null||f<0||pk<0||tk<0||du<=0){Toast.makeText(this,"Fare, distances and duration must be valid numbers.",Toast.LENGTH_LONG).show();return@setPositiveButton}
-            commands.saveOffer(DriverOffer(platform=platform.text.toString().ifBlank{"Other"},pickup=pickup.text.toString(),destination=destination.text.toString(),fare=f,bonus=value(bonus)?:0.0,pickupKm=pk,tripKm=tk,durationMin=du,passengerRating=value(rating),source=if(raw.isBlank())"manual" else "notification-review",raw=evidence.text.toString()))
+            val offer = DriverOffer(
+                platform = platform.text.toString().ifBlank { "Other" },
+                pickup = pickup.text.toString(),
+                destination = destination.text.toString(),
+                fare = f,
+                bonus = value(bonus) ?: 0.0,
+                pickupKm = pk,
+                tripKm = tk,
+                durationMin = du,
+                passengerRating = value(rating),
+                source = if (raw.isBlank()) "manual" else "notification-review",
+                raw = evidence.text.toString()
+            )
+            val savedOfferId = commands.saveOffer(offer)
+            publishProviderEvent(ManualOfferEventFactory.observed(offer.copy(id = savedOfferId)))
             syncUnifiedActivityLedger()
             showTab("OFFERS")
         }.show()

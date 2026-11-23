@@ -43,3 +43,16 @@
 ## Next slice
 
 - The next device-validation slice is to verify the migrated ledger against pre-existing user data, record parity for legacy Driver Mirror and Offer Desk surfaces, and exercise rollback. Keep the legacy screens available until those checks pass.
+
+## Latest increment — user-curated offer events (2026-11-23)
+
+- Structured offers saved from manual entry or after a driver reviews a platform notification now emit a typed `OFFER_OBSERVED` event into `provider_events`.
+- The event records the canonical provider ID, offer lifecycle ID, structured PLN fields, source method, evidence class, legacy row reference and stable evidence digest.
+- The app's local capture time is kept as receive time; provider event time remains unknown because the entry/review timestamp is not proof of when the provider created the offer.
+- The explicit BusyBee **SKIP** action emits `OFFER_DECISION_OBSERVED` with the decision clearly named `skipped_by_driver_in_busybee`. This is not represented as an acceptance/rejection sent to Uber/Bolt.
+- Events use the existing SQLite-backed idempotency boundary. Legacy offers and their evidence remain untouched; the Activity timeline can show the source observation separately from its normalized event.
+- Raw notification text remains an unclassified observation until the driver reviews and converts it. Imported CSV records are not promoted automatically.
+
+Validation:
+- Added focused factory tests for provenance, nullable source time, structured fields, stable digests/idempotency, explicit driver-action time and unsaved-offer rejection.
+- CI verification pending for this increment.

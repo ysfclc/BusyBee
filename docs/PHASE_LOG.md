@@ -311,3 +311,21 @@ Delivered:
 Acceptance boundary:
 - A complete migration report verifies source-row identity/count parity for the migrated tables. It does not prove every legacy screen calculation is visually or semantically identical.
 - Physical-device validation on a pre-existing installation and rollback testing are still required before migrating legacy screen reads.
+
+
+## 2026-11-23 — User-curated offer events enter the Provider Bridge
+
+**Status:** implementation committed on the Native Provider Bridge branch; CI verification pending.
+
+Delivered:
+- Manual structured offers and offers explicitly reviewed from a captured platform notification now emit typed `OFFER_OBSERVED` provider events.
+- Provenance distinguishes manual user entry from notification-backed user capture; neither is labelled an official provider API.
+- The app's local capture timestamp remains the receive timestamp. Source event time stays unknown unless the source supplies it.
+- The BusyBee **SKIP** action emits a separate `OFFER_DECISION_OBSERVED` event named `skipped_by_driver_in_busybee`; it is not confused with a provider-side acceptance or rejection.
+- Events are persisted through the existing SQLite idempotency store. Existing command-centre rows, imported records and raw evidence are not rewritten or deleted.
+- Added focused JVM tests for event mapping, source provenance, stable idempotency, evidence digest, explicit decision time and invalid unsaved offers.
+
+Verification boundary:
+- Raw notifications remain observations until reviewed; CSV imports remain observations pending a source-specific mapping contract.
+- No direct Uber/Bolt API connection, auto-acceptance or provider-side action is claimed.
+- The CI run for this commit must pass Rust tests, Android unit tests, APK assembly and the applicable signing checks before this slice is accepted.
