@@ -766,7 +766,7 @@ class MainActivity : AppCompatActivity() {
             target.addView(card().apply {
                 addView(label(if(activityFilter=="EVENTS")"NO CANONICAL EVENTS YET" else "NO LOCAL ACTIVITY YET",11f,MINT,true))
                 addView(label(
-                    if(activityFilter=="EVENTS") "Typed provider adapters have not produced canonical events yet. Captured notifications remain observations until explicitly interpreted."
+                    if(activityFilter=="EVENTS") "No canonical events have been recorded yet. Save an offer manually or review a captured notification to create one. Raw notifications and imported CSV rows remain observations until explicitly mapped."
                     else "Import a driver statement or allow a supported app notification to be captured. Evidence stays on this device.",
                     10f,MUTED,false
                 ).apply{setPadding(0,dp(5),0,0)})
