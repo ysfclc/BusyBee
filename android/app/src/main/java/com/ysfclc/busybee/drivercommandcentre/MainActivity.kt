@@ -45,6 +45,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 private data class RoadEvent(val title:String,val category:String,val point:LatLng,val detail:String)
 
@@ -56,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var content:FrameLayout
     private lateinit var nav:LinearLayout
     private val worker=Executors.newFixedThreadPool(2)
+    private val providerOutboxDrainScheduled=AtomicBoolean(false)
     private var map:MapLibreMap?=null
     private var lastLocation:Location?=null
     private var tilted=true
@@ -118,25 +120,73 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun publishProviderEvent(event: ProviderEventEnvelope) {
-        worker.execute {
-            try {
-                SqliteProviderEventStore(applicationContext).use { store ->
-                    when (val result = ProviderEventIngestor(store).ingest(event)) {
-                        is ProviderIngestResult.Accepted ->
-                            android.util.Log.d("BusyBeeProvider", "Accepted canonical event ${result.eventId}")
-                        is ProviderIngestResult.Duplicate ->
-                            android.util.Log.d("BusyBeeProvider", "Duplicate canonical event ${result.idempotencyKey}")
-                        is ProviderIngestResult.Rejected ->
-                            android.util.Log.w("BusyBeeProvider", "Rejected canonical event: ${result.reason}")
+    /**
+     * At-least-once delivery from the Command Centre DB to the canonical event DB.
+     * The outbox row is acknowledged only after a durable insert or an idempotent
+     * duplicate is confirmed. A process death between those operations is safe:
+     * the same idempotency key is retried next launch.
+     */
+    private fun scheduleProviderEventOutboxDrain() {
+        if (!providerOutboxDrainScheduled.compareAndSet(false, true)) return
+        try {
+            worker.execute {
+                var lastProcessedOutboxId = 0L
+                try {
+                    val upperBound = commands.latestProviderOfferOutboxId()
+                    lastProcessedOutboxId = upperBound
+                    val pending = commands.pendingProviderOfferEvents(upperBound, 200)
+                    if (pending.isNotEmpty()) {
+                        lastProcessedOutboxId = 0L
+                        SqliteProviderEventStore(applicationContext).use { eventStore ->
+                            val ingestor = ProviderEventIngestor(eventStore)
+                            pending.forEach { item ->
+                                lastProcessedOutboxId = item.outboxId
+                                try {
+                                    when (val result = ingestor.ingest(item.event)) {
+                                        is ProviderIngestResult.Accepted -> {
+                                            commands.markProviderOfferEventDelivered(item.outboxId)
+                                            android.util.Log.d("BusyBeeProvider", "Delivered canonical event ${result.eventId}")
+                                        }
+                                        is ProviderIngestResult.Duplicate -> {
+                                            commands.markProviderOfferEventDelivered(item.outboxId)
+                                            android.util.Log.d("BusyBeeProvider", "Confirmed previously delivered event ${result.idempotencyKey}")
+                                        }
+                                        is ProviderIngestResult.Rejected -> {
+                                            commands.markProviderOfferEventFailed(item.outboxId, result.reason)
+                                            android.util.Log.w("BusyBeeProvider", "Provider event rejected: ${result.reason}")
+                                        }
+                                    }
+                                } catch (error: Exception) {
+                                    commands.markProviderOfferEventFailed(
+                                        item.outboxId,
+                                        "${error.javaClass.simpleName}: ${error.message ?: "Unknown persistence error"}"
+                                    )
+                                    android.util.Log.e("BusyBeeProvider", "Could not deliver outbox row ${item.outboxId}", error)
+                                }
+                            }
+                        }
+                    }
+                } catch (error: Exception) {
+                    android.util.Log.e("BusyBeeProvider", "Provider event outbox drain failed", error)
+                } finally {
+                    providerOutboxDrainScheduled.set(false)
+                    try {
+                        // Catch rows queued while this snapshot was being delivered. Failed
+                        // rows already in the snapshot wait for the next launch or new event.
+                        if (commands.hasPendingProviderOfferEventsAfter(lastProcessedOutboxId)) {
+                            scheduleProviderEventOutboxDrain()
+                        }
+                    } catch (error: Exception) {
+                        android.util.Log.w("BusyBeeProvider", "Could not check pending outbox rows", error)
+                    }
+                    runOnUiThread {
+                        if (activeTab == "ACTIVITY") refreshUnifiedActivity()
                     }
                 }
-                runOnUiThread {
-                    if (activeTab == "ACTIVITY") refreshUnifiedActivity()
-                }
-            } catch (error: Exception) {
-                android.util.Log.e("BusyBeeProvider", "Could not persist provider event", error)
             }
+        } catch (error: Exception) {
+            providerOutboxDrainScheduled.set(false)
+            android.util.Log.e("BusyBeeProvider", "Could not schedule provider event outbox drain", error)
         }
     }
 
@@ -144,6 +194,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
         syncUnifiedActivityLedger()
+        scheduleProviderEventOutboxDrain()
         locationManager=getSystemService(LOCATION_SERVICE) as LocationManager
         MapLibre.getInstance(this)
         window.statusBarColor=BG;window.navigationBarColor=BG
@@ -440,14 +491,18 @@ class MainActivity : AppCompatActivity() {
             val actions=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
             actions.addView(action("OPEN "+o.platform.uppercase()+" TO REVIEW",true){openPlatform(o.platform)},LinearLayout.LayoutParams(0,dp(40),1f))
             actions.addView(action("SKIP",false){
-                commands.updateOfferStatus(o.id,"skipped")
-                publishProviderEvent(
-                    ManualOfferEventFactory.decisionObserved(
-                        o,
-                        decision = "skipped_by_driver_in_busybee",
-                        decidedAtMillis = System.currentTimeMillis()
-                    )
+                val decidedAt = System.currentTimeMillis()
+                val savedDecision = commands.recordOfferDecision(
+                    offerId = o.id,
+                    status = "skipped",
+                    decision = "skipped_by_driver_in_busybee",
+                    decidedAtMillis = decidedAt
                 )
+                if (savedDecision == null) {
+                    Toast.makeText(this, "Offer was not found; no decision was recorded.", Toast.LENGTH_LONG).show()
+                    return@action
+                }
+                scheduleProviderEventOutboxDrain()
                 syncUnifiedActivityLedger()
                 showTab("OFFERS")
             },LinearLayout.LayoutParams(dp(74),dp(40)).apply{marginStart=dp(7)})
@@ -480,8 +535,8 @@ class MainActivity : AppCompatActivity() {
                 source = if (raw.isBlank()) "manual" else "notification-review",
                 raw = evidence.text.toString()
             )
-            val savedOfferId = commands.saveOffer(offer)
-            publishProviderEvent(ManualOfferEventFactory.observed(offer.copy(id = savedOfferId)))
+            commands.saveOfferWithPendingEvent(offer)
+            scheduleProviderEventOutboxDrain()
             syncUnifiedActivityLedger()
             showTab("OFFERS")
         }.show()
