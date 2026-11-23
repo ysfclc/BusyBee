@@ -421,3 +421,25 @@ Verification:
 Remaining:
 - No production Uber/Bolt API connection or provider-side action is implemented.
 - Real device acceptance of package detection, app handoff and notification capture remains outstanding.
+
+
+## 2026-11-23 — Restart-safe offer event outbox
+
+**Status:** implemented on the Native Provider Bridge branch.
+
+Delivered:
+- Added an additive schema-version-3 `provider_event_outbox` table to the existing Command Centre database that already owns saved offers.
+- Manual offer save and creation of its `OFFER_OBSERVED` outbox row now commit in one SQLite transaction.
+- BusyBee-local offer decisions update the offer status and enqueue `OFFER_DECISION_OBSERVED` in one transaction.
+- On startup and after offer save/decision actions, a background drain delivers pending outbox entries to the canonical Provider Bridge store.
+- The source outbox row is acknowledged only after the canonical store confirms a new insert or an idempotent duplicate. A process death between those operations is safe: the same stable idempotency key is replayed after restart.
+- Failed deliveries remain pending with an attempt count and error text; a later launch or new event triggers another drain.
+- Existing Command Centre offers and status are preserved; version-2 databases upgrade additively.
+
+Automated verification:
+- Added a Robolectric end-to-end test simulating process restart after canonical insertion but before source-outbox acknowledgement, then verifies duplicate replay, acknowledgement and preservation of original offer data.
+- Added a version-2-to-version-3 database upgrade test and repeated local-decision idempotency coverage.
+- CI run #485 is in_progress on 8cb9a426af4a0a8db467af6d6857104c6c1d5f14; validation has not completed. Run: https://github.com/ysfclc/BusyBee/actions/runs/45134736851
+
+
+The outbox is local durability infrastructure. It does not imply a direct Uber/Bolt API connection or provider-side execution.

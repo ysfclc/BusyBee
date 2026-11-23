@@ -95,3 +95,15 @@ The Robolectric test ManualOfferEventFlowTest now exercises the complete local p
 6. Verify the migrated legacy observation and both canonical events coexist, full offer fields and digests survive, repeat inserts are rejected, and the original legacy offer row/status/raw evidence remain intact.
 
 CI run #474 passed all Android unit tests and the build/signature/artifact stages. This is automated Robolectric evidence, not physical-device migration acceptance.
+
+
+## Durable offer-event outbox (2026-11-23)
+
+The offer source and event source are separate SQLite files during this migration stage. To avoid losing an event between a legacy offer write and its canonical event write, the existing Command Centre database now persists an outbox entry in the same transaction as:
+- a newly saved offer plus its `OFFER_OBSERVED` event intent; or
+- a BusyBee-local offer status decision plus its `OFFER_DECISION_OBSERVED` event intent.
+
+The background drain writes pending records into the canonical provider-event table. It only marks the source outbox row delivered after a durable insert or a confirmed duplicate. Replaying after a process interruption is therefore idempotent. Existing source rows remain intact, and the version-2-to-version-3 database change is additive.
+
+Robolectric coverage exercises both the process-restart replay and the additive upgrade. CI run #485 is in_progress on 8cb9a426af4a0a8db467af6d6857104c6c1d5f14; validation has not completed. Run: https://github.com/ysfclc/BusyBee/actions/runs/45134736851
+

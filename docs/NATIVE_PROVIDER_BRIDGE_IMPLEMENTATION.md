@@ -110,3 +110,16 @@ Validation:
 - Pushes to main and manual release dispatches now fail before building/publishing when any of the four required persistent signing inputs are unavailable.
 - This closes the previous fallback that could have published a debug APK as a prerelease asset.
 - The first successful non-PR signed run remains the release-certificate acceptance gate.
+
+
+## Restart-safe offer event delivery (2026-11-23)
+
+- The Command Centre database now has an additive schema-v3 `provider_event_outbox` table.
+- The offer row and its `OFFER_OBSERVED` outbox entry are committed atomically. The same is true for a BusyBee-local offer decision and its `OFFER_DECISION_OBSERVED` entry.
+- MainActivity drains the outbox on startup and after local offer actions. It writes to `SqliteProviderEventStore`, then acknowledges the outbox only after `Accepted` or `Duplicate`.
+- If the process dies after writing the canonical event but before acknowledging the outbox row, the next launch replays it; the canonical store's unique idempotency key returns `Duplicate` and the source row can then be acknowledged.
+- Failed events remain in the source outbox with attempt count and bounded error details. They are not silently discarded.
+- `DriverCommandStoreOutboxTest` checks additive schema upgrade from version 2 and retention of pre-existing offer rows.
+- `ManualOfferEventFlowTest` covers save → process restart → decision → canonical insert → simulated process death before acknowledgement → restart → duplicate replay → acknowledgement → legacy migration. It also verifies that repeating the same local decision does not create another outbox row.
+- CI run #485 is in_progress on 8cb9a426af4a0a8db467af6d6857104c6c1d5f14; validation has not completed. Run: https://github.com/ysfclc/BusyBee/actions/runs/45134736851
+
