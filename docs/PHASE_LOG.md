@@ -325,7 +325,13 @@ Delivered:
 - Events are persisted through the existing SQLite idempotency store. Existing command-centre rows, imported records and raw evidence are not rewritten or deleted.
 - Added focused JVM tests for event mapping, source provenance, stable idempotency, evidence digest, explicit decision time and invalid unsaved offers.
 
+Verification:
+- CI run #471: https://github.com/ysfclc/BusyBee/actions/runs/45128390056 — actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification with apksigner and artifact upload all passed.
+- Artifact: busybee-debug-apk-471 (ID 14796742452), 19,874,453-byte ZIP; artifact ZIP SHA-256: c8558dc16d7b3401472d681453b691431fd03f206a42427e250337f5442a0fd4; expires 2026-12-07.
+- Debug package: com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.471-debug. This is a validation build and cannot update the installed release package.
+- Release signing was not exercised in this run. The workflow received empty values for all four expected signing inputs (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD), so release keystore preparation, release assembly and release-certificate verification were skipped. The debug APK's Android Debug certificate is not the persistent release certificate.
+- Physical-device migration parity and rollback acceptance remain outstanding.
+
 Verification boundary:
 - Raw notifications remain observations until reviewed; CSV imports remain observations pending a source-specific mapping contract.
 - No direct Uber/Bolt API connection, auto-acceptance or provider-side action is claimed.
-- The CI run for this commit must pass Rust tests, Android unit tests, APK assembly and the applicable signing checks before this slice is accepted.

@@ -46,3 +46,16 @@ The workflow tests Rust and Android, builds a release APK, verifies its signatur
 Download the artifact ZIP from the successful workflow run, extract app-release.apk and open it on Android. Android installs it as an update when package ID and signing certificate match. App data is retained.
 
 Do not lose the keystore. Every future update must be signed with the same key. If it is lost, Android will not accept an in-place update signed with a replacement key.
+
+## Troubleshooting: CI falls back to a debug APK
+
+The current Build signed BusyBee APK workflow reads these exact repository Actions secret names:
+
+- ANDROID_KEYSTORE_BASE64
+- ANDROID_KEYSTORE_PASSWORD
+- ANDROID_KEY_ALIAS
+- ANDROID_KEY_PASSWORD
+
+If the workflow summary says release signing is incomplete, check that all four are present under BusyBee → Settings → Secrets and variables → Actions → Repository secrets, not Actions variables or a different repository. The current workflow does not declare an Actions environment, so environment-scoped secrets are not loaded into this job. Do not paste keystore contents or passwords into workflow files, issues, commits or chat.
+
+A successful debug signature check does not verify the release certificate. The release gate is only passed when the workflow assembles app-release.apk and apksigner verifies it with the persistent release certificate.

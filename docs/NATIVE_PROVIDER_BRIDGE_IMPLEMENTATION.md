@@ -54,5 +54,8 @@
 - Raw notification text remains an unclassified observation until the driver reviews and converts it. Imported CSV records are not promoted automatically.
 
 Validation:
-- Added focused factory tests for provenance, nullable source time, structured fields, stable digests/idempotency, explicit driver-action time and unsaved-offer rejection.
-- CI verification pending for this increment.
+- Added focused factory tests for provenance, nullable source time, structured fields (including bonus and passenger rating), stable digests/idempotency, explicit driver-action time and unsaved-offer rejection.
+- CI run #471 passed actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload: https://github.com/ysfclc/BusyBee/actions/runs/45128390056.
+- Artifact busybee-debug-apk-471 (ID 14796742452), 19,874,453-byte ZIP, SHA-256 c8558dc16d7b3401472d681453b691431fd03f206a42427e250337f5442a0fd4; package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.471-debug.
+- The run did not produce a release APK: the workflow received empty values for all four expected release-signing secrets, so the release steps were skipped. This CI run therefore does not yet verify the persistent release certificate.
+- Physical-device migration parity and rollback remain unverified.
