@@ -375,3 +375,18 @@ Verification:
 - Package/version: com.ysfclc.busybee.drivercommandcentre.debug, 0.1.476-debug.
 - The release keystore and release-signature steps were skipped. The workflow again received empty values for the four expected release-signing secrets. The certificate verified here is the Android Debug certificate (SHA-256 eae426830bd5011c49c81ab8b7868f46fef37564f9807163a215091076bdd06d), not the persistent release certificate.
 - Physical-device migration parity and rollback acceptance remain outstanding.
+
+
+## 2026-11-23 — Provider coverage wording and recency clarification
+
+**Status:** implemented and verified.
+
+- The Sources coverage panel now discloses that counts use the latest 1,000 local entries per source table; they are not lifetime totals or provider-side sync counts.
+- The recency label was narrowed to “latest notice / offer capture” because imported-history source times are a separate timestamp domain and are not included in that capture timestamp.
+- This prevents a local notice/offer capture timestamp from being mistaken for the most recent imported trip or authoritative provider sync.
+
+Verification:
+- CI run #478: https://github.com/ysfclc/BusyBee/actions/runs/45131173423 — actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload passed.
+- Artifact: busybee-debug-apk-478 (ID 14798520217), 19,884,619-byte ZIP; SHA-256 2943566d83598a43441af8549cd9e047abc3aa35c2f8275455f8ff703b487e8e; expires 2026-12-07.
+- Package/version: com.ysfclc.busybee.drivercommandcentre.debug, 0.1.478-debug.
+- Release keystore preparation and release verification were skipped because the four required repository Actions secret inputs were empty. The verified Android Debug certificate SHA-256 is 154c6bbad2a197fedd45eaffad98798eafc69fd39e910f37121e707106be9721 and is not the persistent release certificate.

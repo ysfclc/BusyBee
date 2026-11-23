@@ -82,3 +82,12 @@ Validation:
 - Artifact busybee-debug-apk-476 (ID 14797357509), 19,884,900-byte ZIP, SHA-256 996052dffdf46e3187d533a4d39c4a5eeb95f5895208fde1b5ab12515c9359ac; package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.476-debug.
 - Release signing was not exercised: all four expected release-signing secret inputs were empty, so the release steps were skipped. The debug APK's certificate SHA-256 is eae426830bd5011c49c81ab8b7868f46fef37564f9807163a215091076bdd06d and is not the persistent release certificate.
 - Complete provider capability handshakes, verified live provider adapters, physical-device migration parity, rollback and the single-vs-separate local ledger architecture decision remain open.
+
+
+## Provider coverage copy hardening (2026-11-23)
+
+- The UI now discloses that current counts use at most the latest 1,000 local entries from each source table; it does not present those counts as lifetime totals or provider-side sync counts.
+- The timestamp caption is “latest notice / offer capture” rather than “latest local record”, because imported statement timestamps are a separate source-time domain and are not included in this value.
+- CI run #478 passed actionlint, Rust tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload: https://github.com/ysfclc/BusyBee/actions/runs/45131173423.
+- Artifact busybee-debug-apk-478 (ID 14798520217), 19,884,619-byte ZIP; SHA-256 2943566d83598a43441af8549cd9e047abc3aa35c2f8275455f8ff703b487e8e; package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.478-debug.
+- Release signing was again skipped because the four configured secret inputs were empty. Debug APK certificate SHA-256 154c6bbad2a197fedd45eaffad98798eafc69fd39e910f37121e707106be9721 is not the persistent release certificate.
