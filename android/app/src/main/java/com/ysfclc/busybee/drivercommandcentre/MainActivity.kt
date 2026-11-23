@@ -847,8 +847,8 @@ class MainActivity : AppCompatActivity() {
         sourceRow(live,"User exports","Statement and history CSV import","LOCAL IMPORT");root.addView(live)
 
         val providerCoverageCard=card()
-        providerCoverageCard.addView(label("PROVIDER DATA COVERAGE",11f,MINT,true))
-        providerCoverageCard.addView(label("Coverage is calculated from this device's local records. App installation or notification permission alone is not a verified provider connection.",10f,MUTED,false).apply{setPadding(0,dp(4),0,dp(5))})
+        providerCoverageCard.addView(label("CONNECTED APPS · LOCAL PROVIDER COVERAGE",11f,MINT,true))
+        providerCoverageCard.addView(label("App detection only enables opening the official driver app. Notifications, manual offers and imports are local inputs; none proves a direct provider API connection.",10f,MUTED,false).apply{setPadding(0,dp(4),0,dp(5))})
         providerCoverageCard.addView(label("Counts use the latest 1,000 local entries per source table; they are not lifetime totals or provider-side sync counts.",8f,AMBER,false).apply{setPadding(0,0,0,dp(8))})
         providerCoverageContainer=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
         providerCoverageCard.addView(providerCoverageContainer)
