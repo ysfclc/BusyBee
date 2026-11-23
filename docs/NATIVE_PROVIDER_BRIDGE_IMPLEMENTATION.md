@@ -59,3 +59,13 @@ Validation:
 - Artifact busybee-debug-apk-471 (ID 14796742452), 19,874,453-byte ZIP, SHA-256 c8558dc16d7b3401472d681453b691431fd03f206a42427e250337f5442a0fd4; package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.471-debug.
 - The run did not produce a release APK: the workflow received empty values for all four expected release-signing secrets, so the release steps were skipped. This CI run therefore does not yet verify the persistent release certificate.
 - Physical-device migration parity and rollback remain unverified.
+
+
+## Latest verification — end-to-end user-curated offer path (2026-11-23)
+
+- Added Robolectric coverage for saving a manual offer in DriverCommandStore, emitting its canonical offer event and local skip-decision event, persisting both through SQLite, migrating the legacy offer as an observation and querying all three records in the Activity timeline.
+- The integration test verifies the original offer row/status/raw evidence remain intact, the event store remains idempotent after reopening, and bonus/passenger-rating fields survive JSON serialization.
+- CI run #474 passed actionlint, Rust tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload: https://github.com/ysfclc/BusyBee/actions/runs/45129506262.
+- Artifact busybee-debug-apk-474 (ID 14796953779), 19,874,624-byte ZIP, SHA-256 e1d0f127f83e8e28942b119e0ac0ca8978056b1aed1debf082b3e8a1296bae10. Package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.474-debug.
+- The workflow again received empty values for the four expected release-signing secrets; release assembly and release-certificate verification were skipped. Debug certificate SHA-256: 43d8a3314d95dd21f19807fc715bb1e871cad5790047f226b90fc08c38b3c287. This is not the persistent release certificate.
+- Real-device migration parity, legacy-screen rollback, full Connected Apps coverage and direct provider access validation remain open.

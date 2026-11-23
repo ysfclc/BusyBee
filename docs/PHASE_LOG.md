@@ -335,3 +335,21 @@ Verification:
 Verification boundary:
 - Raw notifications remain observations until reviewed; CSV imports remain observations pending a source-specific mapping contract.
 - No direct Uber/Bolt API connection, auto-acceptance or provider-side action is claimed.
+
+
+## 2026-11-23 — End-to-end user-curated offer event verification
+
+**Status:** implemented and verified on the Native Provider Bridge branch.
+
+Delivered:
+- Added a Robolectric end-to-end test that saves a structured offer in the existing Command Centre store, emits its typed OFFER_OBSERVED event, emits a separate BusyBee-local skip decision and persists both through the SQLite Provider Bridge store.
+- The test runs the read-only legacy-offer migration and verifies that the Activity repository shows both the original offer observation and the two canonical events.
+- It verifies the full offer payload (fare, bonus, distance, duration, passenger rating), unknown provider event time for the user-curated offer, explicit local decision time, stable idempotency after reopening the store, and preservation of the original legacy offer row/status/evidence.
+- Corrected the Activity empty-state wording so it no longer says canonical events can only come from provider adapters; manual or notification-reviewed offers are also supported event producers.
+
+Verification:
+- CI run #474: https://github.com/ysfclc/BusyBee/actions/runs/45129506262 — actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload passed.
+- Artifact: busybee-debug-apk-474 (ID 14796953779), 19,874,624-byte ZIP; artifact ZIP SHA-256 e1d0f127f83e8e28942b119e0ac0ca8978056b1aed1debf082b3e8a1296bae10; expires 2026-12-07.
+- Package/version: com.ysfclc.busybee.drivercommandcentre.debug, 0.1.474-debug.
+- Release keystore preparation and signed APK verification were skipped because the four expected release-signing secret values were empty in the workflow. The certificate verified in this run is the Android Debug certificate, not the persistent release certificate.
+- Physical-device migration parity and rollback acceptance remain open.

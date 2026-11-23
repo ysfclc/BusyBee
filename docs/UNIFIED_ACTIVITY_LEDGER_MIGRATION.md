@@ -81,3 +81,17 @@ Still required before switching screens: process-kill interruption simulation, l
 2. Add evidence drill-down and provider-specific filtering to the ACTIVITY tab.
 3. Only after parity passes, wire existing Driver Mirror and Offer Desk screens to the unified repository.
 4. Keep legacy stores intact for at least one release and retain an explicit rollback/backup plan before considering any legacy-write deprecation.
+
+
+## End-to-end user-curated offer verification (2026-11-23)
+
+The Robolectric test ManualOfferEventFlowTest now exercises the complete local path:
+
+1. Save a structured offer in the existing Command Centre store.
+2. Emit a typed OFFER_OBSERVED event with manual-entry provenance and no invented provider event time.
+3. Emit a separate OFFER_DECISION_OBSERVED event for the driver's explicit BusyBee-local skip action.
+4. Persist the canonical events through the SQLite idempotency boundary.
+5. Run the read-only offer migration and query the merged Activity timeline.
+6. Verify the migrated legacy observation and both canonical events coexist, full offer fields and digests survive, repeat inserts are rejected, and the original legacy offer row/status/raw evidence remain intact.
+
+CI run #474 passed all Android unit tests and the build/signature/artifact stages. This is automated Robolectric evidence, not physical-device migration acceptance.
