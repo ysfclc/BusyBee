@@ -69,3 +69,16 @@ Validation:
 - Artifact busybee-debug-apk-474 (ID 14796953779), 19,874,624-byte ZIP, SHA-256 e1d0f127f83e8e28942b119e0ac0ca8978056b1aed1debf082b3e8a1296bae10. Package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.474-debug.
 - The workflow again received empty values for the four expected release-signing secrets; release assembly and release-certificate verification were skipped. Debug certificate SHA-256: 43d8a3314d95dd21f19807fc715bb1e871cad5790047f226b90fc08c38b3c287. This is not the persistent release certificate.
 - Real-device migration parity, legacy-screen rollback, full Connected Apps coverage and direct provider access validation remain open.
+
+
+## Latest increment — per-provider local source coverage (2026-11-23)
+
+- Sources now computes a local coverage summary for known ride platforms and additional provider identities in notifications, saved offers and imported records.
+- Each provider shows notification permission state, captured notification count, manual/reviewed/other structured offers, imported history count, latest local notification/offer capture and specific data gaps.
+- Android notification access is explicitly described as a partial user-visible source. It is not presented as a direct or verified provider API connection.
+- Counts are derived from the latest 1,000 locally queried records per source table in this implementation; this is a current local coverage snapshot, not a historical completeness guarantee.
+- Added tests for provider aliases, unknown providers, source counts, notification-reviewed/manual offer distinction and permission/data gaps.
+- CI run #476 passed actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload: https://github.com/ysfclc/BusyBee/actions/runs/45130369253.
+- Artifact busybee-debug-apk-476 (ID 14797357509), 19,884,900-byte ZIP, SHA-256 996052dffdf46e3187d533a4d39c4a5eeb95f5895208fde1b5ab12515c9359ac; package com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.476-debug.
+- Release signing was not exercised: all four expected release-signing secret inputs were empty, so the release steps were skipped. The debug APK's certificate SHA-256 is eae426830bd5011c49c81ab8b7868f46fef37564f9807163a215091076bdd06d and is not the persistent release certificate.
+- Complete provider capability handshakes, verified live provider adapters, physical-device migration parity, rollback and the single-vs-separate local ledger architecture decision remain open.

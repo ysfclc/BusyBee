@@ -353,3 +353,25 @@ Verification:
 - Package/version: com.ysfclc.busybee.drivercommandcentre.debug, 0.1.474-debug.
 - Release keystore preparation and signed APK verification were skipped because the four expected release-signing secret values were empty in the workflow. The certificate verified in this run is the Android Debug certificate, not the persistent release certificate.
 - Physical-device migration parity and rollback acceptance remain open.
+
+
+## 2026-11-23 — Per-provider local source coverage in Sources
+
+**Status:** implemented and verified on the Native Provider Bridge branch.
+
+Delivered:
+- Added a provider-coverage panel to Sources for Uber, Bolt, FreeNow, iTaxi, Cabify, Lyft and any additional provider names present in local data.
+- The panel reports notification-permission state, visible captured-notification count, manually entered offers, notification-reviewed offers, other saved offers, imported-history record count and local capture recency.
+- It exposes source gaps explicitly: permission not granted, no visible notices, no structured offer, no imported history and no verified direct provider API connection.
+- The notification source row now changes its label based on the real Android notification-listener permission and explicitly calls this a partial user-visible signal, not a provider API.
+- All provider summaries are calculated from local records on a background worker. Returning from Android Settings refreshes the coverage panel.
+- Unknown provider names are preserved rather than discarded.
+- Added unit tests for Uber/Bolt aliases, local input counts, manual vs notification-reviewed offers, imported history, unknown providers, permission gaps and the explicit unverified-API state.
+- This is local evidence coverage, not a capability handshake with Uber/Bolt. The panel does not label a provider connected or verified.
+
+Verification:
+- CI run #476: https://github.com/ysfclc/BusyBee/actions/runs/45130369253 — actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload passed.
+- Artifact: busybee-debug-apk-476 (ID 14797357509), 19,884,900-byte ZIP; artifact ZIP SHA-256 996052dffdf46e3187d533a4d39c4a5eeb95f5895208fde1b5ab12515c9359ac; expires 2026-12-07.
+- Package/version: com.ysfclc.busybee.drivercommandcentre.debug, 0.1.476-debug.
+- The release keystore and release-signature steps were skipped. The workflow again received empty values for the four expected release-signing secrets. The certificate verified here is the Android Debug certificate (SHA-256 eae426830bd5011c49c81ab8b7868f46fef37564f9807163a215091076bdd06d), not the persistent release certificate.
+- Physical-device migration parity and rollback acceptance remain outstanding.

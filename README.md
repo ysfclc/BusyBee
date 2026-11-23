@@ -45,7 +45,7 @@ The current build has six driver-facing surfaces:
 - **Activity:** unified local timeline of source observations and canonical provider events, with provider/source filters and evidence inspection. Manually entered or notification-reviewed offers emit typed events; raw notifications remain unclassified until reviewed.
 - **Earnings:** private imported trip history and cautious PLN totals.
 - **Driver Hub:** documents, due-date reminders, recurring insurance/payment schedules, completion history, expenses, service contacts and local WhatsApp export search.
-- **Sources:** honest connected / permission-required / not-connected source catalogue, including migration diagnostics.
+- **Sources:** honest connected / permission-required / not-connected source catalogue, per-provider local data coverage and data-gap summaries, plus migration diagnostics. Provider presence or notification permission is never treated as a verified API connection.
 
 The offer workflow does not claim direct Uber/Bolt partner API access or auto-acceptance. It surfaces captured information and hands the driver back to the source app for the final decision. Road feed coverage is not equivalent to live traffic speed; source health and gaps remain visible.
 
