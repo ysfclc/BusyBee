@@ -439,7 +439,16 @@ Delivered:
 Automated verification:
 - Added a Robolectric end-to-end test simulating process restart after canonical insertion but before source-outbox acknowledgement, then verifies duplicate replay, acknowledgement and preservation of original offer data.
 - Added a version-2-to-version-3 database upgrade test and repeated local-decision idempotency coverage.
-- CI run #485 is in_progress on 8cb9a426af4a0a8db467af6d6857104c6c1d5f14; validation has not completed. Run: https://github.com/ysfclc/BusyBee/actions/runs/45134736851
+- CI run #485 was cancelled. Run #486 failed during Android unit tests: 9 of 76 tests reported MavenArtifactFetcher.java:129 / HttpURLConnection IOException while Robolectric attempted artifact retrieval; the run did not provide assertion-level evidence for those failures. Run: https://github.com/ysfclc/BusyBee/actions/runs/45135138523
 
 
 The outbox is local durability infrastructure. It does not imply a direct Uber/Bolt API connection or provider-side execution.
+
+
+## 2026-11-23 — Isolate malformed provider-outbox rows
+
+- Reproduced a failure mode by inspection: pendingProviderOfferEvents reconstructed the entire batch without per-row error isolation. One unsupported event type or stored-key mismatch threw before returning any events; MainActivity's outer drain catch then left all later healthy rows undelivered.
+- Changed decoding to return each row as either a reconstructed event or a bounded failure reason. The existing per-row delivery catch now records malformed rows and continues through the batch.
+- Added a regression test that inserts a valid offer, corrupts its outbox event type, then inserts another valid offer; the test expects the malformed row to be isolated and the second event to remain deliverable. Updated the process-restart flow test to unwrap valid events explicitly.
+- Files: DriverCommandStore.kt, MainActivity.kt, DriverCommandStoreOutboxTest.kt, ManualOfferEventFlowTest.kt, implementation checkpoint and phase log.
+- Verification boundary: local clone/build unavailable in this runtime (GitHub DNS resolution failed); prior CI #486 failed 9/76 tests at Robolectric's MavenArtifactFetcher/HttpURLConnection artifact retrieval, so this patch requires a fresh CI result

@@ -142,7 +142,9 @@ class MainActivity : AppCompatActivity() {
                             pending.forEach { item ->
                                 lastProcessedOutboxId = item.outboxId
                                 try {
-                                    when (val result = ingestor.ingest(item.event)) {
+                                    val event = item.event
+                                        ?: throw IllegalStateException(item.failureReason ?: "Outbox event reconstruction failed")
+                                    when (val result = ingestor.ingest(event)) {
                                         is ProviderIngestResult.Accepted -> {
                                             commands.markProviderOfferEventDelivered(item.outboxId)
                                             android.util.Log.d("BusyBeeProvider", "Delivered canonical event ${result.eventId}")

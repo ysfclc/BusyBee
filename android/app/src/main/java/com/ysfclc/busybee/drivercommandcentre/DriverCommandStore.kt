@@ -61,9 +61,14 @@ data class DriverItem(
 
 data class CapturedNotice(val id: Long, val platform: String, val title: String, val body: String, val capturedAt: Long)
 
+/**
+ * A malformed persisted event is returned as a row-level failure so it cannot
+ * prevent valid pending events later in the same batch from being delivered.
+ */
 data class PendingProviderOfferEvent(
     val outboxId: Long,
-    val event: ProviderEventEnvelope
+    val event: ProviderEventEnvelope?,
+    val failureReason: String? = null
 )
 data class CommunityDocument(val id: Long, val title: String, val content: String, val importedAt: Long)
 data class RoadReport(val id: Long, val category: String, val description: String, val latitude: Double, val longitude: Double, val createdAt: Long)
@@ -218,24 +223,29 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(
             arrayOf(throughId.toString(), limit.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                val offer = readOffer(cursor, 5)
-                    ?: throw IllegalStateException("Outbox row references a missing offer")
-                val event = when (ProviderEventType.valueOf(cursor.getString(2))) {
-                    ProviderEventType.OFFER_OBSERVED ->
-                        ManualOfferEventFactory.observed(offer)
-                    ProviderEventType.OFFER_DECISION_OBSERVED ->
-                        ManualOfferEventFactory.decisionObserved(
-                            offer,
-                            cursor.getString(3) ?: throw IllegalStateException("Outbox decision is missing"),
-                            if (cursor.isNull(4)) throw IllegalStateException("Outbox decision time is missing") else cursor.getLong(4)
-                        )
-                    else -> throw IllegalStateException("Unsupported offer outbox event type: ${cursor.getString(2)}")
+                val outboxId = cursor.getLong(0)
+                try {
+                    val offer = readOffer(cursor, 5)
+                    val event = when (ProviderEventType.valueOf(cursor.getString(2))) {
+                        ProviderEventType.OFFER_OBSERVED ->
+                            ManualOfferEventFactory.observed(offer)
+                        ProviderEventType.OFFER_DECISION_OBSERVED ->
+                            ManualOfferEventFactory.decisionObserved(
+                                offer,
+                                cursor.getString(3) ?: throw IllegalStateException("Outbox decision is missing"),
+                                if (cursor.isNull(4)) throw IllegalStateException("Outbox decision time is missing") else cursor.getLong(4)
+                            )
+                        else -> throw IllegalStateException("Unsupported offer outbox event type: ${cursor.getString(2)}")
+                    }
+                    val storedKey = cursor.getString(1)
+                    check(event.idempotencyKey == storedKey) {
+                        "Reconstructed event idempotency key does not match its outbox row"
+                    }
+                    events.add(PendingProviderOfferEvent(outboxId, event))
+                } catch (error: Exception) {
+                    val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                    events.add(PendingProviderOfferEvent(outboxId, null, detail.take(1000)))
                 }
-                val storedKey = cursor.getString(1)
-                check(event.idempotencyKey == storedKey) {
-                    "Reconstructed event idempotency key does not match its outbox row"
-                }
-                events.add(PendingProviderOfferEvent(cursor.getLong(0), event))
             }
         }
         return events

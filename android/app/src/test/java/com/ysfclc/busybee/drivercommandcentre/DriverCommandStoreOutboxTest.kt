@@ -3,6 +3,8 @@ package com.ysfclc.busybee.drivercommandcentre
 import android.database.sqlite.SQLiteDatabase
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -70,4 +72,47 @@ class DriverCommandStoreOutboxTest {
             assertEquals(1, upgraded.pendingProviderOfferEventCount())
         }
     }
+    @Test
+    fun malformedPendingEventDoesNotBlockLaterValidEvents() {
+        DriverCommandStore(context).use { store ->
+            store.saveOfferWithPendingEvent(
+                DriverOffer(
+                    platform = "Uber",
+                    fare = 20.0,
+                    pickupKm = 1.0,
+                    tripKm = 8.0,
+                    durationMin = 20.0,
+                    capturedAt = 1_700_000_000_000L
+                )
+            )
+            val malformedOutboxId = store.latestProviderOfferOutboxId()
+            store.writableDatabase.execSQL(
+                "UPDATE provider_event_outbox SET event_type=? WHERE id=?",
+                arrayOf("UNKNOWN_EVENT", malformedOutboxId)
+            )
+
+            val healthyOffer = store.saveOfferWithPendingEvent(
+                DriverOffer(
+                    platform = "Bolt",
+                    fare = 18.0,
+                    pickupKm = 0.5,
+                    tripKm = 6.0,
+                    durationMin = 15.0,
+                    capturedAt = 1_700_000_100_000L
+                )
+            )
+            val pending = store.pendingProviderOfferEvents(store.latestProviderOfferOutboxId())
+
+            assertEquals(2, pending.size)
+            val malformed = pending.single { it.outboxId == malformedOutboxId }
+            assertNull(malformed.event)
+            assertTrue(malformed.failureReason.orEmpty().contains("UNKNOWN_EVENT"))
+
+            val healthy = pending.single { it.outboxId != malformedOutboxId }
+            assertNotNull(healthy.event)
+            assertEquals(ProviderEventType.OFFER_OBSERVED, healthy.event?.eventType)
+            assertTrue(healthy.event?.idempotencyKey.orEmpty().contains(":" + healthyOffer.id + ":observed"))
+        }
+    }
+
 }

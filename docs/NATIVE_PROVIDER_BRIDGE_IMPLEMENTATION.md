@@ -121,5 +121,14 @@ Validation:
 - Failed events remain in the source outbox with attempt count and bounded error details. They are not silently discarded.
 - `DriverCommandStoreOutboxTest` checks additive schema upgrade from version 2 and retention of pre-existing offer rows.
 - `ManualOfferEventFlowTest` covers save → process restart → decision → canonical insert → simulated process death before acknowledgement → restart → duplicate replay → acknowledgement → legacy migration. It also verifies that repeating the same local decision does not create another outbox row.
-- CI run #485 is in_progress on 8cb9a426af4a0a8db467af6d6857104c6c1d5f14; validation has not completed. Run: https://github.com/ysfclc/BusyBee/actions/runs/45134736851
+- CI run #485 was cancelled. Run #486 failed during Android unit tests: 9 of 76 tests reported MavenArtifactFetcher.java:129 / HttpURLConnection IOException while Robolectric attempted artifact retrieval; the run did not provide assertion-level evidence for those failures. Run: https://github.com/ysfclc/BusyBee/actions/runs/45135138523
 
+
+
+## Malformed outbox-row isolation (2026-11-23)
+
+- Pending-event reconstruction now validates and reconstructs each row independently.
+- A malformed/unsupported event or an idempotency-key mismatch is returned as a row-level failure (with bounded diagnostic text) instead of aborting the entire pending snapshot.
+- MainActivity's existing per-row delivery handler records that failure and continues processing later valid events.
+- Added a regression test that corrupts the first event type, then confirms a later healthy event still reconstructs.
+- The updated Robolectric tests have not yet passed CI; the previous run #486 was blocked by MavenArtifactFetcher/HttpURLConnection artifact-fetch errors, not a verified code-level assertion failure.

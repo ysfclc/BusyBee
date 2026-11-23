@@ -77,8 +77,10 @@ class ManualOfferEventFlowTest {
         val upperBound = restartedStore.latestProviderOfferOutboxId()
         val pending = restartedStore.pendingProviderOfferEvents(upperBound)
         assertEquals(2, pending.size)
-        val observed = pending.single { it.event.eventType == ProviderEventType.OFFER_OBSERVED }.event
-        val skipped = pending.single { it.event.eventType == ProviderEventType.OFFER_DECISION_OBSERVED }.event
+        val observed = pending.single { it.event?.eventType == ProviderEventType.OFFER_OBSERVED }.event
+            ?: error("Offer-observed outbox event could not be reconstructed")
+        val skipped = pending.single { it.event?.eventType == ProviderEventType.OFFER_DECISION_OBSERVED }.event
+            ?: error("Offer-decision outbox event could not be reconstructed")
         assertNull(observed.occurredAtMillis)
         assertEquals(capturedAt, observed.receivedAtMillis)
         assertEquals(decidedAt, skipped.occurredAtMillis)
@@ -89,7 +91,8 @@ class ManualOfferEventFlowTest {
         SqliteProviderEventStore(context).use { eventStore ->
             val ingestor = ProviderEventIngestor(eventStore)
             pending.forEach { item ->
-                assertTrue(ingestor.ingest(item.event) is ProviderIngestResult.Accepted)
+                val event = item.event ?: error(item.failureReason ?: "Outbox event could not be reconstructed")
+                assertTrue(ingestor.ingest(event) is ProviderIngestResult.Accepted)
             }
         }
         restartedStore.close()
@@ -104,7 +107,8 @@ class ManualOfferEventFlowTest {
         SqliteProviderEventStore(context).use { eventStore ->
             val ingestor = ProviderEventIngestor(eventStore)
             afterRestart.forEach { item ->
-                assertTrue(ingestor.ingest(item.event) is ProviderIngestResult.Duplicate)
+                val event = item.event ?: error(item.failureReason ?: "Outbox event could not be reconstructed")
+                assertTrue(ingestor.ingest(event) is ProviderIngestResult.Duplicate)
                 thirdProcessStore.markProviderOfferEventDelivered(item.outboxId, decidedAt + 1L)
             }
         }
