@@ -83,6 +83,7 @@ class MainActivity : AppCompatActivity() {
     private val activityProviderFilterButtons=mutableMapOf<String,TextView>()
     private var ledgerMigrationStatus="Migration diagnostics have not run yet."
     private var ledgerMigrationContainer:LinearLayout?=null
+    private var providerCoverageContainer:LinearLayout?=null
     private val locationListener=object:LocationListener {
         override fun onLocationChanged(location:Location) {
             lastLocation=location
@@ -842,8 +843,17 @@ class MainActivity : AppCompatActivity() {
         sourceRow(live,"Overpass API","Mapped construction and hazard observations","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Open-Meteo","Current weather context","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Android location","Driver position after permission","DEVICE PERMISSION")
-        sourceRow(live,"Uber / Bolt / FreeNow / iTaxi / Cabify / Lyft","Visible notifications from supported ride apps after opt-in","USER AUTHORIZATION REQUIRED")
+        sourceRow(live,"Ride-platform notifications","Visible user-facing notices after opt-in. This is a partial signal, not a provider API.",if(notificationAccessEnabled())"PERMISSION GRANTED · PARTIAL SIGNAL" else "USER AUTHORIZATION REQUIRED")
         sourceRow(live,"User exports","Statement and history CSV import","LOCAL IMPORT");root.addView(live)
+
+        val providerCoverageCard=card()
+        providerCoverageCard.addView(label("PROVIDER DATA COVERAGE",11f,MINT,true))
+        providerCoverageCard.addView(label("Coverage is calculated from this device's local records. App installation or notification permission alone is not a verified provider connection.",10f,MUTED,false).apply{setPadding(0,dp(4),0,dp(8))})
+        providerCoverageContainer=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
+        providerCoverageCard.addView(providerCoverageContainer)
+        providerCoverageCard.addView(action("REFRESH PROVIDER COVERAGE",false){refreshProviderCoverage()},LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(7)})
+        root.addView(providerCoverageCard)
+        refreshProviderCoverage()
         val migrationCard=card()
         migrationCard.addView(label("LOCAL DATA MIGRATION",11f,MINT,true))
         migrationCard.addView(label("Read-only legacy inspection · source rows are checked against migrated row identities. This does not modify or delete the old databases.",10f,MUTED,false).apply{setPadding(0,dp(5),0,dp(9))})
@@ -875,6 +885,54 @@ class MainActivity : AppCompatActivity() {
         })
         return root
     }
+    private fun refreshProviderCoverage() {
+        val target=providerCoverageContainer ?: return
+        target.removeAllViews()
+        target.addView(label("READING LOCAL PROVIDER DATA…",9f,MUTED,false).apply{setPadding(0,dp(5),0,dp(5))})
+        val notificationPermission=notificationAccessEnabled()
+        worker.execute {
+            val result=runCatching {
+                ProviderCoverageCalculator.summarize(
+                    notifications=commands.notices(1000),
+                    offers=commands.offers(1000),
+                    importedRecords=mirror.recent(1000),
+                    notificationAccessGranted=notificationPermission
+                )
+            }
+            runOnUiThread {
+                if(activeTab!="SOURCES") return@runOnUiThread
+                target.removeAllViews()
+                if(result.isSuccess) {
+                    result.getOrDefault(emptyList()).forEach { renderProviderCoverage(it) }
+                } else {
+                    target.addView(label("COVERAGE UNAVAILABLE · ${result.exceptionOrNull()?.message ?: "LOCAL READ FAILED"}",9f,AMBER,false))
+                }
+            }
+        }
+    }
+
+    private fun renderProviderCoverage(summary:ProviderCoverageSummary) {
+        val target=providerCoverageContainer ?: return
+        val entry=LinearLayout(this).apply{
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(2),dp(8),dp(2),dp(8))
+        }
+        val stateColor=if(summary.state==ProviderCoverageState.LOCAL_INPUTS_PRESENT)MINT else AMBER
+        entry.addView(label(summary.provider.uppercase(Locale.getDefault()),11f,WHITE,true))
+        entry.addView(label(summary.statusLabel,8f,stateColor,true).apply{setPadding(0,dp(3),0,dp(6))})
+        entry.addView(label("NOTIFICATIONS · ${summary.visibleNotificationCount} CAPTURED · ${if(summary.notificationAccessGranted) "PERMISSION ON" else "PERMISSION REQUIRED"}",9f,WHITE,false))
+        entry.addView(label("OFFERS · ${summary.manualOfferCount} MANUAL · ${summary.notificationReviewedOfferCount} REVIEWED · ${summary.otherOfferCount} OTHER",9f,WHITE,false).apply{setPadding(0,dp(3),0,0)})
+        entry.addView(label("IMPORTED HISTORY · ${summary.importedRecordCount} RECORDS",9f,WHITE,false).apply{setPadding(0,dp(3),0,0)})
+        val lastRecord=summary.lastLocalRecordAtMillis?.let(::dateTime) ?: "NOT RECORDED"
+        entry.addView(label("LAST LOCAL RECORD · $lastRecord",8f,MUTED,false).apply{setPadding(0,dp(5),0,0)})
+        entry.addView(label("DIRECT PROVIDER API · NOT CONNECTED / NOT VERIFIED",8f,AMBER,true).apply{setPadding(0,dp(4),0,0)})
+        summary.dataGaps.forEach { gap ->
+            entry.addView(label("GAP · $gap",8f,MUTED,false).apply{setPadding(0,dp(3),0,0)})
+        }
+        target.addView(entry)
+        target.addView(divider())
+    }
+
     private fun renderMigrationDiagnostics() {
         val target=ledgerMigrationContainer ?: return
         target.removeAllViews()
@@ -933,7 +991,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(requestCode==LOCATION_REQUEST&&grantResults.any{it==PackageManager.PERMISSION_GRANTED})requestLocation()}
     override fun onStart(){super.onStart();mapView.onStart()}
-    override fun onResume(){super.onResume();mapView.onResume()}
+    override fun onResume(){super.onResume();mapView.onResume();if(activeTab=="SOURCES")refreshProviderCoverage()}
     override fun onPause(){try{locationManager.removeUpdates(locationListener)}catch(_:Exception){};mapView.onPause();super.onPause()}
     override fun onStop(){mapView.onStop();super.onStop()}
     override fun onLowMemory(){super.onLowMemory();mapView.onLowMemory()}
