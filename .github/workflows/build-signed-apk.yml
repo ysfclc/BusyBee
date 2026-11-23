@@ -55,9 +55,12 @@ jobs:
           if [[ -n "$KEYSTORE" && -n "$STORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
             echo "Persistent release signing is configured."
-          else
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Release signing secrets are incomplete. CI will build a debug APK for validation; add the four secrets in docs/ANDROID_SIGNING.md to produce install-over-existing signed releases."
+            echo "::warning::Release signing secrets are not available to this pull-request build. Building a debug-only validation APK; no release asset will be published."
+          else
+            echo "::error::Release signing is required for push and manual release builds. Configure all four repository Actions secrets listed in docs/ANDROID_SIGNING.md. Refusing to publish a debug APK as a release."
+            exit 1
           fi
 
       - name: Set up Java 17
