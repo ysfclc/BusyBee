@@ -68,9 +68,9 @@ class DriverMirrorStoreCorrectionTest {
     fun allRecordsIsNotSilentlyLimitedToRecentRows() {
         val store = DriverMirrorStore(context)
         val rows = DriverCsv.parse(
-            "platform,record_type,external_id,occurred_at,gross,fees,bonus,distance_km\\n" +
-                "Uber,trip,trip-1,2026-11-23T10:00:00,20,4,0,5\\n" +
-                "Bolt,trip,trip-2,2026-11-24T10:00:00,30,6,0,7\\n" +
+            "platform,record_type,external_id,occurred_at,gross,fees,bonus,distance_km\n" +
+                "Uber,trip,trip-1,2026-11-23T10:00:00,20,4,0,5\n" +
+                "Bolt,trip,trip-2,2026-11-24T10:00:00,30,6,0,7\n" +
                 "Uber,trip,trip-3,2026-11-25T10:00:00,40,8,0,9"
         )
         store.importRows("three-trips.csv", rows)
