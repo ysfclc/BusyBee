@@ -21,7 +21,7 @@ This is a private work ledger, not a generic finance dashboard. It must show the
 2. **Review before saving.** BusyBee shows the filename, row count, platform coverage, trip count, missing fields and currency treatment. Invalid numeric values and negative distances stop the import before any rows are written.
 3. **Preserve evidence.** The original imported fields, source filename and import batch are retained locally. Duplicate canonical rows are not counted twice; their source evidence remains available.
 4. **Read the period.** Today, 7 days, 30 days and All time are available. The same period selection drives the money totals, platform comparison and trip ledger.
-5. **Inspect the record.** Tapping a trip opens its imported values, source file, external ID and raw source fields.
+5. **Inspect and correct the record.** Tapping a trip opens its imported values, source file, external ID and raw source fields. Corrections update the normalized record while preserving original evidence and an before/after audit history. Re-importing the same source row cannot overwrite a correction.
 
 ## Accounting and evidence rules
 
@@ -44,7 +44,9 @@ The current import is the documented provider-neutral CSV interchange format in 
 
 - Validate representative real Uber and/or Bolt statement exports and build source-specific adapters only where actual formats justify them.
 - Reconcile imported trip counts and financial totals against the original statement, with discrepancies explained.
-- Add safe correction/re-import handling that preserves original evidence and makes derived totals update deterministically.
+- Validate representative real Uber and/or Bolt statement exports and build source-specific adapters only where actual formats justify them.
+- Reconcile imported trip counts and financial totals against the original statement, with discrepancies explained.
+- Validate the correction workflow on-device and confirm the audit history survives restart.
 - Validate the workflow on a real device using an existing local database and a signed update; confirm import, restart, duplicate re-import and evidence inspection survive.
 - Expand the canonical trip/session model before claiming hourly wage, waiting-time utilisation, dead mileage, tax or fully allocated vehicle profit.
 
