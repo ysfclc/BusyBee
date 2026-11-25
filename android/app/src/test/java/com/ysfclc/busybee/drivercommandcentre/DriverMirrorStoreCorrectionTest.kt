@@ -55,6 +55,8 @@ class DriverMirrorStoreCorrectionTest {
         assertEquals(44.0, corrected.gross!!, 0.0001)
         assertEquals(original.raw, corrected.raw)
         assertEquals(original.sourceName, corrected.sourceName)
+        assertEquals(0, store.importRows("uber-export-reimport.csv", listOf(sourceRow)).second)
+        assertEquals(44.0, store.recent(1).single().gross!!, 0.0001)
         val history = store.correctionHistory(original.id)
         assertEquals(1, history.size)
         assertTrue(history.single().contains("\"gross\":40.0"))
