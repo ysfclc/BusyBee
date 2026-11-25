@@ -661,14 +661,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         root.addView(section("TRIP LEDGER","Tap a row to inspect its source file and original imported fields."))
-        val periodRecords=if(earningsPeriod==DriverMoneyPeriod.ALL_TIME) allRecords else {
-            val today=java.time.LocalDate.now()
-            val start=today.minusDays((earningsPeriod.days?:1)-1)
-            allRecords.filter { record ->
-                val date=DriverMoneyEngine.parseDate(record.occurredAt)
-                date!=null && !date.isBefore(start) && !date.isAfter(today)
-            }
-        }
+        val periodRecords=DriverMoneyEngine.selectRecords(allRecords,earningsPeriod)
         val tripRecords=periodRecords.filter{it.type.trim().lowercase(Locale.ROOT) in setOf("trip","ride","completed_trip")}
         if(tripRecords.isEmpty()){
             root.addView(card().apply{addView(label("No trips in this period.",10f,MUTED,false))})
@@ -782,14 +775,68 @@ class MainActivity : AppCompatActivity() {
             commands.addCommunityDocument(name,text);Toast.makeText(this,"Imported into private local search",Toast.LENGTH_LONG).show();showTab("DRIVER HUB")
         }catch(e:Exception){Toast.makeText(this,"Chat import failed: "+e.message,Toast.LENGTH_LONG).show()}
     }
-    private fun importCsv(uri:Uri){
+        private fun importCsv(uri:Uri){
         try{
-            val name=contentResolver.query(uri,null,null,null,null)?.use{c->val i=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);if(c.moveToFirst()&&i>=0)c.getString(i)else"platform-export.csv"}?:"platform-export.csv"
+            val name=contentResolver.query(uri,null,null,null,null)?.use{c->
+                val i=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if(c.moveToFirst()&&i>=0)c.getString(i)else"platform-export.csv"
+            }?:"platform-export.csv"
             val text=contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use{it.readText()}?:error("File could not be opened")
-            val rows=DriverCsv.parse(text);require(rows.isNotEmpty()){"No data rows found"};val result=mirror.importRows(name,rows)
-            syncUnifiedActivityLedger()
-            Toast.makeText(this,"Imported "+result.second+" new records from "+result.first+" rows",Toast.LENGTH_LONG).show();showTab("EARNINGS")
-        }catch(e:Exception){Toast.makeText(this,"Import failed: "+e.message,Toast.LENGTH_LONG).show()}
+            val rows=DriverCsv.parse(text)
+            require(rows.isNotEmpty()){"No data rows found"}
+            val errors=DriverCsv.validationErrors(rows)
+            require(errors.isEmpty()){
+                "Import stopped. Correct these values in the source file first:\n"+errors.take(6).joinToString("\n")
+            }
+            val trips=rows.filter{it["record_type"].orEmpty().trim().lowercase(Locale.ROOT) in setOf("trip","ride","completed_trip")}
+            val platforms=rows.map{it["platform"].orEmpty().trim().ifBlank{"Unknown"}}.distinct().sorted()
+            fun missing(field:String)=trips.count{it[field].isNullOrBlank()}
+            val blankCurrency=rows.count{it.containsKey("currency")&&it["currency"].isNullOrBlank()}
+            val currencyNote=if(rows.any{it.containsKey("currency")}){
+                blankCurrency.toString()+" rows have blank currency and will remain outside PLN totals."
+            }else{
+                "Currency column is omitted; PLN will be used as the documented interchange default."
+            }
+            val preview=buildString{
+                append(name).append("\n\n")
+                append(rows.size).append(" source rows · ").append(trips.size).append(" trips · ")
+                    .append(rows.size-trips.size).append(" other records\n")
+                append("Platforms: ").append(platforms.joinToString()).append("\n\n")
+                append("Trip fields missing or unusable:\n")
+                append("Date: ").append(trips.count{DriverMoneyEngine.parseDate(it["occurred_at"])==null}).append("/")
+                    .append(trips.size).append(" · Gross: ").append(missing("gross")).append("/")
+                    .append(trips.size).append(" · Fees: ").append(missing("fees")).append("/")
+                    .append(trips.size).append(" · Bonus: ").append(missing("bonus")).append("/")
+                    .append(trips.size).append(" · Distance: ").append(missing("distance_km")).append("/")
+                    .append(trips.size).append("\n\n")
+                append(currencyNote).append("\n\n")
+                append("BusyBee keeps original row evidence. Duplicate canonical records will not be counted twice. ")
+                append("Unknown values remain unknown; this interchange file is not a verified direct Uber/Bolt connection.")
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Review before importing")
+                .setMessage(preview)
+                .setNegativeButton("CANCEL",null)
+                .setPositiveButton("IMPORT "+rows.size+" ROWS"){_,_->
+                    try{
+                        val result=mirror.importRows(name,rows)
+                        syncUnifiedActivityLedger()
+                        showTab("EARNINGS")
+                        val duplicates=rows.size-result.second
+                        AlertDialog.Builder(this)
+                            .setTitle("Import saved")
+                            .setMessage(result.second+" new canonical records saved. "+duplicates+" duplicate rows were retained as source evidence and not double-counted.")
+                            .setPositiveButton("OPEN DRIVER MONEY"){_,_->showTab("EARNINGS")}
+                            .setNegativeButton("CLOSE",null)
+                            .show()
+                    }catch(error:Exception){
+                        Toast.makeText(this,"Import failed: "+(error.message?:"storage error"),Toast.LENGTH_LONG).show()
+                    }
+                }
+                .show()
+        }catch(e:Exception){
+            Toast.makeText(this,"Import not saved: "+(e.message?:"invalid source file"),Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun buildActivityScreen():View {
