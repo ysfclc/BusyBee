@@ -348,9 +348,24 @@ class MainActivity : AppCompatActivity() {
     private fun openExternalNavigation() {
         val route=activeRoute
         if(route==null) { Toast.makeText(this,"Plan a route first.",Toast.LENGTH_SHORT).show();return }
-        val uri=Uri.parse("google.navigation:q="+route.destination.latitude+","+route.destination.longitude+"&mode=d")
-        try { startActivity(Intent(Intent.ACTION_VIEW,uri)) }
-        catch(_:Exception) { startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("geo:"+route.destination.latitude+","+route.destination.longitude))) }
+        val navigationUri=Uri.parse("google.navigation:q="+route.destination.latitude+","+route.destination.longitude+"&mode=d")
+        val geoUri=Uri.parse("geo:"+route.destination.latitude+","+route.destination.longitude)
+        // Some devices have no handler for Google navigation or for geo: links.
+        // Treat both handoffs as optional capabilities; never let ActivityNotFoundException
+        // escape the click handler and terminate BusyBee.
+        val intents=listOf(
+            Intent(Intent.ACTION_VIEW,navigationUri),
+            Intent(Intent.ACTION_VIEW,geoUri)
+        )
+        for(intent in intents) {
+            try {
+                startActivity(intent)
+                return
+            } catch(_:Exception) {
+                // Try the next supported map handoff.
+            }
+        }
+        Toast.makeText(this,"No compatible navigation app is available. Install or enable a map app.",Toast.LENGTH_LONG).show()
     }
 
     private fun refreshRoadIntelligence() {
