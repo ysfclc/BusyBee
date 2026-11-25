@@ -599,9 +599,9 @@ class MainActivity : AppCompatActivity() {
         val amounts=card()
         amounts.addView(label("MONEY FLOW · PLN ONLY",10f,MINT,true))
         val amountRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        amountRow.addView(metric("GROSS",money(report.grossPln)),LinearLayout.LayoutParams(0,dp(76),1f))
-        amountRow.addView(metric("FEES",money(report.feesPln)),LinearLayout.LayoutParams(0,dp(76),1f).apply{marginStart=dp(5)})
-        amountRow.addView(metric("BONUSES",money(report.bonusesPln)),LinearLayout.LayoutParams(0,dp(76),1f).apply{marginStart=dp(5)})
+        amountRow.addView(metric("KNOWN GROSS",money(report.grossPln)),LinearLayout.LayoutParams(0,dp(76),1f))
+        amountRow.addView(metric("KNOWN FEES",money(report.feesPln)),LinearLayout.LayoutParams(0,dp(76),1f).apply{marginStart=dp(5)})
+        amountRow.addView(metric("KNOWN BONUS",money(report.bonusesPln)),LinearLayout.LayoutParams(0,dp(76),1f).apply{marginStart=dp(5)})
         amounts.addView(amountRow)
         amounts.addView(label("Known net before vehicle · "+money(report.knownNetBeforeVehiclePln),10f,WHITE,true).apply{setPadding(0,dp(9),0,dp(3))})
         amounts.addView(label("Estimated vehicle cost on distance-known trips · "+money(report.estimatedVehicleCostPln),9f,MUTED,false))
