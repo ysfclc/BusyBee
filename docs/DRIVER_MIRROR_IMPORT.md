@@ -31,3 +31,10 @@ The Driver Mirror screen groups recognised trip types (`trip`, `ride`, `complete
 - The app shows recent import batches and raw source-row previews so derived totals can be traced back to evidence.
 
 Not yet calculated: weekday profitability, zone/corridor performance, effective hourly wage, empty/dead mileage, waiting time, tax, and fully reconciled vehicle expenses. These require additional source fields and/or a validated trip-session model.
+
+
+## Review and correction workflow
+
+Before saving, BusyBee previews the selected file's platforms, record counts, missing trip fields and currency treatment. Invalid numeric values and negative distances block the import; blank financial fields remain unknown. A present-but-blank currency field is not treated as PLN. PLN is the default only when the currency column is omitted entirely.
+
+After import, each trip can be inspected and corrected. Corrections update only the normalized record and are stored in a before/after audit history. The original imported row, source filename and fingerprint remain unchanged. Re-importing the same source row therefore does not overwrite the driver's correction or double-count the trip.
