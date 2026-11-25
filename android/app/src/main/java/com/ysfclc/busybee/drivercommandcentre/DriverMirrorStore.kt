@@ -377,20 +377,25 @@ class DriverMirrorStore(context: Context) :
         return MirrorSummary(records, trips, offers, gross, fees, bonuses, platforms, imports, nonPln, netComplete)
     }
 
-    fun recent(limit: Int = 30): List<DriverRecord> {
+    fun recent(limit: Int = 30): List<DriverRecord> = queryRecords(limit)
+
+    /** Full local ledger; period reports must never silently truncate at a recent-row limit. */
+    fun allRecords(): List<DriverRecord> = queryRecords(null)
+
+    private fun queryRecords(limit: Int?): List<DriverRecord> {
         val records = mutableListOf<DriverRecord>()
-        readableDatabase.rawQuery(
-            "SELECT id,platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,gross,fees,bonus,currency,status,raw,source_name FROM records ORDER BY COALESCE(occurred_at,'') DESC,id DESC LIMIT ?",
-            arrayOf(limit.toString())
-        ).use { c ->
-            while (c.moveToNext()) records.add(DriverRecord(
-                c.getLong(0), c.getString(1), c.getString(2), c.getString(3), c.getString(4),
-                c.getString(5), c.getString(6),
-                if (c.isNull(7)) null else c.getDouble(7),
-                if (c.isNull(8)) null else c.getDouble(8),
-                if (c.isNull(9)) null else c.getDouble(9),
-                if (c.isNull(10)) null else c.getDouble(10),
-                c.getString(11), c.getString(12), c.getString(13), c.getString(14)
+        val baseSql = "SELECT id,platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,gross,fees,bonus,currency,status,raw,source_name FROM records ORDER BY COALESCE(occurred_at,'') DESC,id DESC"
+        val sql = if (limit == null) baseSql else "$baseSql LIMIT ?"
+        val args = limit?.let { arrayOf(it.toString()) }
+        readableDatabase.rawQuery(sql, args).use { cursor ->
+            while (cursor.moveToNext()) records.add(DriverRecord(
+                cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getString(3), cursor.getString(4),
+                cursor.getString(5), cursor.getString(6),
+                if (cursor.isNull(7)) null else cursor.getDouble(7),
+                if (cursor.isNull(8)) null else cursor.getDouble(8),
+                if (cursor.isNull(9)) null else cursor.getDouble(9),
+                if (cursor.isNull(10)) null else cursor.getDouble(10),
+                cursor.getString(11), cursor.getString(12), cursor.getString(13), cursor.getString(14)
             ))
         }
         return records
