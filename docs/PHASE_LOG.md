@@ -473,3 +473,14 @@ Not claimed:
 - No tax-adjusted take-home pay, dead-mileage or effective hourly-wage calculation.
 - Signed release build and existing-install device migration/upgrade still require separate verification.
 
+
+## CI verification — Driver Money checkpoint
+
+Workflow run #515 on commit 59dfcb3dedac7d9ad2737a9fec03d76f2c4f7d51 completed successfully:
+- 93 Android unit/Robolectric tests passed; 0 failed; 0 ignored.
+- Rust domain tests passed.
+- Rust Android libraries built.
+- Debug APK assembled and debug signature verified.
+- Release signing intentionally skipped for this pull-request event. No release APK was produced or presented as an update.
+
+External acceptance remains: representative platform statement reconciliation and physical-device verification with a signed release update.
