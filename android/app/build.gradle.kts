@@ -41,6 +41,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    testOptions {
+        unitTests.all {
+            // Robolectric defaults to repo1.maven.org, which rate-limited CI (HTTP 429).
+            // Use Maven Central's canonical endpoint for its Android SDK artifacts.
+            it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
+        }
+    }
 }
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
