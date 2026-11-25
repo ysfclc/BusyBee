@@ -583,7 +583,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(periodRow)
         root.addView(card().apply{
             addView(label("PRIVATE LOCAL LEDGER · "+imports+" IMPORT BATCHES",8f,MUTED,true))
-            addView(label(report.tripCount+" TRIPS  ·  "+report.recordCount+" RECORDS  ·  "+analytics.platforms.size+" PLATFORMS",11f,WHITE,true).apply{setPadding(0,dp(5),0,0)})
+            addView(label(report.tripCount.toString()+" TRIPS  ·  "+report.recordCount.toString()+" RECORDS  ·  "+analytics.platforms.size.toString()+" PLATFORMS",11f,WHITE,true).apply{setPadding(0,dp(5),0,0)})
             addView(action("＋ IMPORT PLATFORM RECORDS",true){
                 csvPicker.launch(arrayOf("text/*","application/csv","application/vnd.ms-excel"))
             },LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(10)})
@@ -592,7 +592,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(card().apply{
             addView(label("ESTIMATED NET AFTER VEHICLE",9f,MUTED,true))
             addView(label(report.estimatedNetAfterVehiclePln?.let{money(it)}?:"NOT ENOUGH COMPLETE DATA",29f,MINT,true).apply{setPadding(0,dp(5),0,dp(3))})
-            addView(label(report.completeNetTrips+" of "+analytics.plnTripCount+" PLN trips qualify · gross, fees, bonus and distance must all be present.",10f,WHITE,false))
+            addView(label(report.completeNetTrips.toString()+" of "+analytics.plnTripCount.toString()+" PLN trips qualify · gross, fees, bonus and distance must all be present.",10f,WHITE,false))
             addView(label("This is an estimate after your per-kilometre vehicle-cost assumption. It is not tax-adjusted take-home pay or fully reconciled profit.",9f,MUTED,false).apply{setPadding(0,dp(7),0,0)})
         })
 
@@ -619,7 +619,7 @@ class MainActivity : AppCompatActivity() {
                 addView(label(platform.platform.uppercase()+" · "+platform.tripCount+" TRIPS",11f,MINT,true))
                 addView(label("Estimated net after vehicle · "+money(platform.estimatedNetAfterVehiclePln),16f,WHITE,true).apply{setPadding(0,dp(5),0,dp(4))})
                 addView(label("Gross "+money(platform.grossPln)+" · fees "+money(platform.feesPln)+" · bonuses "+money(platform.bonusesPln),9f,MUTED,false))
-                addView(label(platform.completeNetTrips+"/"+platform.tripCount+" complete money rows · "+platform.tripsWithDistance+"/"+platform.tripCount+" with distance",9f,AMBER,true).apply{setPadding(0,dp(5),0,0)})
+                addView(label(platform.completeNetTrips.toString()+"/"+platform.tripCount.toString()+" complete money rows · "+platform.tripsWithDistance.toString()+"/"+platform.tripCount.toString()+" with distance",9f,AMBER,true).apply{setPadding(0,dp(5),0,0)})
             })
         }
 
@@ -627,11 +627,11 @@ class MainActivity : AppCompatActivity() {
         root.addView(card().apply{
             addView(label("PLN TRIP COVERAGE",10f,MINT,true))
             addView(label("Gross "+report.tripsWithGross+"/"+analytics.plnTripCount+"  ·  fees "+report.tripsWithFees+"/"+analytics.plnTripCount+"  ·  bonuses "+report.tripsWithBonus+"/"+analytics.plnTripCount+"  ·  distance "+report.tripsWithDistance+"/"+analytics.plnTripCount,10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(5))})
-            addView(label(report.nonPlnTripCount+" non-PLN trips kept separate; no currency conversion is assumed.",9f,MUTED,false))
+            addView(label(report.nonPlnTripCount.toString()+" non-PLN trips kept separate; no currency conversion is assumed.",9f,MUTED,false))
             if(earningsPeriod!=DriverMoneyPeriod.ALL_TIME && report.undatedTripCount>0){
-                addView(label(report.undatedTripCount+" trips have no usable timestamp and are excluded from this period.",9f,AMBER,true).apply{setPadding(0,dp(6),0,0)})
+                addView(label(report.undatedTripCount.toString()+" trips have no usable timestamp and are excluded from this period.",9f,AMBER,true).apply{setPadding(0,dp(6),0,0)})
             } else if(earningsPeriod==DriverMoneyPeriod.ALL_TIME && report.undatedTripCount>0){
-                addView(label(report.undatedTripCount+" undated trips are included in All time; their position in time is unknown.",9f,AMBER,true).apply{setPadding(0,dp(6),0,0)})
+                addView(label(report.undatedTripCount.toString()+" undated trips are included in All time; their position in time is unknown.",9f,AMBER,true).apply{setPadding(0,dp(6),0,0)})
             }
             analytics.dataWarnings.forEach { warning ->
                 addView(label("• "+warning,9f,MUTED,false).apply{setPadding(0,dp(5),0,0)})
@@ -893,7 +893,7 @@ class MainActivity : AppCompatActivity() {
                         val duplicates=rows.size-result.second
                         AlertDialog.Builder(this)
                             .setTitle("Import saved")
-                            .setMessage(result.second+" new canonical records saved. "+duplicates+" duplicate rows were retained as source evidence and not double-counted.")
+                            .setMessage(result.second.toString()+" new canonical records saved. "+duplicates.toString()+" duplicate rows were retained as source evidence and not double-counted.")
                             .setPositiveButton("OPEN DRIVER MONEY"){_,_->showTab("EARNINGS")}
                             .setNegativeButton("CLOSE",null)
                             .show()
