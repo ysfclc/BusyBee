@@ -57,14 +57,7 @@ object DriverMoneyEngine {
         }
         val trips = records.filter { it.type.trim().lowercase(Locale.ROOT) in tripTypes }
         val undated = trips.count { parseDate(it.occurredAt, zone) == null }
-        val dated = records.mapNotNull { record ->
-            parseDate(record.occurredAt, zone)?.let { it to record }
-        }
-        val start = period.days?.let { today.minusDays(it - 1) }
-        val selectedRecords = when (period) {
-            DriverMoneyPeriod.ALL_TIME -> records
-            else -> dated.filter { (date, _) -> date >= start && date <= today }.map { it.second }
-        }
+        val selectedRecords = selectRecords(records, period, today, zone)
         val selectedTrips = selectedRecords.filter { it.type.trim().lowercase(Locale.ROOT) in tripTypes }
         val pln = selectedTrips.filter { it.currency.equals("PLN", ignoreCase = true) }
         val completeAmounts = pln.filter { it.gross != null && it.fees != null && it.bonus != null }
@@ -95,6 +88,20 @@ object DriverMoneyEngine {
             tripsWithDistance = distances.size,
             analytics = analytics
         )
+    }
+
+    fun selectRecords(
+        records: List<DriverRecord>,
+        period: DriverMoneyPeriod,
+        today: LocalDate = LocalDate.now(ZoneId.systemDefault()),
+        zone: ZoneId = ZoneId.systemDefault()
+    ): List<DriverRecord> {
+        if (period == DriverMoneyPeriod.ALL_TIME) return records
+        val start = today.minusDays((period.days ?: 1) - 1)
+        return records.filter { record ->
+            val date = parseDate(record.occurredAt, zone)
+            date != null && !date.isBefore(start) && !date.isAfter(today)
+        }
     }
 
     fun parseDate(value: String?, zone: ZoneId = ZoneId.systemDefault()): LocalDate? {
