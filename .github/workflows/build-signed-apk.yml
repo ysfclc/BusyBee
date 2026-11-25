@@ -2,7 +2,9 @@ name: Build signed BusyBee APK
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'feature/native-provider-bridge-slice-1-2026-11-22'
     paths:
       - 'rust/**'
       - 'android/**'
