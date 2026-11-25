@@ -52,6 +52,9 @@ object DriverCsv {
         val headers = rows.first().mapIndexed { index, value ->
             (if (index == 0) value.removePrefix("\uFEFF") else value).trim().lowercase().replace(" ", "_")
         }
+        require(headers.distinct().size == headers.size) {
+            "CSV contains duplicate column names after normalisation"
+        }
         require(headers.toSet().containsAll(requiredHeaders)) {
             "CSV needs platform and record_type columns"
         }
@@ -101,6 +104,21 @@ object DriverCsv {
 
     fun number(value: String?): Double? = value?.trim()?.takeIf { it.isNotEmpty() }
         ?.replace(" ", "")?.replace(",", ".")?.toDoubleOrNull()?.takeIf { it.isFinite() }
+
+    fun validationErrors(rows: List<Map<String, String>>): List<String> = buildList {
+        rows.forEachIndexed { index, row ->
+            listOf("distance_km", "gross", "fees", "bonus").forEach { field ->
+                val raw = row[field]?.trim().orEmpty()
+                if (raw.isNotEmpty() && number(raw) == null) {
+                    add("Row " + (index + 2) + ": " + field + " is not a valid number.")
+                }
+            }
+            val distance = number(row["distance_km"])
+            if (distance != null && distance < 0.0) {
+                add("Row " + (index + 2) + ": distance_km cannot be negative.")
+            }
+        }
+    }
 }
 
 class DriverMirrorStore(context: Context) :
@@ -196,7 +214,7 @@ class DriverMirrorStore(context: Context) :
                     put("gross", DriverCsv.number(row["gross"]))
                     put("fees", DriverCsv.number(row["fees"]))
                     put("bonus", DriverCsv.number(row["bonus"]))
-                    put("currency", row["currency"].orEmpty().ifBlank { "PLN" }.uppercase())
+                    put("currency", row["currency"]?.trim()?.uppercase() ?: "PLN")
                     put("status", row["status"])
                     put("raw", raw)
                     put("source_name", sourceName)
