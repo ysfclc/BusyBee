@@ -20,7 +20,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: busybee-signed-apk
+  # Keep the secret-bearing push release build independent from the PR validation run.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
