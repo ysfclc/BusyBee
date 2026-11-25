@@ -231,7 +231,7 @@ class MainActivity : AppCompatActivity() {
     private fun buildNavigation() {
         nav.removeAllViews()
         listOf("MAP","OFFERS","ACTIVITY","EARNINGS","DRIVER HUB","SOURCES").forEach { tab ->
-            val display = if (tab == "DRIVER HUB") "HUB" else tab
+            val display = when (tab) { "DRIVER HUB" -> "HUB"; "EARNINGS" -> "MONEY"; else -> tab }
             val b=label(display,8f,MUTED,true).apply{gravity=Gravity.CENTER;setPadding(dp(3),dp(12),dp(3),dp(12));setOnClickListener{showTab(tab)}}
             navButtons[tab]=b;nav.addView(b,LinearLayout.LayoutParams(0,-1,1f))
         }
@@ -704,7 +704,7 @@ class MainActivity : AppCompatActivity() {
         buttons.addView(action("＋ REMINDER",true){itemDialog()},LinearLayout.LayoutParams(0,dp(42),1f))
         buttons.addView(action("＋ DOCUMENT",false){documentPicker.launch(arrayOf("*/*"))},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
         top.addView(buttons)
-        top.addView(action("＋ IMPORT PLATFORM CSV",false){csvPicker.launch(arrayOf("text/*","application/csv","application/vnd.ms-excel"))},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(7)})
+        top.addView(action("OPEN DRIVER MONEY",false){showTab("EARNINGS")},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(7)})
         root.addView(top)
         root.addView(section("UPCOMING & SAVED ITEMS","Tap complete when paid, renewed or serviced. Documents can be opened from here."))
         val items=commands.items()
