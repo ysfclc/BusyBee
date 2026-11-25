@@ -671,20 +671,7 @@ class MainActivity : AppCompatActivity() {
                 addView(label(record.platform.uppercase()+" · "+record.type.uppercase(),10f,MINT,true))
                 addView(label((record.occurredAt?:"DATE UNKNOWN")+" · "+(record.pickup?:"?")+" → "+(record.dropoff?:"?"),10f,WHITE,true).apply{setPadding(0,dp(4),0,dp(4))})
                 addView(label("Gross "+money(record.gross)+" · fees "+money(record.fees)+" · bonus "+money(record.bonus)+" · "+(record.distanceKm?.let{String.format(Locale.US,"%.1f km",it)}?:"distance unknown"),9f,MUTED,false))
-                setOnClickListener{
-                    val details=buildString{
-                        append("Platform: ").append(record.platform).append("\nType: ").append(record.type)
-                        append("\nDate: ").append(record.occurredAt?: "Unknown")
-                        append("\nRoute: ").append(record.pickup?: "Unknown").append(" → ").append(record.dropoff?: "Unknown")
-                        append("\nDistance: ").append(record.distanceKm?: "Unknown")
-                        append("\nGross: ").append(record.gross?: "Unknown").append(" · Fees: ").append(record.fees?: "Unknown").append(" · Bonus: ").append(record.bonus?: "Unknown")
-                        append("\nCurrency: ").append(record.currency).append("\nStatus: ").append(record.status?: "Unknown")
-                        append("\nSource file: ").append(record.sourceName)
-                        append("\nExternal ID: ").append(record.externalId?: "Not supplied")
-                        append("\n\nORIGINAL IMPORTED FIELDS\n").append(record.raw)
-                    }
-                    AlertDialog.Builder(this@MainActivity).setTitle("Trip evidence").setMessage(details).setPositiveButton("Close",null).show()
-                }
+                setOnClickListener{showTripEvidence(record)}
             })
         }
 
@@ -693,6 +680,87 @@ class MainActivity : AppCompatActivity() {
             root.addView(card().apply{addView(label(entry,9f,WHITE,false))})
         }
         return root
+    }
+
+    private fun showTripEvidence(record:DriverRecord) {
+        val corrections=mirror.correctionHistory(record.id)
+        val details=buildString{
+            append("Platform: ").append(record.platform).append("\\nType: ").append(record.type)
+            append("\\nDate: ").append(record.occurredAt?: "Unknown")
+            append("\\nRoute: ").append(record.pickup?: "Unknown").append(" → ").append(record.dropoff?: "Unknown")
+            append("\\nDistance: ").append(record.distanceKm?: "Unknown")
+            append("\\nGross: ").append(record.gross?: "Unknown").append(" · Fees: ").append(record.fees?: "Unknown").append(" · Bonus: ").append(record.bonus?: "Unknown")
+            append("\\nCurrency: ").append(record.currency.ifBlank{"Unknown"}).append("\\nStatus: ").append(record.status?: "Unknown")
+            append("\\nSource file: ").append(record.sourceName)
+            append("\\nExternal ID: ").append(record.externalId?: "Not supplied")
+            append("\\n\\nORIGINAL IMPORTED FIELDS\\n").append(record.raw)
+            append("\\n\\nCORRECTION HISTORY\\n")
+            if(corrections.isEmpty()) append("No corrections saved.")
+            else corrections.forEachIndexed { index, entry -> append(index+1).append(". ").append(entry).append("\\n\\n") }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Trip evidence")
+            .setMessage(details)
+            .setNegativeButton("CLOSE",null)
+            .setNeutralButton("CORRECT RECORD"){_,_->editTripRecord(record)}
+            .show()
+    }
+
+    private fun editTripRecord(record:DriverRecord) {
+        val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),0,dp(18),0)}
+        val occurredAt=field("Trip date/time (ISO-8601)",record.occurredAt.orEmpty())
+        val pickup=field("Pickup",record.pickup.orEmpty())
+        val dropoff=field("Dropoff",record.dropoff.orEmpty())
+        val distance=field("Distance km",record.distanceKm?.toString().orEmpty())
+        val gross=field("Gross amount",record.gross?.toString().orEmpty())
+        val fees=field("Platform fees",record.fees?.toString().orEmpty())
+        val bonus=field("Bonus",record.bonus?.toString().orEmpty())
+        val currency=field("Currency (blank = unknown)",record.currency)
+        val status=field("Status",record.status.orEmpty())
+        listOf(occurredAt,pickup,dropoff,distance,gross,fees,bonus,currency,status).forEach{box.addView(it)}
+        AlertDialog.Builder(this)
+            .setTitle("Correct trip record")
+            .setView(ScrollView(this).apply{addView(box)})
+            .setNegativeButton("CANCEL",null)
+            .setPositiveButton("SAVE CORRECTION"){_,_->
+                fun amount(input:EditText):Double?=input.text.toString().trim().takeIf{it.isNotEmpty()}?.let{DriverCsv.number(it)}
+                val numericFields=listOf(distance,gross,fees,bonus)
+                val invalid=numericFields.firstOrNull{input->
+                    input.text.toString().isNotBlank()&&amount(input)==null
+                }
+                if(invalid!=null){
+                    Toast.makeText(this,"Correct the invalid number before saving.",Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val distanceValue=amount(distance)
+                if(distanceValue!=null&&distanceValue<0){
+                    Toast.makeText(this,"Distance cannot be negative.",Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val dateValue=occurredAt.text.toString().trim().takeIf{it.isNotEmpty()}
+                if(dateValue!=null&&DriverMoneyEngine.parseDate(dateValue)==null){
+                    Toast.makeText(this,"Use a valid ISO-8601 date/time.",Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val correction=DriverRecordCorrection(
+                    occurredAt=dateValue,
+                    pickup=pickup.text.toString().trim().takeIf{it.isNotEmpty()},
+                    dropoff=dropoff.text.toString().trim().takeIf{it.isNotEmpty()},
+                    distanceKm=distanceValue,
+                    gross=amount(gross),
+                    fees=amount(fees),
+                    bonus=amount(bonus),
+                    currency=currency.text.toString(),
+                    status=status.text.toString().trim().takeIf{it.isNotEmpty()}
+                )
+                if(mirror.correctRecord(record.id,correction)){
+                    Toast.makeText(this,"Correction saved. Original source evidence is unchanged.",Toast.LENGTH_LONG).show()
+                    showTab("EARNINGS")
+                }else{
+                    Toast.makeText(this,"Record no longer exists; no correction was saved.",Toast.LENGTH_LONG).show()
+                }
+            }
+            .show()
     }
 
     private fun buildDriverHubScreen():View{
