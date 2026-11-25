@@ -1,5 +1,6 @@
 package com.ysfclc.busybee.drivercommandcentre
 
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,8 +60,10 @@ class DriverMirrorStoreCorrectionTest {
         assertEquals(44.0, store.recent(1).single().gross!!, 0.0001)
         val history = store.correctionHistory(original.id)
         assertEquals(1, history.size)
-        assertTrue(history.single().contains("\"gross\":40.0"))
-        assertTrue(history.single().contains("\"gross\":44.0"))
+        val beforeJson = JSONObject(history.single().substringAfter("Before: ").substringBefore("\nAfter: "))
+        val afterJson = JSONObject(history.single().substringAfter("After: "))
+        assertEquals(40.0, beforeJson.getDouble("gross"), 0.0001)
+        assertEquals(44.0, afterJson.getDouble("gross"), 0.0001)
         store.close()
     }
 
