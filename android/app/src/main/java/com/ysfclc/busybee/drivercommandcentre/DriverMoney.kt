@@ -57,7 +57,7 @@ object DriverMoneyEngine {
         }
         val trips = records.filter { it.type.trim().lowercase(Locale.ROOT) in tripTypes }
         val undated = trips.count { parseDate(it.occurredAt, zone) == null }
-        val dated = trips.mapNotNull { record ->
+        val dated = records.mapNotNull { record ->
             parseDate(record.occurredAt, zone)?.let { it to record }
         }
         val start = period.days?.let { today.minusDays(it - 1) }
