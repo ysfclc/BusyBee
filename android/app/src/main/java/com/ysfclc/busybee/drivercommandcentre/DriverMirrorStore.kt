@@ -63,8 +63,8 @@ object DriverCsv {
         }
         return rows.drop(1).mapNotNull { cells ->
             if (cells.all { it.isBlank() }) return@mapNotNull null
-            headers.mapIndexedNotNull { index, key ->
-                if (index < cells.size) key to cells[index].trim() else null
+            headers.mapIndexed { index, key ->
+                key to cells.getOrNull(index).orEmpty().trim()
             }.toMap()
         }
     }
