@@ -43,7 +43,7 @@ The current build has six driver-facing surfaces:
 - **Map:** tilted spatial map, mapped roadworks/hazards, local driver reports, weather context, destination routing and handoff to turn-by-turn navigation.
 - **Offers:** opt-in notification capture for supported ride apps, manual offer review, driver-controlled filters, and ranking by estimated net PLN/hour after pickup distance and vehicle cost.
 - **Activity:** unified local timeline of source observations and canonical provider events, with provider/source filters and evidence inspection. Manually entered or notification-reviewed offers emit typed events; raw notifications remain unclassified until reviewed.
-- **Earnings:** private imported trip history and cautious PLN totals.
+- **Driver Money:** period-aware private work ledger with reviewed statement import, source-backed trip inspection, platform comparison, vehicle-cost estimates and explicit data completeness.
 - **Driver Hub:** documents, due-date reminders, recurring insurance/payment schedules, completion history, expenses, service contacts and local WhatsApp export search.
 - **Sources:** explicit Uber Driver / Bolt Driver app handoff cards, per-provider local data coverage, notification permission state, source gaps and migration diagnostics. App presence and notification permission remain separate from a verified provider API connection.
 
