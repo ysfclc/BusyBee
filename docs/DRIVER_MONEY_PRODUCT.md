@@ -44,8 +44,6 @@ The current import is the documented provider-neutral CSV interchange format in 
 
 - Validate representative real Uber and/or Bolt statement exports and build source-specific adapters only where actual formats justify them.
 - Reconcile imported trip counts and financial totals against the original statement, with discrepancies explained.
-- Validate representative real Uber and/or Bolt statement exports and build source-specific adapters only where actual formats justify them.
-- Reconcile imported trip counts and financial totals against the original statement, with discrepancies explained.
 - Validate the correction workflow on-device and confirm the audit history survives restart.
 - Validate the workflow on a real device using an existing local database and a signed update; confirm import, restart, duplicate re-import and evidence inspection survive.
 - Expand the canonical trip/session model before claiming hourly wage, waiting-time utilisation, dead mileage, tax or fully allocated vehicle profit.
