@@ -5,6 +5,9 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import org.json.JSONObject
 
 data class DriverRecord(
@@ -334,8 +337,9 @@ class DriverMirrorStore(context: Context) :
             arrayOf(recordId.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
+                val changedAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(cursor.getLong(0)))
                 history.add(
-                    "Changed at " + cursor.getLong(0) +
+                    "Changed at " + changedAt +
                         "\nBefore: " + cursor.getString(1) +
                         "\nAfter: " + cursor.getString(2)
                 )
