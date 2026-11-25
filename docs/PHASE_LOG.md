@@ -452,3 +452,24 @@ The outbox is local durability infrastructure. It does not imply a direct Uber/B
 - Added a regression test that inserts a valid offer, corrupts its outbox event type, then inserts another valid offer; the test expects the malformed row to be isolated and the second event to remain deliverable. Updated the process-restart flow test to unwrap valid events explicitly.
 - Files: DriverCommandStore.kt, MainActivity.kt, DriverCommandStoreOutboxTest.kt, ManualOfferEventFlowTest.kt, implementation checkpoint and phase log.
 - Verification boundary: local clone/build unavailable in this runtime (GitHub DNS resolution failed); prior CI #486 failed 9/76 tests at Robolectric's MavenArtifactFetcher/HttpURLConnection artifact retrieval, so this patch requires a fresh CI result
+## 2026-11-25 — Driver Money product checkpoint
+
+**Status:** product workflow implemented on the current feature branch; CI, real provider-statement reconciliation and physical-device acceptance pending.
+
+Delivered as one end-to-end local-first product:
+- Period-aware Today / 7 days / 30 days / All time reporting, with local-date handling for offset timestamps.
+- One period drives the headline economics, platform comparison and trip ledger.
+- Reviewed CSV import preview shows platforms, trip counts, missing fields and currency handling before commit.
+- Invalid numeric values and negative distance stop import; omitted currency defaults to PLN, while a present-but-blank currency remains unknown.
+- Trip-level correction updates normalized values while retaining original raw evidence and source identity.
+- Additive SQLite v1→v2 migration creates correction audit history without dropping existing records.
+- Re-importing the original row cannot overwrite the correction or double-count the canonical trip.
+- Trip inspection exposes source file, external ID, original imported fields and correction history.
+- Product rules and outstanding acceptance gates documented in DRIVER_MONEY_PRODUCT.md.
+
+Not claimed:
+- No verified Uber/Bolt export adapter or direct account/API integration.
+- No statement-total reconciliation until representative user-authorised exports are tested.
+- No tax-adjusted take-home pay, dead-mileage or effective hourly-wage calculation.
+- Signed release build and existing-install device migration/upgrade still require separate verification.
+
