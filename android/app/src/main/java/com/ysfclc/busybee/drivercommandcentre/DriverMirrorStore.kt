@@ -278,7 +278,12 @@ class DriverMirrorStore(context: Context) :
             ).use { cursor ->
                 if (!cursor.moveToFirst()) false else {
                     columns.forEachIndexed { index, column ->
-                        before.put(column, if (cursor.isNull(index)) JSONObject.NULL else cursor.getString(index))
+                        before.put(
+                            column,
+                            if (cursor.isNull(index)) JSONObject.NULL
+                            else if (column in setOf("distance_km", "gross", "fees", "bonus")) cursor.getDouble(index)
+                            else cursor.getString(index)
+                        )
                     }
                     true
                 }
@@ -331,8 +336,8 @@ class DriverMirrorStore(context: Context) :
             while (cursor.moveToNext()) {
                 history.add(
                     "Changed at " + cursor.getLong(0) +
-                        "\\nBefore: " + cursor.getString(1) +
-                        "\\nAfter: " + cursor.getString(2)
+                        "\nBefore: " + cursor.getString(1) +
+                        "\nAfter: " + cursor.getString(2)
                 )
             }
         }
