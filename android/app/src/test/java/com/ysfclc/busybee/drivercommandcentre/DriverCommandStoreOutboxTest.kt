@@ -48,7 +48,8 @@ class DriverCommandStoreOutboxTest {
         legacy.version = 2
         legacy.close()
 
-        DriverCommandStore(context).use { upgraded ->
+        val upgraded = DriverCommandStore(context)
+        try {
             assertEquals(3, upgraded.writableDatabase.version)
             val saved = upgraded.offers().single()
             assertEquals("legacy row", saved.raw)
@@ -70,11 +71,15 @@ class DriverCommandStoreOutboxTest {
             )
             assertTrue(added.id > saved.id)
             assertEquals(1, upgraded.pendingProviderOfferEventCount())
+        } finally {
+            upgraded.close()
         }
     }
+
     @Test
     fun malformedPendingEventDoesNotBlockLaterValidEvents() {
-        DriverCommandStore(context).use { store ->
+        val store = DriverCommandStore(context)
+        try {
             store.saveOfferWithPendingEvent(
                 DriverOffer(
                     platform = "Uber",
@@ -112,6 +117,8 @@ class DriverCommandStoreOutboxTest {
             assertNotNull(healthy.event)
             assertEquals(ProviderEventType.OFFER_OBSERVED, healthy.event?.eventType)
             assertTrue(healthy.event?.idempotencyKey.orEmpty().contains(":" + healthyOffer.id + ":observed"))
+        } finally {
+            store.close()
         }
     }
 
