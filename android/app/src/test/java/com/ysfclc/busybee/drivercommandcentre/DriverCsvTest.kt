@@ -37,6 +37,11 @@ class DriverCsvTest {
         assertNull(omitted["currency"])
     }
 
+    @Test fun missingTrailingCellInPresentCurrencyColumnIsUnknown() {
+        val row = DriverCsv.parse("platform,record_type,currency\\nBolt,trip").single()
+        assertEquals("", row["currency"])
+    }
+
     @Test fun rejectsDuplicateHeadersAfterNormalisation() {
         assertThrows(IllegalArgumentException::class.java) {
             DriverCsv.parse("platform,record_type,Gross,gross\\nUber,trip,10,11")
