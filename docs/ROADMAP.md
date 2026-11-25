@@ -31,7 +31,7 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 
 ## Phase 3 — Driver Data Mirror (first real product capability)
 
-**Status:** first usable vertical slice implemented; Driver Money product workflow is being completed on top of it. Period-aware reporting, reviewed CSV import, evidence inspection and explicit completeness are implemented in the current checkpoint. Real provider-export validation, statement reconciliation, safe correction/re-import and device acceptance remain open. Native Provider Bridge is the accepted architecture direction; provider-specific live access is not yet proven.
+**Status:** first usable vertical slice implemented; Driver Money product workflow is being completed on top of it. Period-aware reporting, reviewed CSV import, evidence inspection and explicit completeness are implemented in the current checkpoint. Real provider-export validation, statement reconciliation and device acceptance remain open. Local correction/re-import is implemented and test-covered but not yet device-verified. Native Provider Bridge is the accepted architecture direction; provider-specific live access is not yet proven.
 
 **Goal:** make BusyBee understand the driver's actual work, across platforms, under the driver's control.
 
