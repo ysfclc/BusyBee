@@ -562,7 +562,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildEarningsScreen():View{
         val root=columnScroll()
-        val allRecords=mirror.recent(5000)
+        val allRecords=mirror.allRecords()
         val vehicleCost=num("cost_per_km",0.85)
         val report=DriverMoneyEngine.calculate(allRecords,vehicleCost,earningsPeriod)
         val analytics=report.analytics
