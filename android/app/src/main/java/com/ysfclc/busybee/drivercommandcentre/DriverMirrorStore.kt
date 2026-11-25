@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.security.MessageDigest
+import org.json.JSONObject
 
 data class DriverRecord(
     val id: Long,
@@ -22,6 +23,18 @@ data class DriverRecord(
     val status: String?,
     val raw: String,
     val sourceName: String
+)
+
+data class DriverRecordCorrection(
+    val occurredAt: String?,
+    val pickup: String?,
+    val dropoff: String?,
+    val distanceKm: Double?,
+    val gross: Double?,
+    val fees: Double?,
+    val bonus: Double?,
+    val currency: String,
+    val status: String?
 )
 
 data class MirrorSummary(
@@ -122,7 +135,7 @@ object DriverCsv {
 }
 
 class DriverMirrorStore(context: Context) :
-    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 1) {
+    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
@@ -169,10 +182,33 @@ class DriverMirrorStore(context: Context) :
         """.trimIndent())
         db.execSQL("CREATE INDEX records_time_idx ON records(occurred_at DESC)")
         db.execSQL("CREATE INDEX records_platform_idx ON records(platform)")
+        db.execSQL("""
+            CREATE TABLE record_corrections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                record_id INTEGER NOT NULL,
+                corrected_at INTEGER NOT NULL,
+                before_values TEXT NOT NULL,
+                after_values TEXT NOT NULL,
+                FOREIGN KEY(record_id) REFERENCES records(id)
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX record_corrections_record_idx ON record_corrections(record_id, corrected_at DESC)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Versioned migrations are added here; never destroy user evidence on upgrade.
+        if (oldVersion < 2) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS record_corrections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    record_id INTEGER NOT NULL,
+                    corrected_at INTEGER NOT NULL,
+                    before_values TEXT NOT NULL,
+                    after_values TEXT NOT NULL,
+                    FOREIGN KEY(record_id) REFERENCES records(id)
+                )
+            """.trimIndent())
+            db.execSQL("CREATE INDEX IF NOT EXISTS record_corrections_record_idx ON record_corrections(record_id, corrected_at DESC)")
+        }
     }
 
     @Synchronized
@@ -227,6 +263,80 @@ class DriverMirrorStore(context: Context) :
         } finally {
             db.endTransaction()
         }
+    }
+
+    @Synchronized
+    fun correctRecord(recordId: Long, correction: DriverRecordCorrection): Boolean {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val before = JSONObject()
+            val columns = listOf("occurred_at", "pickup", "dropoff", "distance_km", "gross", "fees", "bonus", "currency", "status")
+            val found = db.rawQuery(
+                "SELECT occurred_at,pickup,dropoff,distance_km,gross,fees,bonus,currency,status FROM records WHERE id=?",
+                arrayOf(recordId.toString())
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) false else {
+                    columns.forEachIndexed { index, column ->
+                        before.put(column, if (cursor.isNull(index)) JSONObject.NULL else cursor.getString(index))
+                    }
+                    true
+                }
+            }
+            if (!found) return false
+
+            val after = JSONObject().apply {
+                put("occurred_at", correction.occurredAt ?: JSONObject.NULL)
+                put("pickup", correction.pickup ?: JSONObject.NULL)
+                put("dropoff", correction.dropoff ?: JSONObject.NULL)
+                put("distance_km", correction.distanceKm ?: JSONObject.NULL)
+                put("gross", correction.gross ?: JSONObject.NULL)
+                put("fees", correction.fees ?: JSONObject.NULL)
+                put("bonus", correction.bonus ?: JSONObject.NULL)
+                put("currency", correction.currency.trim().uppercase())
+                put("status", correction.status ?: JSONObject.NULL)
+            }
+            val values = ContentValues().apply {
+                put("occurred_at", correction.occurredAt)
+                put("pickup", correction.pickup)
+                put("dropoff", correction.dropoff)
+                put("distance_km", correction.distanceKm)
+                put("gross", correction.gross)
+                put("fees", correction.fees)
+                put("bonus", correction.bonus)
+                put("currency", correction.currency.trim().uppercase())
+                put("status", correction.status)
+            }
+            if (db.update("records", values, "id=?", arrayOf(recordId.toString())) != 1) return false
+            val history = ContentValues().apply {
+                put("record_id", recordId)
+                put("corrected_at", System.currentTimeMillis())
+                put("before_values", before.toString())
+                put("after_values", after.toString())
+            }
+            db.insertOrThrow("record_corrections", null, history)
+            db.setTransactionSuccessful()
+            return true
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun correctionHistory(recordId: Long): List<String> {
+        val history = mutableListOf<String>()
+        readableDatabase.rawQuery(
+            "SELECT corrected_at,before_values,after_values FROM record_corrections WHERE record_id=? ORDER BY id DESC",
+            arrayOf(recordId.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                history.add(
+                    "Changed at " + cursor.getLong(0) +
+                        "\\nBefore: " + cursor.getString(1) +
+                        "\\nAfter: " + cursor.getString(2)
+                )
+            }
+        }
+        return history
     }
 
     fun summary(): MirrorSummary {
