@@ -685,18 +685,18 @@ class MainActivity : AppCompatActivity() {
     private fun showTripEvidence(record:DriverRecord) {
         val corrections=mirror.correctionHistory(record.id)
         val details=buildString{
-            append("Platform: ").append(record.platform).append("\\nType: ").append(record.type)
-            append("\\nDate: ").append(record.occurredAt?: "Unknown")
-            append("\\nRoute: ").append(record.pickup?: "Unknown").append(" → ").append(record.dropoff?: "Unknown")
-            append("\\nDistance: ").append(record.distanceKm?: "Unknown")
-            append("\\nGross: ").append(record.gross?: "Unknown").append(" · Fees: ").append(record.fees?: "Unknown").append(" · Bonus: ").append(record.bonus?: "Unknown")
-            append("\\nCurrency: ").append(record.currency.ifBlank{"Unknown"}).append("\\nStatus: ").append(record.status?: "Unknown")
-            append("\\nSource file: ").append(record.sourceName)
-            append("\\nExternal ID: ").append(record.externalId?: "Not supplied")
-            append("\\n\\nORIGINAL IMPORTED FIELDS\\n").append(record.raw)
-            append("\\n\\nCORRECTION HISTORY\\n")
+            append("Platform: ").append(record.platform).append("\nType: ").append(record.type)
+            append("\nDate: ").append(record.occurredAt?: "Unknown")
+            append("\nRoute: ").append(record.pickup?: "Unknown").append(" → ").append(record.dropoff?: "Unknown")
+            append("\nDistance: ").append(record.distanceKm?: "Unknown")
+            append("\nGross: ").append(record.gross?: "Unknown").append(" · Fees: ").append(record.fees?: "Unknown").append(" · Bonus: ").append(record.bonus?: "Unknown")
+            append("\nCurrency: ").append(record.currency.ifBlank{"Unknown"}).append("\nStatus: ").append(record.status?: "Unknown")
+            append("\nSource file: ").append(record.sourceName)
+            append("\nExternal ID: ").append(record.externalId?: "Not supplied")
+            append("\n\nORIGINAL IMPORTED FIELDS\n").append(record.raw)
+            append("\n\nCORRECTION HISTORY\n")
             if(corrections.isEmpty()) append("No corrections saved.")
-            else corrections.forEachIndexed { index, entry -> append(index+1).append(". ").append(entry).append("\\n\\n") }
+            else corrections.forEachIndexed { index, entry -> append(index+1).append(". ").append(entry).append("\n\n") }
         }
         AlertDialog.Builder(this)
             .setTitle("Trip evidence")
