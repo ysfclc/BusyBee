@@ -158,7 +158,7 @@ class DriverMirrorStoreSchemaConvergenceTest {
                 )""")
                 execSQL("CREATE INDEX provider_events_time_idx ON provider_events(event_time DESC, received_at DESC)")
             }
-            version = version
+            this.version = version
         }
     }
 
