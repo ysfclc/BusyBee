@@ -120,6 +120,23 @@ Source commits: `1cb3067` (schema v4), `3cc6ba9` (existing migration expectation
 
 Gradle dependencyInsight explicitly resolved `org.bouncycastle:bcprov-jdk18on:1.85`, overriding Robolectric 4.14.1's transitive 1.78.1. The CI assertion passed.
 
-## 9. Immediate next engineering slice
+## 9. Implemented compatibility slice — Driver Mirror v5
 
-Continue with Driver Mirror schema convergence. Define one monotonic version path that preserves PR #16's duration/confidence/provider-events additions and PR #29's record-corrections table, while explicitly retaining the different provider-event schemas instead of overwriting one with the other. Then add versioned pre-populated upgrade fixtures before moving any activity tables out of the third database. Keep PR #29 draft and preserve PR #16 as an architectural reference until all schema paths and rollback are tested.
+The second part of persistence convergence is now implemented on the same feature branch:
+
+- `DriverMirrorStore` advances the database monotonically to schema v5.
+- The canonical `records` table now includes `duration_minutes` and `parse_confidence`.
+- `record_corrections` is created idempotently, preserving the PR #29 v2 lineage and adding the table to the PR #16 v4 lineage.
+- The existing PR #16 `provider_events` table and time index are created idempotently. Existing event rows are retained; this does not overwrite or reinterpret the richer provider-event table in PR #29's separate activity database.
+- Upgrade paths are explicit: v1→v2 corrections, v2→v3 duration, v3→v4 confidence, v4→v5 provider events plus correction-table convergence. The v5 step uses `IF NOT EXISTS` so both known v2/v4 branch lineages converge without duplicate-table failures.
+- New tests cover main v1, native-bridge v2, map-first v4 and fresh-install creation. They assert the target schema version, required columns/tables and preservation of existing records, correction history and provider-event rows.
+
+Source commits: `e4d0450` (schema v5) and `b5f4cfd` / `8bee88c` (versioned migration fixtures and fixture correction).
+
+**Verification:** PR run [#546](https://github.com/ysfclc/BusyBee/actions/runs/45891277811) completed successfully. Rust domain tests, Rust Android libraries, Android unit tests, the Bouncy Castle 1.85 dependency assertion, debug APK assembly and debug signature verification all passed. Gradle reported `BUILD SUCCESSFUL`; the dependencyInsight output showed `bcprov-jdk18on:1.85` selected over Robolectric's 1.78.1. Test report artifact: `busybee-android-test-reports-546` (ID `15152216181`). Debug-only validation artifact: `busybee-debug-apk-546` (ID `15152495152`).
+
+The separate Vercel status check reports its free-plan build-rate limit (`upgradeToPro=build-rate-limit`). This is not a Rust, Android, Gradle or test failure. No deployment is claimed.
+
+## 10. Immediate next engineering slice
+
+Continue with activity-ledger convergence. Define how the richer PR #29 event envelopes and activity evidence/observations are represented alongside the preserved PR #16 legacy provider_events rows, without a third permanent database or loss of event provenance. Add atomic migration/replay tests for interrupted copies and concurrent source writes before changing any production read path. Keep PR #29 draft and preserve PR #16 as an architectural reference until all schema paths and rollback are tested.
