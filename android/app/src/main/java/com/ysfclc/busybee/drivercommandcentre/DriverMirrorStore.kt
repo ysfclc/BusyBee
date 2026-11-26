@@ -138,7 +138,7 @@ object DriverCsv {
 }
 
 class DriverMirrorStore(context: Context) :
-    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 2) {
+    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 5) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
@@ -173,6 +173,8 @@ class DriverMirrorStore(context: Context) :
                 pickup TEXT,
                 dropoff TEXT,
                 distance_km REAL,
+                duration_minutes REAL,
+                parse_confidence REAL,
                 gross REAL,
                 fees REAL,
                 bonus REAL,
@@ -185,8 +187,26 @@ class DriverMirrorStore(context: Context) :
         """.trimIndent())
         db.execSQL("CREATE INDEX records_time_idx ON records(occurred_at DESC)")
         db.execSQL("CREATE INDEX records_platform_idx ON records(platform)")
+        createRecordCorrectionsTable(db)
+        createProviderEventsTable(db)
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) createRecordCorrectionsTable(db)
+        if (oldVersion < 3) db.execSQL("ALTER TABLE records ADD COLUMN duration_minutes REAL")
+        if (oldVersion < 4) db.execSQL("ALTER TABLE records ADD COLUMN parse_confidence REAL")
+        if (oldVersion < 5) {
+            // PR #16 schema v4 already has provider_events but lacks corrections.
+            // PR #29 schema v2 has corrections but lacks duration/confidence/events.
+            // IF NOT EXISTS preserves whichever branch-local additions already exist.
+            createRecordCorrectionsTable(db)
+            createProviderEventsTable(db)
+        }
+    }
+
+    private fun createRecordCorrectionsTable(db: SQLiteDatabase) {
         db.execSQL("""
-            CREATE TABLE record_corrections (
+            CREATE TABLE IF NOT EXISTS record_corrections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 record_id INTEGER NOT NULL,
                 corrected_at INTEGER NOT NULL,
@@ -195,23 +215,22 @@ class DriverMirrorStore(context: Context) :
                 FOREIGN KEY(record_id) REFERENCES records(id)
             )
         """.trimIndent())
-        db.execSQL("CREATE INDEX record_corrections_record_idx ON record_corrections(record_id, corrected_at DESC)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS record_corrections_record_idx ON record_corrections(record_id, corrected_at DESC)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 2) {
-            db.execSQL("""
-                CREATE TABLE IF NOT EXISTS record_corrections (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    record_id INTEGER NOT NULL,
-                    corrected_at INTEGER NOT NULL,
-                    before_values TEXT NOT NULL,
-                    after_values TEXT NOT NULL,
-                    FOREIGN KEY(record_id) REFERENCES records(id)
-                )
-            """.trimIndent())
-            db.execSQL("CREATE INDEX IF NOT EXISTS record_corrections_record_idx ON record_corrections(record_id, corrected_at DESC)")
-        }
+    private fun createProviderEventsTable(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS provider_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                dedupe_key TEXT NOT NULL,
+                event_time INTEGER NOT NULL,
+                received_at INTEGER NOT NULL,
+                event_blob TEXT NOT NULL,
+                UNIQUE(provider, dedupe_key)
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS provider_events_time_idx ON provider_events(event_time DESC, received_at DESC)")
     }
 
     @Synchronized
