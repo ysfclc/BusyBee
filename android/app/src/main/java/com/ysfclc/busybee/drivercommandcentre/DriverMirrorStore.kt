@@ -138,7 +138,7 @@ object DriverCsv {
 }
 
 class DriverMirrorStore(context: Context) :
-    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 5) {
+    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 6) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
@@ -189,6 +189,7 @@ class DriverMirrorStore(context: Context) :
         db.execSQL("CREATE INDEX records_platform_idx ON records(platform)")
         createRecordCorrectionsTable(db)
         createProviderEventsTable(db)
+        UnifiedActivityLedgerSchema.createInDriverMirror(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -201,6 +202,10 @@ class DriverMirrorStore(context: Context) :
             // IF NOT EXISTS preserves whichever branch-local additions already exist.
             createRecordCorrectionsTable(db)
             createProviderEventsTable(db)
+        }
+        if (oldVersion < 6) {
+            // Prepare the existing Driver Mirror database as the future activity-ledger owner.
+            UnifiedActivityLedgerSchema.createInDriverMirror(db)
         }
     }
 
