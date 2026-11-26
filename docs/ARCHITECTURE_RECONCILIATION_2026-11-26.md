@@ -36,12 +36,12 @@ These are two different persistence ownership strategies. They must not be combi
 
 ## 3. Schema inventory and branch compatibility
 
-The source inventory was checked directly on all three refs:
+The baseline source inventory was checked directly on all three refs before the first convergence implementation:
 
 | Database | main | PR #16 branch | PR #29 branch |
 |---|---:|---:|---:|
 | busybee_driver_mirror.db | schema 1 | schema 4 | schema 2 |
-| busybee_command_centre.db | schema 2 | schema 3 | schema 3 |
+| busybee_command_centre.db | schema 2 | schema 3 | schema 3 at audit baseline; schema 4 after convergence slice |
 | busybee_driver_activity.db | absent | absent | schema 2 |
 
 Important shape differences:
@@ -103,6 +103,23 @@ Before changing the persistence implementation:
 - No APK release or physical-device acceptance is claimed.
 - No signing key or repository secret was read, changed or rotated.
 
-## 8. Immediate next engineering slice
+## 8. Implemented compatibility slice — Command Centre v4
 
-First reconcile the schema inventory and migration contract against the existing Driver Mirror database. Only after that review should the third-database implementation be refactored. Keep PR #29 draft and preserve PR #16 as an architectural reference until a single tested implementation supersedes it.
+The first part of the reconciliation is now implemented on PR #29's feature branch:
+
+- `DriverCommandStore` advances the Command Centre schema monotonically from v3 to v4.
+- Fresh databases create both `whatsapp_groups` / `whatsapp_group_messages` and `provider_event_outbox`.
+- The v3→v4 upgrade uses idempotent `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` helpers. It preserves whichever feature set already exists and adds the missing set.
+- This explicitly supports both incompatible v3 lineages: PR #16's map-first WhatsApp tables and PR #29's native-bridge outbox.
+- Existing offer rows and existing outbox / WhatsApp rows are preserved by tests. The older v2→v4 path is also covered by the existing outbox migration test.
+- New tests: `DriverCommandStoreSchemaConvergenceTest` exercises both v3 upgrade directions and fresh creation.
+
+Source commits: `1cb3067` (schema v4), `3cc6ba9` (existing migration expectation), `7bfc1e8` (branch-convergence tests), and `4dfc5e9` (feature-push signing gate correction).
+
+**Verification:** PR run [#539](https://github.com/ysfclc/BusyBee/actions/runs/45890531206) completed successfully, including Rust tests/build, Android unit tests, the Bouncy Castle dependency assertion, debug APK assembly and debug signature verification. Its debug artifact is `busybee-debug-apk-539` (artifact ID `15152060393`); it is validation-only. Push run [#538](https://github.com/ysfclc/BusyBee/actions/runs/45890521999) also completed successfully; feature-branch push correctly skipped APK production.
+
+Gradle dependencyInsight explicitly resolved `org.bouncycastle:bcprov-jdk18on:1.85`, overriding Robolectric 4.14.1's transitive 1.78.1. The CI assertion passed.
+
+## 9. Immediate next engineering slice
+
+Continue with Driver Mirror schema convergence. Define one monotonic version path that preserves PR #16's duration/confidence/provider-events additions and PR #29's record-corrections table, while explicitly retaining the different provider-event schemas instead of overwriting one with the other. Then add versioned pre-populated upgrade fixtures before moving any activity tables out of the third database. Keep PR #29 draft and preserve PR #16 as an architectural reference until all schema paths and rollback are tested.
