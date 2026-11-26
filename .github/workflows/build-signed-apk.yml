@@ -115,6 +115,16 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest
 
+      - name: Verify Robolectric Bouncy Castle dependency
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon :app:dependencyInsight \
+            --dependency bcprov-jdk18on \
+            --configuration debugUnitTestRuntimeClasspath | tee "$RUNNER_TEMP/bcprov-insight.txt"
+          grep -Eq 'org\\.bouncycastle:bcprov-jdk18on:1\\.85([[:space:]]|$)' "$RUNNER_TEMP/bcprov-insight.txt"
+
       - name: Upload Android test reports
         if: always()
         uses: actions/upload-artifact@v4
