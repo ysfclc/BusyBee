@@ -94,8 +94,97 @@ object UnifiedActivityLedgerSchema {
         )"""
     )
 
+    /**
+     * Destination schema for the eventual consolidation into Driver Mirror.
+     * The old Driver Mirror provider_events table has a different, legacy shape,
+     * so canonical typed envelopes use a distinct table name.
+     */
+    val driverMirrorCreateStatements: List<String> = listOf(
+        """CREATE TABLE IF NOT EXISTS activity_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            origin_key TEXT NOT NULL UNIQUE,
+            source_database TEXT NOT NULL,
+            source_table TEXT NOT NULL,
+            source_row_id TEXT NOT NULL,
+            provider TEXT,
+            captured_at_ms INTEGER,
+            received_at_ms INTEGER NOT NULL,
+            evidence_kind TEXT NOT NULL,
+            content_digest TEXT,
+            content TEXT,
+            content_ref TEXT
+        )""",
+        "CREATE INDEX IF NOT EXISTS activity_evidence_provider_time_idx ON activity_evidence(provider, received_at_ms DESC)",
+        """CREATE TABLE IF NOT EXISTS activity_observations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            origin_key TEXT NOT NULL UNIQUE,
+            provider TEXT,
+            observation_kind TEXT NOT NULL,
+            source_method TEXT NOT NULL,
+            source_occurred_at_ms INTEGER,
+            received_at_ms INTEGER NOT NULL,
+            classification TEXT NOT NULL DEFAULT 'unclassified',
+            lifecycle_id TEXT,
+            status TEXT,
+            amount REAL,
+            currency TEXT,
+            pickup TEXT,
+            destination TEXT,
+            distance_km REAL,
+            duration_min REAL,
+            evidence_id INTEGER,
+            FOREIGN KEY(evidence_id) REFERENCES activity_evidence(id)
+        )""",
+        "CREATE INDEX IF NOT EXISTS activity_observations_time_idx ON activity_observations(source_occurred_at_ms DESC, received_at_ms DESC)",
+        "CREATE INDEX IF NOT EXISTS activity_observations_provider_idx ON activity_observations(provider, observation_kind)",
+        """CREATE TABLE IF NOT EXISTS provider_event_envelopes (
+            event_id TEXT PRIMARY KEY,
+            idempotency_key TEXT NOT NULL UNIQUE,
+            provider TEXT NOT NULL,
+            adapter_id TEXT NOT NULL,
+            adapter_version TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            lifecycle_id TEXT,
+            source_method TEXT NOT NULL,
+            evidence_class TEXT NOT NULL,
+            source_event_id TEXT,
+            source_occurred_at_ms INTEGER,
+            received_at_ms INTEGER NOT NULL,
+            expires_at_ms INTEGER,
+            evidence_ref TEXT,
+            evidence_digest TEXT,
+            expiry_evidence TEXT,
+            payload_json TEXT NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS migration_sources (
+            source_database TEXT NOT NULL,
+            source_table TEXT NOT NULL,
+            source_schema_version INTEGER,
+            started_at_ms INTEGER NOT NULL,
+            completed_at_ms INTEGER,
+            source_row_count INTEGER,
+            migrated_row_count INTEGER,
+            verification_digest TEXT,
+            state TEXT NOT NULL DEFAULT 'in_progress',
+            PRIMARY KEY(source_database, source_table)
+        )""",
+        """CREATE TABLE IF NOT EXISTS migration_rows (
+            source_database TEXT NOT NULL,
+            source_table TEXT NOT NULL,
+            source_row_id TEXT NOT NULL,
+            target_table TEXT NOT NULL,
+            target_row_id INTEGER,
+            migrated_at_ms INTEGER NOT NULL,
+            PRIMARY KEY(source_database, source_table, source_row_id)
+        )"""
+    )
+
     fun create(db: SQLiteDatabase) {
         createStatements.forEach(db::execSQL)
+    }
+
+    fun createInDriverMirror(db: SQLiteDatabase) {
+        driverMirrorCreateStatements.forEach(db::execSQL)
     }
 }
 
