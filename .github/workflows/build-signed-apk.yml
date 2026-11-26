@@ -124,9 +124,21 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      - name: Evaluate APK production gate
+        id: apk-gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "Feature-branch push: tests only. APK assembly and publication are disabled."
+          else
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Prepare release keystore
         id: signing
-        if: steps.signing-check.outputs.ready == 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready == 'true'
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -138,7 +150,7 @@ jobs:
           echo "path=$path" >> "$GITHUB_OUTPUT"
 
       - name: Assemble signed release APK
-        if: steps.signing-check.outputs.ready == 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready == 'true'
         working-directory: android
         env:
           ANDROID_KEYSTORE_FILE: ${{ steps.signing.outputs.path }}
@@ -148,12 +160,12 @@ jobs:
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Assemble debug APK for validation
-        if: steps.signing-check.outputs.ready != 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready != 'true'
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
 
       - name: Verify debug APK signature
-        if: steps.signing-check.outputs.ready != 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -162,7 +174,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
 
       - name: Upload signed release APK artifact
-        if: steps.signing-check.outputs.ready == 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: busybee-signed-apk-${{ github.run_number }}
@@ -171,7 +183,7 @@ jobs:
           retention-days: 14
 
       - name: Upload debug validation APK artifact
-        if: steps.signing-check.outputs.ready != 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: busybee-debug-apk-${{ github.run_number }}
@@ -180,7 +192,7 @@ jobs:
           retention-days: 14
 
       - name: Verify signed APK signature
-        if: steps.signing-check.outputs.ready == 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -189,7 +201,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
 
       - name: Publish APK as a GitHub Release asset
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         id: publish
         shell: bash
         env:
@@ -219,7 +231,10 @@ jobs:
         shell: bash
         run: |
           {
-            if [[ "${{ steps.signing-check.outputs.ready }}" == "true" ]]; then
+            if [[ "${{ steps.apk-gate.outputs.allowed }}" != "true" ]]; then
+              echo "## Tests completed — APK production skipped"
+              echo "- Feature-branch pushes run validation only; no APK is assembled, uploaded or published."
+            elif [[ "${{ steps.signing-check.outputs.ready }}" == "true" ]]; then
               echo "## Signed APK ready"
               echo "- Package: com.ysfclc.busybee.drivercommandcentre"
               echo "- Version: 0.1.${{ github.run_number }}"
