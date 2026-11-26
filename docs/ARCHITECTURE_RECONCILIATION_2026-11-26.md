@@ -137,6 +137,23 @@ Source commits: `e4d0450` (schema v5) and `b5f4cfd` / `8bee88c` (versioned migra
 
 The separate Vercel status check reports its free-plan build-rate limit (`upgradeToPro=build-rate-limit`). This is not a Rust, Android, Gradle or test failure. No deployment is claimed.
 
-## 10. Immediate next engineering slice
+## 10. Prepared consolidation destination — Driver Mirror v6
 
-Continue with activity-ledger convergence. Define how the richer PR #29 event envelopes and activity evidence/observations are represented alongside the preserved PR #16 legacy provider_events rows, without a third permanent database or loss of event provenance. Add atomic migration/replay tests for interrupted copies and concurrent source writes before changing any production read path. Keep PR #29 draft and preserve PR #16 as an architectural reference until all schema paths and rollback are tested.
+The Driver Mirror schema now contains the destination structures required for the eventual consolidation:
+
+- Schema v6 adds `activity_evidence`, `activity_observations`, `migration_sources` and `migration_rows` to the existing Driver Mirror database.
+- The richer PR #29 typed event schema is stored as `provider_event_envelopes`, deliberately separate from the older PR #16 `provider_events` table. Neither table overwrites the other.
+- All new tables and indexes use idempotent creation. The v5→v6 migration preserves existing records, corrections and legacy provider-event rows.
+- Fresh-install creation is covered alongside the v5 upgrade path.
+
+New tests: the Driver Mirror schema suite now covers main v1→v6, native-bridge v2→v6, map-first v4→v6, v5→v6, and fresh schema creation. The v5 fixture explicitly verifies that existing legacy provider events remain intact while the new envelope/evidence/migration tables appear.
+
+Source commits: `2ab5d28` (target schema), `bc8c16d` (Driver Mirror v6 integration), `804a7f2` and `c66e37e` (upgrade tests and corrected version expectations).
+
+**Verification:** PR run [#555](https://github.com/ysfclc/BusyBee/actions/runs/45892056363) completed successfully. Rust tests/build, Android unit tests, Bouncy Castle 1.85 resolution, debug APK assembly and debug signature verification all passed. Gradle reported `BUILD SUCCESSFUL`. Artifacts: `busybee-android-test-reports-555` (ID `15152406194`) and debug-only `busybee-debug-apk-555` (ID `15151967281`).
+
+As above, the Vercel status check is separately blocked by its free-plan build-rate limit. It does not represent a source/test failure. No APK release, database switch or merge is claimed.
+
+## 11. Immediate next engineering slice
+
+Implement the consolidation migration from the existing third database into the prepared Driver Mirror v6 destination. Preserve all activity evidence, observations, typed event envelopes, migration source state and row markers; make copies idempotent and recoverable after process death. Then change the migrator to write future offer/notice observations into Driver Mirror while existing UI continues to read the old ledger until parity checks pass. Only after migration completeness and rollback are proven should the repository read path switch. Keep PR #29 draft until that full migration is tested.
