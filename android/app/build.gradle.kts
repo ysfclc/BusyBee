@@ -50,6 +50,11 @@ android {
     }
 }
 dependencies {
+    constraints {
+        testImplementation("org.bouncycastle:bcprov-jdk18on:1.85") {
+            because("Robolectric 4.14.1 brings 1.78.1; require the fixed 1.85 line for CVE-2026-0636, CVE-2026-8763 and CVE-2026-13506.")
+        }
+    }
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("org.maplibre.gl:android-sdk:11.8.0")
