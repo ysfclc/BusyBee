@@ -56,7 +56,7 @@ class DriverMirrorStoreSchemaConvergenceTest {
         val store = DriverMirrorStore(context)
         try {
             val upgraded = store.writableDatabase
-            assertEquals(5, upgraded.version)
+            assertEquals(6, upgraded.version)
             assertRecordColumns(upgraded)
             assertEquals(1, scalar(upgraded, "SELECT COUNT(*) FROM record_corrections WHERE after_values='after'"))
             assertTrue(tableExists(upgraded, "provider_events"))
@@ -76,7 +76,7 @@ class DriverMirrorStoreSchemaConvergenceTest {
         val store = DriverMirrorStore(context)
         try {
             val upgraded = store.writableDatabase
-            assertEquals(5, upgraded.version)
+            assertEquals(6, upgraded.version)
             assertRecordColumns(upgraded)
             assertEquals(1, scalar(upgraded, "SELECT COUNT(*) FROM provider_events WHERE event_blob='legacy-event'"))
             assertTrue(tableExists(upgraded, "record_corrections"))
