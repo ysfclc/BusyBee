@@ -80,7 +80,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(
     DRIVER_COMMAND_SCHEMA_VERSION
 ) {
     companion object {
-        private const val DRIVER_COMMAND_SCHEMA_VERSION = 3
+        private const val DRIVER_COMMAND_SCHEMA_VERSION = 4
     }
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE offers(
@@ -102,6 +102,7 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(
             id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, description TEXT NOT NULL,
             latitude REAL NOT NULL, longitude REAL NOT NULL, created_at INTEGER NOT NULL)""")
         db.execSQL("""CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
+        createWhatsAppWatchTables(db)
         createProviderEventOutbox(db)
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -109,9 +110,34 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(
             db.execSQL("ALTER TABLE driver_items ADD COLUMN recurrence TEXT")
             db.execSQL("ALTER TABLE driver_items ADD COLUMN completed_at INTEGER")
         }
-        if (oldVersion < 3) {
+        if (oldVersion < 4) {
+            // PR #16 schema v3 has WhatsApp tables; PR #29 schema v3 has the
+            // provider-event outbox. v4 converges both layouts additively.
+            createWhatsAppWatchTables(db)
             createProviderEventOutbox(db)
         }
+    }
+
+    private fun createWhatsAppWatchTables(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE IF NOT EXISTS whatsapp_groups(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            package_name TEXT NOT NULL,
+            group_title TEXT NOT NULL,
+            tracking_enabled INTEGER NOT NULL DEFAULT 0,
+            first_seen_at INTEGER NOT NULL,
+            last_seen_at INTEGER NOT NULL,
+            UNIQUE(package_name, group_title)
+        )""")
+        db.execSQL("""CREATE TABLE IF NOT EXISTS whatsapp_group_messages(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            fingerprint TEXT NOT NULL UNIQUE,
+            sender TEXT NOT NULL,
+            body TEXT NOT NULL,
+            message_at INTEGER NOT NULL,
+            FOREIGN KEY(group_id) REFERENCES whatsapp_groups(id) ON DELETE CASCADE
+        )""")
+        db.execSQL("CREATE INDEX IF NOT EXISTS whatsapp_messages_group_time ON whatsapp_group_messages(group_id,message_at DESC)")
     }
 
     private fun createProviderEventOutbox(db: SQLiteDatabase) {
