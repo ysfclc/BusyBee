@@ -34,7 +34,27 @@ Source inspected on `feature/native-provider-bridge-slice-1-2026-11-22`:
 
 These are two different persistence ownership strategies. They must not be combined or merged wholesale without an explicit decision.
 
-## 3. Decision
+## 3. Schema inventory and branch compatibility
+
+The source inventory was checked directly on all three refs:
+
+| Database | main | PR #16 branch | PR #29 branch |
+|---|---:|---:|---:|
+| busybee_driver_mirror.db | schema 1 | schema 4 | schema 2 |
+| busybee_command_centre.db | schema 2 | schema 3 | schema 3 |
+| busybee_driver_activity.db | absent | absent | schema 2 |
+
+Important shape differences:
+
+- Main Driver Mirror has imports, raw_evidence and records; records do not yet have the later duration/confidence fields.
+- PR #16 Driver Mirror schema 4 adds duration_minutes, parse_confidence and the durable provider_events table. Its upgrade path is explicit: v1→2 adds duration, v2→3 adds parse confidence, v3→4 creates provider events.
+- PR #29 Driver Mirror schema 2 adds record_corrections, but does not contain PR #16's duration/confidence/provider-events additions.
+- PR #29's separate activity database is schema 2 and owns activity_evidence, activity_observations, provider_events, migration_sources and migration_rows.
+- Command Centre schema 2 on main becomes schema 3 on both feature branches. PR #16 schema 3 adds WhatsApp group watch tables; PR #29 schema 3 instead adds the provider-event outbox. The two schema-3 definitions are not interchangeable.
+
+**Compatibility consequence:** these branch-local version numbers are not a merge plan. A database at Driver Mirror v4 must never be opened by a branch that declares version 2; Android's default SQLiteOpenHelper downgrade path can fail. Likewise, a Command Centre v3 database must not be assumed to have both PR #16's WhatsApp tables and PR #29's outbox. The final schema must use one monotonically increasing version sequence and explicitly create/preserve every required table/column from both lines. No branch may lower a shipped database version or rely on CREATE TABLE IF NOT EXISTS to hide a missing migration.
+
+## 4. Decision
 
 **Do not merge PR #29 in its current form. Keep it draft until persistence ownership is reconciled.**
 
@@ -49,7 +69,7 @@ The preferred target is the PR #16 ownership model, extended with the stronger p
 
 This decision preserves the established product contract while avoiding a third durable copy of sensitive driver activity. It is a target architecture, not permission to change schema until the migration plan and tests are reviewed.
 
-## 4. Risks that must be closed before implementation
+## 5. Risks that must be closed before implementation
 
 - **Migration atomicity:** each copied row and its source marker must commit together in the target database.
 - **Concurrency:** source writes during migration must be captured or safely replayed; a one-time snapshot cannot silently miss new rows.
@@ -60,7 +80,7 @@ This decision preserves the established product contract while avoiding a third 
 - **Rollback:** old stores and screens remain intact until parity is proven; rollback must not require uninstalling the app or deleting user data.
 - **Compatibility:** database upgrades must preserve existing installs, including the target Redmi Android 14 environment.
 
-## 5. Required acceptance evidence
+## 6. Required acceptance evidence
 
 Before changing the persistence implementation:
 
@@ -73,7 +93,7 @@ Before changing the persistence implementation:
 7. Document backup/restore and rollback without uninstalling or clearing app data.
 8. Pass CI on the exact PR head, then complete physical-device acceptance on the existing Redmi before release.
 
-## 6. Explicit non-actions
+## 7. Explicit non-actions
 
 - No PR was merged or closed.
 - No branch was deleted, force-pushed or rewritten.
@@ -81,6 +101,6 @@ Before changing the persistence implementation:
 - No APK release or physical-device acceptance is claimed.
 - No signing key or repository secret was read, changed or rotated.
 
-## 7. Immediate next engineering slice
+## 8. Immediate next engineering slice
 
 First reconcile the schema inventory and migration contract against the existing Driver Mirror database. Only after that review should the third-database implementation be refactored. Keep PR #29 draft and preserve PR #16 as an architectural reference until a single tested implementation supersedes it.
