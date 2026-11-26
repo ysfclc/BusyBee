@@ -50,7 +50,7 @@ class DriverCommandStoreOutboxTest {
 
         val upgraded = DriverCommandStore(context)
         try {
-            assertEquals(3, upgraded.writableDatabase.version)
+            assertEquals(4, upgraded.writableDatabase.version)
             val saved = upgraded.offers().single()
             assertEquals("legacy row", saved.raw)
             assertEquals("pending", saved.status)
