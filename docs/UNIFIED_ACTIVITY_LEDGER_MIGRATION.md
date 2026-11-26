@@ -4,19 +4,24 @@
 
 ## 1. Existing on-device stores
 
-### `busybee_driver_mirror.db` (schema version 1)
+### `busybee_driver_mirror.db` (schema version 6 on the current feature branch)
 
 - `imports`: import source name, import time, row count and inserted count.
 - `raw_evidence`: every imported row, including duplicate rows, with import ID, row number, fingerprint, raw content and source name.
-- `records`: deduplicated normalized import rows with provider, record type, external ID, occurred-at text, route, distance, gross, fees, bonus, currency, status, raw row and source name.
+- `records`: deduplicated normalized import rows with provider, record type, external ID, occurred-at text, route, distance, duration, parse confidence, gross, fees, bonus, currency, status, raw row and source name.
+- `record_corrections`: append-only correction history.
+- `provider_events`: the legacy PR #16 provider-event shape; this table is retained as-is during branch convergence.
+- Schema v6 also prepares `activity_evidence`, `activity_observations`, `provider_event_envelopes`, `migration_sources` and `migration_rows` as the destination for eventual consolidation.
 
-### `busybee_command_centre.db` (schema version 2)
+### `busybee_command_centre.db` (schema version 4 on the current feature branch)
 
 - `offers`: manually/locally captured structured offers, including platform, route, fare, bonus, distances, duration, rating, captured time, source, raw text and status.
 - `notices`: deduplicated notification title/body and provider with capture time.
+- `whatsapp_groups` and `whatsapp_group_messages`: group-watch data from the map-first branch.
+- `provider_event_outbox`: durable offer-event intent from the native-bridge branch.
 - `driver_items`, `community_docs`, `road_reports`, `settings`: remain in the command-centre database and are outside this migration.
 
-Neither existing database is renamed, dropped, cleared, or upgraded.
+The migration reader opens source files read-only and never renames, drops or clears them. The current feature branch does apply additive, versioned schema upgrades through Driver Mirror v6 and Command Centre v4; the converged upgrade paths preserve both branch lineages.
 
 ## 2. Target
 
@@ -27,6 +32,12 @@ The third database is `busybee_driver_activity.db`. It is a new local read/query
 - `provider_events`: reserved for canonical typed lifecycle events; migration does not populate it.
 - `migration_sources`: per-table schema version, start/completion state, source/target counts and source identity digest.
 - `migration_rows`: unique source database/table/row mapping; each marker is committed in the same target transaction as its copied record.
+
+## 2a. Prepared consolidation destination
+
+Driver Mirror v6 now contains idempotently created destination tables for evidence, observations, typed event envelopes and migration markers. The rich PR #29 event schema is named `provider_event_envelopes` so it cannot collide with the legacy PR #16 `provider_events` table.
+
+This destination schema is prepared and tested, but the current migrator still writes to `busybee_driver_activity.db`. No rows have been consolidated into Driver Mirror by this schema-only step, and the ACTIVITY repository still reads the third database. The third database remains the active source of the current timeline until a separate, row-verified consolidation migration is implemented.
 
 ## 3. Implemented migration behavior
 
@@ -103,7 +114,7 @@ The offer source and event source are separate SQLite files during this migratio
 - a newly saved offer plus its `OFFER_OBSERVED` event intent; or
 - a BusyBee-local offer status decision plus its `OFFER_DECISION_OBSERVED` event intent.
 
-The background drain writes pending records into the canonical provider-event table. It only marks the source outbox row delivered after a durable insert or a confirmed duplicate. Replaying after a process interruption is therefore idempotent. Existing source rows remain intact, and the version-2-to-version-3 database change is additive.
+The background drain writes pending records into the canonical provider-event table. It only marks the source outbox row delivered after a durable insert or a confirmed duplicate. Replaying after a process interruption is therefore idempotent. Existing source rows remain intact. The Command Centre v3-to-v4 migration is additive and creates whichever of the WhatsApp group tables or provider-event outbox is missing, preserving both known v3 branch lineages.
 
 Robolectric coverage exercises both the process-restart replay and the additive upgrade. CI run #485 is in_progress on 8cb9a426af4a0a8db467af6d6857104c6c1d5f14; validation has not completed. Run: https://github.com/ysfclc/BusyBee/actions/runs/45134736851
 
