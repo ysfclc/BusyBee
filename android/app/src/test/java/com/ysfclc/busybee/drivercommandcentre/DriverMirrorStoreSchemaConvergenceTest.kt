@@ -35,7 +35,7 @@ class DriverMirrorStoreSchemaConvergenceTest {
         val store = DriverMirrorStore(context)
         try {
             val upgraded = store.writableDatabase
-            assertEquals(5, upgraded.version)
+            assertEquals(6, upgraded.version)
             assertRecordColumns(upgraded)
             assertTrue(tableExists(upgraded, "record_corrections"))
             assertTrue(tableExists(upgraded, "provider_events"))
@@ -87,14 +87,42 @@ class DriverMirrorStoreSchemaConvergenceTest {
     }
 
     @Test
+    fun versionFiveUpgradeAddsActivityTablesWithoutReplacingLegacyProviderEvents() {
+        val db = createLegacyDatabase(5, includeCorrections = true, includeProviderEvents = true, includeDuration = true, includeConfidence = true)
+        insertRecord(db, includeDuration = true, includeConfidence = true)
+        db.execSQL("INSERT INTO record_corrections(record_id,corrected_at,before_values,after_values) VALUES(1,200,'before-v5','after-v5')")
+        db.execSQL("INSERT INTO provider_events(provider,dedupe_key,event_time,received_at,event_blob) VALUES('BOLT','legacy-v5',200,210,'legacy-v5-event')")
+        db.close()
+
+        val store = DriverMirrorStore(context)
+        try {
+            val upgraded = store.writableDatabase
+            assertEquals(6, upgraded.version)
+            assertEquals(1, scalar(upgraded, "SELECT COUNT(*) FROM records WHERE id=1"))
+            assertEquals(1, scalar(upgraded, "SELECT COUNT(*) FROM record_corrections WHERE after_values='after-v5'"))
+            assertEquals(1, scalar(upgraded, "SELECT COUNT(*) FROM provider_events WHERE event_blob='legacy-v5-event'"))
+            listOf("activity_evidence", "activity_observations", "provider_event_envelopes", "migration_sources", "migration_rows").forEach {
+                assertTrue("Missing activity consolidation table: $it", tableExists(upgraded, it))
+            }
+        } finally {
+            store.close()
+        }
+    }
+
+    @Test
     fun freshDatabaseCreatesConvergedSchema() {
         val store = DriverMirrorStore(context)
         try {
             val db = store.writableDatabase
-            assertEquals(5, db.version)
+            assertEquals(6, db.version)
             assertRecordColumns(db)
             assertTrue(tableExists(db, "record_corrections"))
             assertTrue(tableExists(db, "provider_events"))
+            assertTrue(tableExists(db, "activity_evidence"))
+            assertTrue(tableExists(db, "activity_observations"))
+            assertTrue(tableExists(db, "provider_event_envelopes"))
+            assertTrue(tableExists(db, "migration_sources"))
+            assertTrue(tableExists(db, "migration_rows"))
         } finally {
             store.close()
         }
