@@ -156,4 +156,24 @@ As above, the Vercel status check is separately blocked by its free-plan build-r
 
 ## 11. Immediate next engineering slice
 
-Implement the consolidation migration from the existing third database into the prepared Driver Mirror v6 destination. Preserve all activity evidence, observations, typed event envelopes, migration source state and row markers; make copies idempotent and recoverable after process death. Then change the migrator to write future offer/notice observations into Driver Mirror while existing UI continues to read the old ledger until parity checks pass. Only after migration completeness and rollback are proven should the repository read path switch. Keep PR #29 draft until that full migration is tested.
+Implement the live migration handoff: keep new writes synchronized while the one-time copier runs, then add a controlled repository cutover with parity checks and rollback. Only after those stages are proven should the third database be retired. Keep PR #29 draft until the full migration and read-path transition are tested.
+
+
+## 12. Implemented one-time consolidator — Driver Mirror v6 (2026-11-27)
+
+Added `ActivityLedgerConsolidator` and dedicated Robolectric tests on the PR #29 feature branch.
+
+- Source `busybee_driver_activity.db` is opened read-only and is never deleted, renamed, cleared or modified.
+- A missing source is reported incomplete without creating a source or destination database.
+- The copier preserves IDs and foreign-key references, copying evidence before observations.
+- Rich typed events are mapped to `provider_event_envelopes`; the legacy Driver Mirror `provider_events` table remains separate and unchanged.
+- Historical `migration_sources` and `migration_rows` are copied. New progress markers use a distinct `__consolidation__` source namespace.
+- Every copied row is compared field-by-field with its destination counterpart. Already-marked rows are rechecked on retry; conflicting data stops the migration.
+- Completion requires source/marker count parity, a stable row-identity digest and successful row-by-row payload verification.
+- No changes were made to `UnifiedActivityLedgerMigrator`, `UnifiedActivityRepository`, app startup wiring or existing screens. This is a callable migration component only; no on-device data has been moved by this commit.
+
+Tests cover successful copying of all five source tables, ID/FK preservation, historical migration markers, idempotent second run, conflicting target payload rejection, and missing-source behavior.
+
+**Verification:** PR run [#565](https://github.com/ysfclc/BusyBee/actions/runs/46019739390) passed Rust domain tests, Rust Android library builds, Android/Robolectric tests, Bouncy Castle 1.85 dependency verification, debug APK assembly and debug signature verification. Test artifact: `busybee-android-test-reports-565` (ID `15208042227`). Debug-only validation artifact: `busybee-debug-apk-565` (ID `15207962619`). Release signing was skipped on the feature branch.
+
+**Remaining work:** dual-write or another proven write-capture strategy during the migration window; reconciliation of source mutations; repository read-path cutover; on-device parity; rollback exercise. PR #29 remains draft and no release APK is claimed.
