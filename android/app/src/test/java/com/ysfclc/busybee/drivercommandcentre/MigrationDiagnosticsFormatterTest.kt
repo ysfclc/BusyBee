@@ -55,3 +55,37 @@ class MigrationDiagnosticsFormatterTest {
         assertTrue(result.contains("Identity verification: INCOMPLETE"))
     }
 }
+
+
+    @Test
+    fun consolidationFormatterDoesNotClaimSuccessWhenSourceIsMissing() {
+        val result = MigrationDiagnosticsFormatter.formatConsolidation(
+            ActivityLedgerConsolidator.Report(emptyList(), missingSource = true)
+        )
+        assertTrue(result.contains("DRIVER MIRROR V6 CONSOLIDATION NEEDS ATTENTION"))
+        assertTrue(result.contains("SOURCE LEDGER MISSING"))
+        assertFalse(result.contains("CONSOLIDATION COMPLETE"))
+    }
+
+    @Test
+    fun consolidationFormatterShowsPerTableParityAndCounts() {
+        val result = MigrationDiagnosticsFormatter.formatConsolidation(
+            ActivityLedgerConsolidator.Report(
+                tables = listOf(
+                    ActivityLedgerConsolidator.TableResult(
+                        sourceTable = "provider_events",
+                        targetTable = "provider_event_envelopes",
+                        sourceRows = 3,
+                        copiedRows = 2,
+                        alreadyPresentRows = 1,
+                        complete = true
+                    )
+                ),
+                missingSource = false
+            )
+        )
+        assertTrue(result.contains("DRIVER MIRROR V6 CONSOLIDATION COMPLETE"))
+        assertTrue(result.contains("provider_events → provider_event_envelopes"))
+        assertTrue(result.contains("Source rows: 3"))
+        assertTrue(result.contains("Row parity: PASS"))
+    }
