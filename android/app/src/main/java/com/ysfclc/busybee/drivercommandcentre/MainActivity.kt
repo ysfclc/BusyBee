@@ -2111,27 +2111,42 @@ class MainActivity : AppCompatActivity() {
     override fun onStart(){
         CrashDiagnostics.record(this,"lifecycle:onStart")
         super.onStart()
-        if(mapViewCreated) mapView.onStart()
+        try {
+            if(mapViewCreated) mapView.onStart()
+        } catch(error:Exception) {
+            CrashDiagnostics.recordStartupFailure(this,error)
+            renderStartupRecovery()
+        }
     }
     override fun onResume(){
         CrashDiagnostics.record(this,"lifecycle:onResume")
         super.onResume()
         if(!mapViewCreated) return
-        updateTimeBasedAppearance()
-        appearanceHandler.removeCallbacks(appearanceTick)
-        appearanceHandler.postDelayed(appearanceTick,15*60*1000L)
-        mapView.onResume()
-        if(map!=null && activeMapStyleUri!=palette.mapStyleUri) reloadMapStyle()
-        if(::locationManager.isInitialized) {
-            lastLocation?.takeIf { System.currentTimeMillis()-it.time in 0..120000L }?.let(::updateDriverLocation)
-            if(navigating || followLocation) startLocationUpdates()
+        try {
+            updateTimeBasedAppearance()
+            appearanceHandler.removeCallbacks(appearanceTick)
+            appearanceHandler.postDelayed(appearanceTick,15*60*1000L)
+            mapView.onResume()
+            if(map!=null && activeMapStyleUri!=palette.mapStyleUri) reloadMapStyle()
+            if(::locationManager.isInitialized) {
+                lastLocation?.takeIf { System.currentTimeMillis()-it.time in 0..120000L }?.let(::updateDriverLocation)
+                if(navigating || followLocation) startLocationUpdates()
+            }
+        } catch(error:Exception) {
+            CrashDiagnostics.recordStartupFailure(this,error)
+            renderStartupRecovery()
         }
     }
     override fun onPostResume() {
         super.onPostResume()
         if(!mapViewCreated) return
-        if(map!=null && activeMapStyleUri!=palette.mapStyleUri) reloadMapStyle()
-        activateMapAfterStyleIfResumed()
+        try {
+            if(map!=null && activeMapStyleUri!=palette.mapStyleUri) reloadMapStyle()
+            activateMapAfterStyleIfResumed()
+        } catch(error:Exception) {
+            CrashDiagnostics.recordStartupFailure(this,error)
+            renderStartupRecovery()
+        }
     }
 
     override fun onPause(){
