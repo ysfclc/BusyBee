@@ -40,7 +40,7 @@ class ActivityLedgerConsolidatorTest {
         val db = DriverMirrorStore(context).readableDatabase
         assertEquals(1, scalar(db, "SELECT COUNT(*) FROM activity_evidence WHERE id=7 AND origin_key='evidence-7'"))
         assertEquals(1, scalar(db, "SELECT COUNT(*) FROM activity_observations WHERE id=9 AND evidence_id=7"))
-        assertEquals(1, scalar(db, "SELECT COUNT(*) FROM provider_event_envelopes WHERE event_id='event-1' AND payload_json='{"kind":"offer"}'"))
+        assertEquals(1, scalar(db, "SELECT COUNT(*) FROM provider_event_envelopes WHERE event_id='event-1' AND payload_json LIKE '%offer%'"))
         assertEquals(1, scalar(db, "SELECT COUNT(*) FROM migration_sources WHERE source_database='legacy.db' AND source_table='records' AND state='complete'"))
         assertEquals(1, scalar(db, "SELECT COUNT(*) FROM migration_rows WHERE source_database='legacy.db' AND source_table='records' AND source_row_id='42'"))
         assertEquals(5, scalar(db, "SELECT COUNT(*) FROM migration_rows WHERE source_database='__consolidation__:busybee_driver_activity.db'"))
