@@ -102,7 +102,7 @@ class MainActivity : AppCompatActivity() {
         worker.execute {
             try {
                 val report = UnifiedActivityLedgerMigrator(applicationContext).migrateIfNeeded()
-                val consolidation = ActivityLedgerConsolidator(applicationContext).consolidateIfNeeded()
+                val consolidation = ActivityLedgerConsolidator(applicationContext).use { it.consolidateIfNeeded() }
                 val status = MigrationDiagnosticsFormatter.format(report) + "\n\n" +
                     MigrationDiagnosticsFormatter.formatConsolidation(consolidation)
                 android.util.Log.d(
