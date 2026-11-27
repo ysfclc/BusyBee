@@ -75,6 +75,17 @@ class ActivityLedgerConsolidatorTest {
     }
 
     @Test
+    fun parityCheckDoesNotCreateMissingTargetDatabase() {
+        createSourceFixture()
+
+        val report = ActivityLedgerConsolidator(context).use { it.verifyParity() }
+
+        assertFalse(report.complete)
+        assertTrue(report.missingTarget)
+        assertFalse(context.getDatabasePath(targetName).exists())
+    }
+
+    @Test
     fun detectsSourceChangesUntilTheNextConsolidationRun() {
         createSourceFixture()
         val results = ActivityLedgerConsolidator(context).use { consolidator ->
