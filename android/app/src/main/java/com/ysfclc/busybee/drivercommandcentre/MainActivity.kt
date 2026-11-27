@@ -86,6 +86,8 @@ class MainActivity : AppCompatActivity() {
     private val activityProviderFilterButtons=mutableMapOf<String,TextView>()
     private var ledgerMigrationStatus="Migration diagnostics have not run yet."
     private var ledgerParityStatus="DRIVER MIRROR PARITY CHECK NOT RUN."
+    // Keep on the original ledger until the on-device parity gate is accepted.
+    private val preferDriverMirrorActivityRead = false
     private var ledgerMigrationContainer:LinearLayout?=null
     private var providerCoverageContainer:LinearLayout?=null
     private val locationListener=object:LocationListener {
@@ -1031,12 +1033,20 @@ class MainActivity : AppCompatActivity() {
         target.addView(label("READING LOCAL ACTIVITY…",10f,MUTED,false).apply{setPadding(dp(4),dp(12),dp(4),dp(12))})
         worker.execute {
             val result=runCatching {
-                UnifiedActivityRepository(applicationContext).use { it.timeline(250) }
+                UnifiedActivityReadCoordinator(
+                    applicationContext,
+                    preferDriverMirror = preferDriverMirrorActivityRead
+                ).timeline(250)
             }
             runOnUiThread {
                 if(activeTab!="ACTIVITY") return@runOnUiThread
                 if(result.isSuccess) {
-                    activityItems=result.getOrDefault(emptyList())
+                    val read = result.getOrThrow()
+                    activityItems=read.items
+                    android.util.Log.d(
+                        "BusyBeeLedger",
+                        "Activity timeline source=${read.source}, fallback=${read.fallbackReason ?: "none"}"
+                    )
                     renderUnifiedActivity()
                 } else {
                     activityContainer?.removeAllViews()
