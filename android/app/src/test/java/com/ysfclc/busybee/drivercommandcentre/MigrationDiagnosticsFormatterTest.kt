@@ -66,6 +66,16 @@ class MigrationDiagnosticsFormatterTest {
     }
 
     @Test
+    fun parityFormatterNamesMissingTargetWithoutClaimingSuccess() {
+        val result = MigrationDiagnosticsFormatter.formatConsolidation(
+            ActivityLedgerConsolidator.Report(emptyList(), missingSource = false, missingTarget = true)
+        )
+        assertTrue(result.contains("DRIVER MIRROR V6 CONSOLIDATION NEEDS ATTENTION"))
+        assertTrue(result.contains("TARGET MIRROR MISSING"))
+        assertFalse(result.contains("CONSOLIDATION COMPLETE"))
+    }
+
+    @Test
     fun consolidationFormatterShowsPerTableParityAndCounts() {
         val result = MigrationDiagnosticsFormatter.formatConsolidation(
             ActivityLedgerConsolidator.Report(
