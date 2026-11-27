@@ -184,3 +184,21 @@ Tests cover successful parity, detection of a new source row, successful parity 
 **Verification:** PR run [#609](https://github.com/ysfclc/BusyBee/actions/runs/46025748291) on exact code commit `b7bbcb462ab8d61a39b45cbe255ea86252a4f7a5` passed Rust tests/build, Android/Robolectric tests, dependency verification, debug APK assembly and debug signature verification. Test report artifact: `busybee-android-test-reports-609` (ID `15212960120`). Debug-only validation APK: `busybee-debug-apk-609` (ID `15212228762`). Release signing was skipped on the feature branch.
 
 **Still deliberately unchanged:** the Activity screen reads `ORIGINAL_LEDGER`; `DRIVER_MIRROR` remains opt-in. No production read switch, database deletion, release APK or physical-device acceptance is claimed.
+
+
+## 12. Parity-gated read coordinator (2026-11-27)
+
+Added `UnifiedActivityReadCoordinator` and routed MainActivity's Activity timeline through it.
+
+- The production preference flag `preferDriverMirrorActivityRead` is explicitly `false`; current behavior remains the original ledger.
+- When preference is false, the coordinator reads the original source directly and does not run the parity scan.
+- If preference is enabled later, the coordinator first runs the read-only row-level parity verifier. Missing/incomplete parity falls back to the original source.
+- If the Driver Mirror repository throws while reading, the coordinator also falls back to the original source.
+- The result records the actual source, optional fallback reason and parity report for diagnostics.
+- The coordinator never creates a missing Driver Mirror database during verification.
+
+Robolectric tests cover default-original behavior, missing-target fallback without target creation, selecting Driver Mirror only after complete parity, and falling back when a mirrored payload changes.
+
+**Verification:** PR run [#616](https://github.com/ysfclc/BusyBee/actions/runs/46026804721) on exact code commit `8e67c8d99d728457ee9f41c23f8cf2c22aea508e` passed Rust tests/build, Android/Robolectric tests, dependency verification, debug APK assembly and debug signature verification. Test report artifact: `busybee-android-test-reports-616` (ID `15213375039`). Debug-only validation APK: `busybee-debug-apk-616` (ID `15212059929`). Release signing was skipped on the feature branch.
+
+**Cutover status:** not enabled. The physical-device parity check and fallback exercise remain outstanding; no production read switch is claimed.
