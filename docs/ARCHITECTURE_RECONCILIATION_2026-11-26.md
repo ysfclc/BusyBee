@@ -191,3 +191,14 @@ The new consolidator is now integrated after the existing source writes without 
 This is sequential, retryable synchronization between two SQLite files, not a cross-database atomic transaction. A failure is logged and a later trigger retries. The third activity database remains canonical; the Activity repository still reads it. No schema switch, data deletion, release APK or physical-device acceptance is claimed.
 
 **Verification:** PR run [#582](https://github.com/ysfclc/BusyBee/actions/runs/46021873820) passed all Rust/Android tests, dependency verification, debug APK assembly and debug APK signature verification on exact code commit `4674a9ea2c35608c0df51f4ccaad1c762737114a`. Artifacts: test reports `15210820217`; debug-only validation APK `15210490908`. Release APK assembly was skipped.
+
+
+## 14. Opt-in read-source validation (2026-11-27)
+
+Added `UnifiedActivityReadSource` to the timeline repository. `ORIGINAL_LEDGER` remains the default; `DRIVER_MIRROR` selects Driver Mirror v6 and its `provider_event_envelopes` table. Both paths map into the same timeline model and sorting rules.
+
+A Robolectric parity test copies evidence/observation/event data with the consolidator and asserts that both repository sources return equal timeline items. No production caller opts into Driver Mirror yet; the app's Activity screen remains on the original database until runtime parity, fallback and rollback are implemented.
+
+The consolidator now implements `AutoCloseable`; app and test call sites close its Driver Mirror helper after each run.
+
+**Verification:** PR run [#593](https://github.com/ysfclc/BusyBee/actions/runs/46023111698) passed the full Rust/Android suite, the new read-source parity test, dependency verification, debug APK assembly and debug signature verification. Test report artifact `15210357271`; debug-only validation artifact `15211875593`. No release APK was produced.
