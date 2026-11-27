@@ -45,6 +45,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 private data class RoadEvent(val title:String,val category:String,val point:LatLng,val detail:String)
 
@@ -56,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var content:FrameLayout
     private lateinit var nav:LinearLayout
     private val worker=Executors.newFixedThreadPool(2)
+    private val providerOutboxDrainScheduled=AtomicBoolean(false)
     private var map:MapLibreMap?=null
     private var lastLocation:Location?=null
     private var tilted=true
@@ -73,6 +75,21 @@ class MainActivity : AppCompatActivity() {
     private var weatherText:TextView?=null
     private val selectedLayers= mutableSetOf("Roadworks","Hazards","Driver reports")
     private val navButtons=mutableMapOf<String,TextView>()
+    private var activeTab="MAP"
+    private var earningsPeriod=DriverMoneyPeriod.THIRTY_DAYS
+    private var activityFilter="ALL"
+    private var activityProviderFilter:String?=null
+    private var activityItems:List<UnifiedActivityItem> = emptyList()
+    private var activityContainer:LinearLayout?=null
+    private var activityProviderFilterContainer:LinearLayout?=null
+    private val activityFilterButtons=mutableMapOf<String,TextView>()
+    private val activityProviderFilterButtons=mutableMapOf<String,TextView>()
+    private var ledgerMigrationStatus="Migration diagnostics have not run yet."
+    private var ledgerParityStatus="DRIVER MIRROR PARITY CHECK NOT RUN."
+    // Keep on the original ledger until the on-device parity gate is accepted.
+    private val preferDriverMirrorActivityRead = false
+    private var ledgerMigrationContainer:LinearLayout?=null
+    private var providerCoverageContainer:LinearLayout?=null
     private val locationListener=object:LocationListener {
         override fun onLocationChanged(location:Location) {
             lastLocation=location
@@ -84,9 +101,138 @@ class MainActivity : AppCompatActivity() {
     private val chatPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importCommunity(uri)}
     private val csvPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)importCsv(uri)}
 
+    private fun syncUnifiedActivityLedger() {
+        worker.execute {
+            try {
+                val report = UnifiedActivityLedgerMigrator(applicationContext).migrateIfNeeded()
+                val consolidation = ActivityLedgerConsolidator(applicationContext).use { it.consolidateIfNeeded() }
+                val status = MigrationDiagnosticsFormatter.format(report) + "\n\n" +
+                    MigrationDiagnosticsFormatter.formatConsolidation(consolidation)
+                android.util.Log.d(
+                    "BusyBeeLedger",
+                    "Legacy sync copied=${report.copiedRows}, complete=${report.complete}, missing=${report.missingDatabases.joinToString()}; " +
+                        "Driver Mirror v6 copied=${consolidation.copiedRows}, complete=${consolidation.complete}, missingSource=${consolidation.missingSource}"
+                )
+                runOnUiThread {
+                    ledgerMigrationStatus=status
+                    if (activeTab == "ACTIVITY") refreshUnifiedActivity()
+                    if (activeTab == "SOURCES") renderMigrationDiagnostics()
+                }
+            } catch (error: Exception) {
+                val status="MIGRATION ERROR\n${error.javaClass.simpleName}: ${error.message ?: "No details"}"
+                android.util.Log.e("BusyBeeLedger", "Legacy activity sync failed", error)
+                runOnUiThread { ledgerMigrationStatus=status; if(activeTab=="SOURCES") renderMigrationDiagnostics() }
+            }
+        }
+    }
+
+
+    private fun verifyActivityLedgerParity() {
+        worker.execute {
+            try {
+                val report = ActivityLedgerConsolidator(applicationContext).use { it.verifyParity() }
+                val status = MigrationDiagnosticsFormatter.formatConsolidation(report)
+                runOnUiThread {
+                    ledgerParityStatus = status
+                    if (activeTab == "SOURCES") renderMigrationDiagnostics()
+                }
+            } catch (error: Exception) {
+                val status = "DRIVER MIRROR PARITY CHECK ERROR\n${error.javaClass.simpleName}: ${error.message ?: "No details"}"
+                android.util.Log.e("BusyBeeLedger", "Driver Mirror parity check failed", error)
+                runOnUiThread {
+                    ledgerParityStatus = status
+                    if (activeTab == "SOURCES") renderMigrationDiagnostics()
+                }
+            }
+        }
+    }
+
+    /**
+     * At-least-once delivery from the Command Centre DB to the canonical event DB.
+     * The outbox row is acknowledged only after a durable insert or an idempotent
+     * duplicate is confirmed. A process death between those operations is safe:
+     * the same idempotency key is retried next launch.
+     */
+    private fun scheduleProviderEventOutboxDrain() {
+        if (!providerOutboxDrainScheduled.compareAndSet(false, true)) return
+        try {
+            worker.execute {
+                var lastProcessedOutboxId = 0L
+                try {
+                    val upperBound = commands.latestProviderOfferOutboxId()
+                    lastProcessedOutboxId = upperBound
+                    val pending = commands.pendingProviderOfferEvents(upperBound, 200)
+                    if (pending.isNotEmpty()) {
+                        lastProcessedOutboxId = 0L
+                        SqliteProviderEventStore(applicationContext).use { eventStore ->
+                            val ingestor = ProviderEventIngestor(eventStore)
+                            pending.forEach { item ->
+                                lastProcessedOutboxId = item.outboxId
+                                try {
+                                    val event = item.event
+                                        ?: throw IllegalStateException(item.failureReason ?: "Outbox event reconstruction failed")
+                                    when (val result = ingestor.ingest(event)) {
+                                        is ProviderIngestResult.Accepted -> {
+                                            commands.markProviderOfferEventDelivered(item.outboxId)
+                                            android.util.Log.d("BusyBeeProvider", "Delivered canonical event ${result.eventId}")
+                                        }
+                                        is ProviderIngestResult.Duplicate -> {
+                                            commands.markProviderOfferEventDelivered(item.outboxId)
+                                            android.util.Log.d("BusyBeeProvider", "Confirmed previously delivered event ${result.idempotencyKey}")
+                                        }
+                                        is ProviderIngestResult.Rejected -> {
+                                            commands.markProviderOfferEventFailed(item.outboxId, result.reason)
+                                            android.util.Log.w("BusyBeeProvider", "Provider event rejected: ${result.reason}")
+                                        }
+                                    }
+                                } catch (error: Exception) {
+                                    commands.markProviderOfferEventFailed(
+                                        item.outboxId,
+                                        "${error.javaClass.simpleName}: ${error.message ?: "Unknown persistence error"}"
+                                    )
+                                    android.util.Log.e("BusyBeeProvider", "Could not deliver outbox row ${item.outboxId}", error)
+                                }
+                            }
+                        }
+                    }
+                } catch (error: Exception) {
+                    android.util.Log.e("BusyBeeProvider", "Provider event outbox drain failed", error)
+                } finally {
+                    providerOutboxDrainScheduled.set(false)
+                    try {
+                        // Catch rows queued while this snapshot was being delivered. Failed
+                        // rows already in the snapshot wait for the next launch or new event.
+                        if (commands.hasPendingProviderOfferEventsAfter(lastProcessedOutboxId)) {
+                            scheduleProviderEventOutboxDrain()
+                        }
+                    } catch (error: Exception) {
+                        android.util.Log.w("BusyBeeProvider", "Could not check pending outbox rows", error)
+                    }
+                    try {
+                        val consolidation = ActivityLedgerConsolidator(applicationContext).consolidateIfNeeded()
+                        android.util.Log.d(
+                            "BusyBeeLedger",
+                            "Post-outbox Driver Mirror v6 sync copied=${consolidation.copiedRows}, complete=${consolidation.complete}"
+                        )
+                    } catch (error: Exception) {
+                        android.util.Log.e("BusyBeeLedger", "Post-outbox Driver Mirror v6 sync failed", error)
+                    }
+                    runOnUiThread {
+                        if (activeTab == "ACTIVITY") refreshUnifiedActivity()
+                    }
+                }
+            }
+        } catch (error: Exception) {
+            providerOutboxDrainScheduled.set(false)
+            android.util.Log.e("BusyBeeProvider", "Could not schedule provider event outbox drain", error)
+        }
+    }
+
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
+        syncUnifiedActivityLedger()
+        scheduleProviderEventOutboxDrain()
         locationManager=getSystemService(LOCATION_SERVICE) as LocationManager
         MapLibre.getInstance(this)
         window.statusBarColor=BG;window.navigationBarColor=BG
@@ -119,13 +265,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildNavigation() {
         nav.removeAllViews()
-        listOf("MAP","OFFERS","EARNINGS","DRIVER HUB","SOURCES").forEach { tab ->
-            val b=label(tab,9f,MUTED,true).apply{gravity=Gravity.CENTER;setPadding(dp(4),dp(12),dp(4),dp(12));setOnClickListener{showTab(tab)}}
+        listOf("MAP","OFFERS","ACTIVITY","EARNINGS","DRIVER HUB","SOURCES").forEach { tab ->
+            val display = when (tab) { "DRIVER HUB" -> "HUB"; "EARNINGS" -> "MONEY"; else -> tab }
+            val b=label(display,8f,MUTED,true).apply{gravity=Gravity.CENTER;setPadding(dp(3),dp(12),dp(3),dp(12));setOnClickListener{showTab(tab)}}
             navButtons[tab]=b;nav.addView(b,LinearLayout.LayoutParams(0,-1,1f))
         }
     }
 
     private fun showTab(tab:String) {
+        activeTab=tab
         content.removeAllViews()
         navButtons.forEach{(key,b)->b.setTextColor(if(key==tab)MINT else MUTED);b.background=rounded(if(key==tab)0xFF1B343B.toInt() else Color.TRANSPARENT,11)}
         val view=when(tab) {
@@ -133,6 +281,7 @@ class MainActivity : AppCompatActivity() {
             "OFFERS"->buildOffersScreen()
             "EARNINGS"->buildEarningsScreen()
             "DRIVER HUB"->buildDriverHubScreen()
+            "ACTIVITY"->buildActivityScreen()
             else->buildSourcesScreen()
         }
         content.addView(view,FrameLayout.LayoutParams(-1,-1))
@@ -235,9 +384,24 @@ class MainActivity : AppCompatActivity() {
     private fun openExternalNavigation() {
         val route=activeRoute
         if(route==null) { Toast.makeText(this,"Plan a route first.",Toast.LENGTH_SHORT).show();return }
-        val uri=Uri.parse("google.navigation:q="+route.destination.latitude+","+route.destination.longitude+"&mode=d")
-        try { startActivity(Intent(Intent.ACTION_VIEW,uri)) }
-        catch(_:Exception) { startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("geo:"+route.destination.latitude+","+route.destination.longitude))) }
+        val navigationUri=Uri.parse("google.navigation:q="+route.destination.latitude+","+route.destination.longitude+"&mode=d")
+        val geoUri=Uri.parse("geo:"+route.destination.latitude+","+route.destination.longitude)
+        // Some devices have no handler for Google navigation or for geo: links.
+        // Treat both handoffs as optional capabilities; never let ActivityNotFoundException
+        // escape the click handler and terminate BusyBee.
+        val intents=listOf(
+            Intent(Intent.ACTION_VIEW,navigationUri),
+            Intent(Intent.ACTION_VIEW,geoUri)
+        )
+        for(intent in intents) {
+            try {
+                startActivity(intent)
+                return
+            } catch(_:Exception) {
+                // Try the next supported map handoff.
+            }
+        }
+        Toast.makeText(this,"No compatible navigation app is available. Install or enable a map app.",Toast.LENGTH_LONG).show()
     }
 
     private fun refreshRoadIntelligence() {
@@ -379,7 +543,22 @@ class MainActivity : AppCompatActivity() {
             addView(label("Pickup "+o.pickupKm+" km · trip "+o.tripKm+" km · passenger "+(o.passengerRating?.toString()?:"not supplied"),10f,MUTED,false).apply{setPadding(0,dp(3),0,dp(9))})
             val actions=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL}
             actions.addView(action("OPEN "+o.platform.uppercase()+" TO REVIEW",true){openPlatform(o.platform)},LinearLayout.LayoutParams(0,dp(40),1f))
-            actions.addView(action("SKIP",false){commands.updateOfferStatus(o.id,"skipped");showTab("OFFERS")},LinearLayout.LayoutParams(dp(74),dp(40)).apply{marginStart=dp(7)})
+            actions.addView(action("SKIP",false){
+                val decidedAt = System.currentTimeMillis()
+                val savedDecision = commands.recordOfferDecision(
+                    offerId = o.id,
+                    status = "skipped",
+                    decision = "skipped_by_driver_in_busybee",
+                    decidedAtMillis = decidedAt
+                )
+                if (savedDecision == null) {
+                    Toast.makeText(this@MainActivity, "Offer was not found; no decision was recorded.", Toast.LENGTH_LONG).show()
+                    return@action
+                }
+                scheduleProviderEventOutboxDrain()
+                syncUnifiedActivityLedger()
+                showTab("OFFERS")
+            },LinearLayout.LayoutParams(dp(74),dp(40)).apply{marginStart=dp(7)})
             addView(actions)
             addView(label("BusyBee ranks the offer; you make the acceptance decision inside the platform.",9f,MUTED,false).apply{setPadding(0,dp(7),0,0)})
         }
@@ -396,81 +575,227 @@ class MainActivity : AppCompatActivity() {
             fun value(e:EditText)=e.text.toString().trim().replace(',','.').toDoubleOrNull()
             val f=value(fare);val pk=value(pickupKm);val tk=value(tripKm);val du=value(duration)
             if(f==null||pk==null||tk==null||du==null||f<0||pk<0||tk<0||du<=0){Toast.makeText(this,"Fare, distances and duration must be valid numbers.",Toast.LENGTH_LONG).show();return@setPositiveButton}
-            commands.saveOffer(DriverOffer(platform=platform.text.toString().ifBlank{"Other"},pickup=pickup.text.toString(),destination=destination.text.toString(),fare=f,bonus=value(bonus)?:0.0,pickupKm=pk,tripKm=tk,durationMin=du,passengerRating=value(rating),source=if(raw.isBlank())"manual" else "notification-review",raw=evidence.text.toString()))
+            val offer = DriverOffer(
+                platform = platform.text.toString().ifBlank { "Other" },
+                pickup = pickup.text.toString(),
+                destination = destination.text.toString(),
+                fare = f,
+                bonus = value(bonus) ?: 0.0,
+                pickupKm = pk,
+                tripKm = tk,
+                durationMin = du,
+                passengerRating = value(rating),
+                source = if (raw.isBlank()) "manual" else "notification-review",
+                raw = evidence.text.toString()
+            )
+            commands.saveOfferWithPendingEvent(offer)
+            scheduleProviderEventOutboxDrain()
+            syncUnifiedActivityLedger()
             showTab("OFFERS")
         }.show()
     }
 
     private fun buildEarningsScreen():View{
-        val root=columnScroll();val s=mirror.summary()
-        root.addView(section("YOUR DRIVER MIRROR","Private trip and earnings history across imported platforms."))
-        val totals=card();totals.addView(label(s.trips.toString()+" TRIPS  ·  "+s.offers+" OFFERS  ·  "+s.records+" RECORDS",13f,WHITE,true))
-        totals.addView(label("Platforms: "+s.platforms.joinToString().ifBlank{"none yet"}+" · "+s.imports+" imports",10f,MUTED,false).apply{setPadding(0,dp(4),0,dp(10))})
-        val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        row.addView(metric("GROSS",money(s.gross)),LinearLayout.LayoutParams(0,dp(77),1f))
-        row.addView(metric("FEES",money(s.fees)),LinearLayout.LayoutParams(0,dp(77),1f).apply{marginStart=dp(6)})
-        row.addView(metric("BONUSES",money(s.bonuses)),LinearLayout.LayoutParams(0,dp(77),1f).apply{marginStart=dp(6)})
-        totals.addView(row);totals.addView(label("KNOWN NET",9f,MUTED,true).apply{setPadding(0,dp(11),0,dp(2))})
-        totals.addView(label(s.knownNet?.let{money(it)}?:"INCOMPLETE",24f,MINT,true))
-        totals.addView(label("PLN records only. Fees and bonuses must be explicit for every gross record. Vehicle costs, taxes and missing adjustments are excluded.",10f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
-        root.addView(totals)
-        val recordedExpenses=commands.totalAmount("Expense",true)
-        root.addView(card().apply {
-            addView(label("RECORDED VEHICLE EXPENSES · PAID",9f,MUTED,true))
-            addView(label(money(recordedExpenses),19f,WHITE,true).apply{setPadding(0,dp(5),0,dp(2))})
-            addView(label("Completed Expense items only. Kept separate until costs are matched to the same trip/date period.",10f,MUTED,false))
-            addView(action("＋ LOG VEHICLE EXPENSE",true){itemDialog("Expense")},LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(8)})
-        })
-        root.addView(section("VEHICLE ECONOMICS","The same cost model is used to rank incoming offers."))
-        val cost=field("All-in vehicle cost per km (PLN)",commands.setting("cost_per_km","0.85"))
-        root.addView(card().apply{addView(cost);addView(action("SAVE COST MODEL",true){commands.setSetting("cost_per_km",cost.text.toString().replace(',','.').ifBlank{"0.85"});showTab("EARNINGS")})})
-        val analytics=DriverAnalyticsEngine.calculate(mirror.recent(5000),num("cost_per_km",0.85))
-        root.addView(section("WHAT YOUR DATA SAYS","Evidence-based economics. Estimated vehicle cost uses your saved per-km assumption; no missing values are filled in."))
-        root.addView(card().apply {
-            addView(label("COVERAGE",11f,MINT,true))
-            addView(label("${analytics.plnTripCount} PLN trips · gross ${analytics.tripsWithGross} · fees ${analytics.tripsWithFees} · bonuses ${analytics.tripsWithBonus} · distance ${analytics.tripsWithDistance} · time ${analytics.tripsWithTime}",10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(5))})
-            addView(label("Estimated net after vehicle cost",9f,MUTED,true))
-            addView(label(analytics.estimatedNetPln?.let{money(it)}?:"NOT ENOUGH COMPLETE DATA",21f,MINT,true).apply{setPadding(0,dp(3),0,dp(3))})
-            addView(label("${analytics.estimatedNetTrips} trips include gross, fees, bonus and distance. This estimate excludes tax, unpaid waiting time and costs not represented by your per-km setting.",10f,MUTED,false))
-        })
-        if(analytics.platforms.isNotEmpty()) {
-            root.addView(section("PLATFORM COMPARISON","Only comparable PLN trips. Incomplete net rows are excluded from net calculations."))
-            analytics.platforms.forEach { p ->
-                root.addView(card().apply {
-                    addView(label(p.platform.uppercase()+" · "+p.tripCount+" TRIPS",11f,MINT,true))
-                    addView(label("Gross "+money(p.grossPln)+" · fees "+money(p.feesPln)+" · bonuses "+money(p.bonusesPln),10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(3))})
-                    addView(label("Known net before vehicle "+money(p.knownNetBeforeVehiclePln),10f,MUTED,false))
-                    addView(label("Estimated vehicle cost "+money(p.estimatedVehicleCostPln)+" · net after vehicle "+money(p.estimatedNetAfterVehiclePln),10f,MUTED,false).apply{setPadding(0,dp(3),0,dp(3))})
-                    addView(label("${p.completeNetTrips}/${p.tripCount} complete net rows · ${p.tripsWithDistance}/${p.tripCount} with distance",9f,AMBER,true))
-                })
+        val root=columnScroll()
+        val allRecords=mirror.allRecords()
+        val vehicleCost=num("cost_per_km",0.85)
+        val report=DriverMoneyEngine.calculate(allRecords,vehicleCost,earningsPeriod)
+        val analytics=report.analytics
+        val imports=mirror.summary().imports
+
+        root.addView(section("DRIVER MONEY","Your private work ledger · one view across every imported platform."))
+        val periodRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        DriverMoneyPeriod.values().forEach { period ->
+            val selected=earningsPeriod==period
+            val chip=label(period.label.uppercase(),8f,if(selected)BG else MUTED,true).apply{
+                gravity=Gravity.CENTER
+                setPadding(dp(9),dp(10),dp(9),dp(10))
+                background=rounded(if(selected)MINT else 0xFF263B46.toInt(),10)
+                setOnClickListener{earningsPeriod=period;showTab("EARNINGS")}
             }
+            periodRow.addView(chip,LinearLayout.LayoutParams(0,dp(38),1f).apply{marginEnd=dp(5)})
         }
-        if(analytics.hours.isNotEmpty()) {
-            root.addView(section("START-TIME SIGNAL","Gross and complete pre-vehicle net grouped by recorded trip start hour. Not an hourly wage."))
-            analytics.hours.take(8).forEach { h ->
-                root.addView(card().apply {
-                    addView(label(String.format(Locale.US,"%02d:00–%02d:00",h.hour,h.hour+1)+" · "+h.trips+" trips",12f,WHITE,true))
-                    addView(label("Gross "+money(h.grossPln)+" · complete net before vehicle "+money(h.completeNetPln),10f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
-                })
-            }
-        }
-        if(analytics.dataWarnings.isNotEmpty()) {
-            root.addView(card().apply {
-                addView(label("DATA GAPS · DO NOT OVER-INTERPRET",10f,AMBER,true))
-                analytics.dataWarnings.forEach { warning -> addView(label("• "+warning,10f,MUTED,false).apply{setPadding(0,dp(5),0,0)}) }
+        root.addView(periodRow)
+        root.addView(card().apply{
+            addView(label("PRIVATE LOCAL LEDGER · "+imports+" IMPORT BATCHES",8f,MUTED,true))
+            addView(label(report.tripCount.toString()+" TRIPS  ·  "+report.recordCount.toString()+" RECORDS  ·  "+analytics.platforms.size.toString()+" PLATFORMS",11f,WHITE,true).apply{setPadding(0,dp(5),0,0)})
+            addView(action("＋ IMPORT PLATFORM RECORDS",true){
+                csvPicker.launch(arrayOf("text/*","application/csv","application/vnd.ms-excel"))
+            },LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(10)})
+        })
+
+        root.addView(card().apply{
+            addView(label("ESTIMATED NET AFTER VEHICLE",9f,MUTED,true))
+            addView(label(report.estimatedNetAfterVehiclePln?.let{money(it)}?:"NOT ENOUGH COMPLETE DATA",29f,MINT,true).apply{setPadding(0,dp(5),0,dp(3))})
+            addView(label(report.completeNetTrips.toString()+" of "+analytics.plnTripCount.toString()+" PLN trips qualify · gross, fees, bonus and distance must all be present.",10f,WHITE,false))
+            addView(label("This is an estimate after your per-kilometre vehicle-cost assumption. It is not tax-adjusted take-home pay or fully reconciled profit.",9f,MUTED,false).apply{setPadding(0,dp(7),0,0)})
+        })
+
+        val amounts=card()
+        amounts.addView(label("MONEY FLOW · PLN ONLY",10f,MINT,true))
+        val amountRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        amountRow.addView(metric("KNOWN GROSS",money(report.grossPln)),LinearLayout.LayoutParams(0,dp(76),1f))
+        amountRow.addView(metric("KNOWN FEES",money(report.feesPln)),LinearLayout.LayoutParams(0,dp(76),1f).apply{marginStart=dp(5)})
+        amountRow.addView(metric("KNOWN BONUS",money(report.bonusesPln)),LinearLayout.LayoutParams(0,dp(76),1f).apply{marginStart=dp(5)})
+        amounts.addView(amountRow)
+        amounts.addView(label("Known net before vehicle · "+money(report.knownNetBeforeVehiclePln),10f,WHITE,true).apply{setPadding(0,dp(9),0,dp(3))})
+        amounts.addView(label("Estimated vehicle cost on distance-known trips · "+money(report.estimatedVehicleCostPln),9f,MUTED,false))
+        root.addView(amounts)
+
+        root.addView(section("PLATFORM PERFORMANCE","Comparable PLN trip records only. Incomplete trips are not included in estimated net."))
+        if(analytics.platforms.isEmpty()){
+            root.addView(card().apply{
+                addView(label("NO PLATFORM RESULTS IN THIS PERIOD",12f,WHITE,true))
+                addView(label("Import a platform statement or widen the selected period. BusyBee will not insert demo trips.",10f,MUTED,false))
             })
         }
-        root.addView(section("IMPORT HISTORY & ORIGINAL EVIDENCE","Every import is retained with its raw rows and source filename."))
-        mirror.importHistory().forEach { entry -> root.addView(label("• "+entry,10f,MUTED,false).apply{setPadding(dp(5),dp(3),0,dp(3))}) }
-        mirror.evidencePreview(5).forEach { evidence -> root.addView(card().apply { addView(label(evidence,9f,MUTED,false)) }) }
-        root.addView(section("RECENT MIRRORED ACTIVITY","Source-backed records; missing fields remain unknown."))
-        mirror.recent(30).forEach{r->root.addView(card().apply{
-            addView(label(r.platform+" · "+r.type.uppercase(),11f,MINT,true))
-            addView(label((r.occurredAt?:"Date not supplied")+" · "+(r.pickup?:"?")+" → "+(r.dropoff?:"?"),11f,WHITE,true).apply{setPadding(0,dp(4),0,dp(4))})
-            addView(label("Gross "+money(r.gross)+" · Fees "+money(r.fees)+" · Bonus "+money(r.bonus),10f,MUTED,false))
-        })}
-        root.addView(card().apply{addView(action("IMPORT PLATFORM STATEMENT",true){showTab("DRIVER HUB")})})
+        analytics.platforms.forEach { platform ->
+            root.addView(card().apply{
+                addView(label(platform.platform.uppercase()+" · "+platform.tripCount+" TRIPS",11f,MINT,true))
+                addView(label("Estimated net after vehicle · "+money(platform.estimatedNetAfterVehiclePln),16f,WHITE,true).apply{setPadding(0,dp(5),0,dp(4))})
+                addView(label("Gross "+money(platform.grossPln)+" · fees "+money(platform.feesPln)+" · bonuses "+money(platform.bonusesPln),9f,MUTED,false))
+                addView(label(platform.completeNetTrips.toString()+"/"+platform.tripCount.toString()+" complete money rows · "+platform.tripsWithDistance.toString()+"/"+platform.tripCount.toString()+" with distance",9f,AMBER,true).apply{setPadding(0,dp(5),0,0)})
+            })
+        }
+
+        root.addView(section("DATA QUALITY","The ledger separates what is known from what is still missing."))
+        root.addView(card().apply{
+            addView(label("PLN TRIP COVERAGE",10f,MINT,true))
+            addView(label("Gross "+report.tripsWithGross+"/"+analytics.plnTripCount+"  ·  fees "+report.tripsWithFees+"/"+analytics.plnTripCount+"  ·  bonuses "+report.tripsWithBonus+"/"+analytics.plnTripCount+"  ·  distance "+report.tripsWithDistance+"/"+analytics.plnTripCount,10f,WHITE,false).apply{setPadding(0,dp(5),0,dp(5))})
+            addView(label(report.nonPlnTripCount.toString()+" non-PLN trips kept separate; no currency conversion is assumed.",9f,MUTED,false))
+            if(earningsPeriod!=DriverMoneyPeriod.ALL_TIME && report.undatedTripCount>0){
+                addView(label(report.undatedTripCount.toString()+" trips have no usable timestamp and are excluded from this period.",9f,AMBER,true).apply{setPadding(0,dp(6),0,0)})
+            } else if(earningsPeriod==DriverMoneyPeriod.ALL_TIME && report.undatedTripCount>0){
+                addView(label(report.undatedTripCount.toString()+" undated trips are included in All time; their position in time is unknown.",9f,AMBER,true).apply{setPadding(0,dp(6),0,0)})
+            }
+            analytics.dataWarnings.forEach { warning ->
+                addView(label("• "+warning,9f,MUTED,false).apply{setPadding(0,dp(5),0,0)})
+            }
+        })
+
+        root.addView(section("VEHICLE COST MODEL","One assumption powers both offer ranking and estimated trip economics."))
+        val cost=field("All-in vehicle cost per km (PLN)",commands.setting("cost_per_km","0.85"))
+        root.addView(card().apply{
+            addView(cost)
+            addView(action("SAVE COST MODEL",true){
+                val parsed=cost.text.toString().trim().replace(',','.').toDoubleOrNull()
+                if(parsed==null||!parsed.isFinite()||parsed<0){
+                    Toast.makeText(this@MainActivity,"Enter a valid non-negative PLN/km amount.",Toast.LENGTH_LONG).show()
+                }else{
+                    commands.setSetting("cost_per_km",parsed.toString())
+                    showTab("EARNINGS")
+                }
+            })
+        })
+        val paidExpenses=commands.totalAmount("Expense",true)
+        root.addView(card().apply{
+            addView(label("PAID VEHICLE EXPENSES · NOT YET ALLOCATED",9f,MUTED,true))
+            addView(label(money(paidExpenses),18f,WHITE,true).apply{setPadding(0,dp(4),0,dp(2))})
+            addView(label("Recorded Driver Hub expenses remain separate from per-kilometre estimates until they can be matched to the same trip or period.",9f,MUTED,false))
+            addView(action("＋ LOG VEHICLE EXPENSE",false){itemDialog("Expense")},LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(8)})
+        })
+
+        root.addView(section("TRIP LEDGER","Tap a row to inspect its source file and original imported fields."))
+        val periodRecords=DriverMoneyEngine.selectRecords(allRecords,earningsPeriod)
+        val tripRecords=periodRecords.filter{it.type.trim().lowercase(Locale.ROOT) in setOf("trip","ride","completed_trip")}
+        if(tripRecords.isEmpty()){
+            root.addView(card().apply{addView(label("No trips in this period.",10f,MUTED,false))})
+        }
+        tripRecords.take(100).forEach { record ->
+            root.addView(card().apply{
+                addView(label(record.platform.uppercase()+" · "+record.type.uppercase(),10f,MINT,true))
+                addView(label((record.occurredAt?:"DATE UNKNOWN")+" · "+(record.pickup?:"?")+" → "+(record.dropoff?:"?"),10f,WHITE,true).apply{setPadding(0,dp(4),0,dp(4))})
+                addView(label("Gross "+money(record.gross)+" · fees "+money(record.fees)+" · bonus "+money(record.bonus)+" · "+(record.distanceKm?.let{String.format(Locale.US,"%.1f km",it)}?:"distance unknown"),9f,MUTED,false))
+                setOnClickListener{showTripEvidence(record)}
+            })
+        }
+
+        root.addView(section("IMPORT HISTORY","Every source file and raw row remains in the private local evidence store."))
+        mirror.importHistory().forEach { entry ->
+            root.addView(card().apply{addView(label(entry,9f,WHITE,false))})
+        }
         return root
+    }
+
+    private fun showTripEvidence(record:DriverRecord) {
+        val corrections=mirror.correctionHistory(record.id)
+        val details=buildString{
+            append("Platform: ").append(record.platform).append("\nType: ").append(record.type)
+            append("\nDate: ").append(record.occurredAt?: "Unknown")
+            append("\nRoute: ").append(record.pickup?: "Unknown").append(" → ").append(record.dropoff?: "Unknown")
+            append("\nDistance: ").append(record.distanceKm?: "Unknown")
+            append("\nGross: ").append(record.gross?: "Unknown").append(" · Fees: ").append(record.fees?: "Unknown").append(" · Bonus: ").append(record.bonus?: "Unknown")
+            append("\nCurrency: ").append(record.currency.ifBlank{"Unknown"}).append("\nStatus: ").append(record.status?: "Unknown")
+            append("\nSource file: ").append(record.sourceName)
+            append("\nExternal ID: ").append(record.externalId?: "Not supplied")
+            append("\n\nORIGINAL IMPORTED FIELDS\n").append(record.raw)
+            append("\n\nCORRECTION HISTORY\n")
+            if(corrections.isEmpty()) append("No corrections saved.")
+            else corrections.forEachIndexed { index, entry -> append(index+1).append(". ").append(entry).append("\n\n") }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Trip evidence")
+            .setMessage(details)
+            .setNegativeButton("CLOSE",null)
+            .setNeutralButton("CORRECT RECORD"){_,_->editTripRecord(record)}
+            .show()
+    }
+
+    private fun editTripRecord(record:DriverRecord) {
+        val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),0,dp(18),0)}
+        val occurredAt=field("Trip date/time (ISO-8601)",record.occurredAt.orEmpty())
+        val pickup=field("Pickup",record.pickup.orEmpty())
+        val dropoff=field("Dropoff",record.dropoff.orEmpty())
+        val distance=field("Distance km",record.distanceKm?.toString().orEmpty())
+        val gross=field("Gross amount",record.gross?.toString().orEmpty())
+        val fees=field("Platform fees",record.fees?.toString().orEmpty())
+        val bonus=field("Bonus",record.bonus?.toString().orEmpty())
+        val currency=field("Currency (blank = unknown)",record.currency)
+        val status=field("Status",record.status.orEmpty())
+        listOf(occurredAt,pickup,dropoff,distance,gross,fees,bonus,currency,status).forEach{box.addView(it)}
+        AlertDialog.Builder(this)
+            .setTitle("Correct trip record")
+            .setView(ScrollView(this).apply{addView(box)})
+            .setNegativeButton("CANCEL",null)
+            .setPositiveButton("SAVE CORRECTION"){_,_->
+                fun amount(input:EditText):Double?=input.text.toString().trim().takeIf{it.isNotEmpty()}?.let{DriverCsv.number(it)}
+                val numericFields=listOf(distance,gross,fees,bonus)
+                val invalid=numericFields.firstOrNull{input->
+                    input.text.toString().isNotBlank()&&amount(input)==null
+                }
+                if(invalid!=null){
+                    Toast.makeText(this,"Correct the invalid number before saving.",Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val distanceValue=amount(distance)
+                if(distanceValue!=null&&distanceValue<0){
+                    Toast.makeText(this,"Distance cannot be negative.",Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val dateValue=occurredAt.text.toString().trim().takeIf{it.isNotEmpty()}
+                if(dateValue!=null&&DriverMoneyEngine.parseDate(dateValue)==null){
+                    Toast.makeText(this,"Use a valid ISO-8601 date/time.",Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val correction=DriverRecordCorrection(
+                    occurredAt=dateValue,
+                    pickup=pickup.text.toString().trim().takeIf{it.isNotEmpty()},
+                    dropoff=dropoff.text.toString().trim().takeIf{it.isNotEmpty()},
+                    distanceKm=distanceValue,
+                    gross=amount(gross),
+                    fees=amount(fees),
+                    bonus=amount(bonus),
+                    currency=currency.text.toString(),
+                    status=status.text.toString().trim().takeIf{it.isNotEmpty()}
+                )
+                if(mirror.correctRecord(record.id,correction)){
+                    Toast.makeText(this,"Correction saved. Original source evidence is unchanged.",Toast.LENGTH_LONG).show()
+                    showTab("EARNINGS")
+                }else{
+                    Toast.makeText(this,"Record no longer exists; no correction was saved.",Toast.LENGTH_LONG).show()
+                }
+            }
+            .show()
     }
 
     private fun buildDriverHubScreen():View{
@@ -482,7 +807,7 @@ class MainActivity : AppCompatActivity() {
         buttons.addView(action("＋ REMINDER",true){itemDialog()},LinearLayout.LayoutParams(0,dp(42),1f))
         buttons.addView(action("＋ DOCUMENT",false){documentPicker.launch(arrayOf("*/*"))},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(7)})
         top.addView(buttons)
-        top.addView(action("＋ IMPORT PLATFORM CSV",false){csvPicker.launch(arrayOf("text/*","application/csv","application/vnd.ms-excel"))},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(7)})
+        top.addView(action("OPEN DRIVER MONEY",false){showTab("EARNINGS")},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(7)})
         root.addView(top)
         root.addView(section("UPCOMING & SAVED ITEMS","Tap complete when paid, renewed or serviced. Documents can be opened from here."))
         val items=commands.items()
@@ -553,13 +878,262 @@ class MainActivity : AppCompatActivity() {
             commands.addCommunityDocument(name,text);Toast.makeText(this,"Imported into private local search",Toast.LENGTH_LONG).show();showTab("DRIVER HUB")
         }catch(e:Exception){Toast.makeText(this,"Chat import failed: "+e.message,Toast.LENGTH_LONG).show()}
     }
-    private fun importCsv(uri:Uri){
+        private fun importCsv(uri:Uri){
         try{
-            val name=contentResolver.query(uri,null,null,null,null)?.use{c->val i=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);if(c.moveToFirst()&&i>=0)c.getString(i)else"platform-export.csv"}?:"platform-export.csv"
+            val name=contentResolver.query(uri,null,null,null,null)?.use{c->
+                val i=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if(c.moveToFirst()&&i>=0)c.getString(i)else"platform-export.csv"
+            }?:"platform-export.csv"
             val text=contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use{it.readText()}?:error("File could not be opened")
-            val rows=DriverCsv.parse(text);require(rows.isNotEmpty()){"No data rows found"};val result=mirror.importRows(name,rows)
-            Toast.makeText(this,"Imported "+result.second+" new records from "+result.first+" rows",Toast.LENGTH_LONG).show();showTab("EARNINGS")
-        }catch(e:Exception){Toast.makeText(this,"Import failed: "+e.message,Toast.LENGTH_LONG).show()}
+            val rows=DriverCsv.parse(text)
+            require(rows.isNotEmpty()){"No data rows found"}
+            val errors=DriverCsv.validationErrors(rows)
+            require(errors.isEmpty()){
+                "Import stopped. Correct these values in the source file first:\n"+errors.take(6).joinToString("\n")
+            }
+            val trips=rows.filter{it["record_type"].orEmpty().trim().lowercase(Locale.ROOT) in setOf("trip","ride","completed_trip")}
+            val platforms=rows.map{it["platform"].orEmpty().trim().ifBlank{"Unknown"}}.distinct().sorted()
+            fun missing(field:String)=trips.count{it[field].isNullOrBlank()}
+            val blankCurrency=rows.count{it.containsKey("currency")&&it["currency"].isNullOrBlank()}
+            val currencyNote=if(rows.any{it.containsKey("currency")}){
+                blankCurrency.toString()+" rows have blank currency and will remain outside PLN totals."
+            }else{
+                "Currency column is omitted; PLN will be used as the documented interchange default."
+            }
+            val preview=buildString{
+                append(name).append("\n\n")
+                append(rows.size).append(" source rows · ").append(trips.size).append(" trips · ")
+                    .append(rows.size-trips.size).append(" other records\n")
+                append("Platforms: ").append(platforms.joinToString()).append("\n\n")
+                append("Trip fields missing or unusable:\n")
+                append("Date: ").append(trips.count{DriverMoneyEngine.parseDate(it["occurred_at"])==null}).append("/")
+                    .append(trips.size).append(" · Gross: ").append(missing("gross")).append("/")
+                    .append(trips.size).append(" · Fees: ").append(missing("fees")).append("/")
+                    .append(trips.size).append(" · Bonus: ").append(missing("bonus")).append("/")
+                    .append(trips.size).append(" · Distance: ").append(missing("distance_km")).append("/")
+                    .append(trips.size).append("\n\n")
+                append(currencyNote).append("\n\n")
+                append("BusyBee keeps original row evidence. Duplicate canonical records will not be counted twice. ")
+                append("Unknown values remain unknown; this interchange file is not a verified direct Uber/Bolt connection.")
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Review before importing")
+                .setMessage(preview)
+                .setNegativeButton("CANCEL",null)
+                .setPositiveButton("IMPORT "+rows.size+" ROWS"){_,_->
+                    try{
+                        val result=mirror.importRows(name,rows)
+                        syncUnifiedActivityLedger()
+                        showTab("EARNINGS")
+                        val duplicates=rows.size-result.second
+                        AlertDialog.Builder(this)
+                            .setTitle("Import saved")
+                            .setMessage(result.second.toString()+" new canonical records saved. "+duplicates.toString()+" duplicate rows were retained as source evidence and not double-counted.")
+                            .setPositiveButton("OPEN DRIVER MONEY"){_,_->showTab("EARNINGS")}
+                            .setNegativeButton("CLOSE",null)
+                            .show()
+                    }catch(error:Exception){
+                        Toast.makeText(this,"Import failed: "+(error.message?:"storage error"),Toast.LENGTH_LONG).show()
+                    }
+                }
+                .show()
+        }catch(e:Exception){
+            Toast.makeText(this,"Import not saved: "+(e.message?:"invalid source file"),Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun buildActivityScreen():View {
+        val root=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(13),dp(12),dp(13),dp(8))
+            setBackgroundColor(BG)
+        }
+        val intro=card()
+        intro.addView(label("UNIFIED ACTIVITY",12f,MINT,true))
+        intro.addView(label("Local evidence ledger · provider observations and canonical events",10f,MUTED,false).apply {
+            setPadding(0,dp(4),0,dp(7))
+        })
+        intro.addView(action("↻ REFRESH LOCAL LEDGER",true){refreshUnifiedActivity()},LinearLayout.LayoutParams(-1,dp(38)))
+        root.addView(intro)
+
+        val filters=LinearLayout(this).apply {
+            orientation=LinearLayout.HORIZONTAL
+            setPadding(0,0,0,dp(8))
+        }
+        activityFilterButtons.clear()
+        listOf("ALL","OBSERVATIONS","EVENTS").forEach { filter ->
+            val chip=label(filter,8f,MUTED,true).apply {
+                gravity=Gravity.CENTER
+                setPadding(dp(9),dp(9),dp(9),dp(9))
+                background=rounded(0xFF263B46.toInt(),10)
+                setOnClickListener {
+                    activityFilter=filter
+                    updateActivityFilterStyles()
+                    renderUnifiedActivity()
+                }
+            }
+            activityFilterButtons[filter]=chip
+            filters.addView(chip,LinearLayout.LayoutParams(0,dp(34),1f).apply{marginEnd=dp(5)})
+        }
+        root.addView(filters)
+
+        root.addView(label("PROVIDER SOURCE",8f,MUTED,true).apply{setPadding(dp(2),0,0,dp(5))})
+        val providerScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false }
+        activityProviderFilterContainer=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+        providerScroll.addView(activityProviderFilterContainer)
+        root.addView(providerScroll,LinearLayout.LayoutParams(-1,dp(42)))
+
+        val scroll=ScrollView(this).apply { isFillViewport=true }
+        activityContainer=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        scroll.addView(activityContainer)
+        root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        updateActivityFilterStyles()
+        refreshUnifiedActivity()
+        return root
+    }
+
+    private fun updateActivityFilterStyles() {
+        activityFilterButtons.forEach { (filter,button) ->
+            val selected=filter==activityFilter
+            button.setTextColor(if(selected)BG else MUTED)
+            button.background=rounded(if(selected)MINT else 0xFF263B46.toInt(),10)
+        }
+        activityProviderFilterButtons.forEach { (provider,button) ->
+            val selected=if(provider=="ALL") activityProviderFilter==null else provider.equals(activityProviderFilter,ignoreCase=true)
+            button.setTextColor(if(selected)BG else MUTED)
+            button.background=rounded(if(selected)MINT else 0xFF263B46.toInt(),10)
+        }
+    }
+
+    private fun renderProviderFilters() {
+        val target=activityProviderFilterContainer ?: return
+        target.removeAllViews()
+        activityProviderFilterButtons.clear()
+        val providers=ActivityTimelineFilters.providers(activityItems)
+        (listOf("ALL")+providers).forEach { provider ->
+            val chip=label(if(provider=="ALL")"ALL PROVIDERS" else provider.uppercase(Locale.getDefault()),8f,MUTED,true).apply {
+                gravity=Gravity.CENTER
+                setPadding(dp(11),dp(8),dp(11),dp(8))
+                background=rounded(0xFF263B46.toInt(),10)
+                setOnClickListener {
+                    activityProviderFilter=provider.takeUnless { it=="ALL" }
+                    updateActivityFilterStyles()
+                    renderUnifiedActivity()
+                }
+            }
+            activityProviderFilterButtons[provider]=chip
+            target.addView(chip,LinearLayout.LayoutParams(-2,dp(34)).apply{marginEnd=dp(6)})
+        }
+        updateActivityFilterStyles()
+    }
+
+    private fun refreshUnifiedActivity() {
+        val target=activityContainer ?: return
+        target.removeAllViews()
+        target.addView(label("READING LOCAL ACTIVITY…",10f,MUTED,false).apply{setPadding(dp(4),dp(12),dp(4),dp(12))})
+        worker.execute {
+            val result=runCatching {
+                UnifiedActivityReadCoordinator(
+                    applicationContext,
+                    preferDriverMirror = preferDriverMirrorActivityRead
+                ).timeline(250)
+            }
+            runOnUiThread {
+                if(activeTab!="ACTIVITY") return@runOnUiThread
+                if(result.isSuccess) {
+                    val read = result.getOrThrow()
+                    activityItems=read.items
+                    android.util.Log.d(
+                        "BusyBeeLedger",
+                        "Activity timeline source=${read.source}, fallback=${read.fallbackReason ?: "none"}"
+                    )
+                    renderUnifiedActivity()
+                } else {
+                    activityContainer?.removeAllViews()
+                    activityContainer?.addView(card().apply {
+                        addView(label("LEDGER UNAVAILABLE",11f,AMBER,true))
+                        addView(label(result.exceptionOrNull()?.message ?: "Could not read local activity.",10f,MUTED,false))
+                    })
+                }
+            }
+        }
+    }
+
+    private fun renderUnifiedActivity() {
+        val target=activityContainer ?: return
+        target.removeAllViews()
+        renderProviderFilters()
+        val visible=ActivityTimelineFilters.filter(activityItems,activityFilter,activityProviderFilter)
+        if(visible.isEmpty()) {
+            target.addView(card().apply {
+                addView(label(if(activityFilter=="EVENTS")"NO CANONICAL EVENTS YET" else "NO LOCAL ACTIVITY YET",11f,MINT,true))
+                addView(label(
+                    if(activityFilter=="EVENTS") "No canonical events have been recorded yet. Save an offer manually or review a captured notification to create one. Raw notifications and imported CSV rows remain observations until explicitly mapped."
+                    else "Import a driver statement or allow a supported app notification to be captured. Evidence stays on this device.",
+                    10f,MUTED,false
+                ).apply{setPadding(0,dp(5),0,0)})
+            })
+            return
+        }
+        visible.forEach { item ->
+            val entry=card()
+            val head=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+            head.addView(label((item.provider ?: "UNKNOWN PROVIDER").uppercase(Locale.getDefault()),9f,MINT,true))
+            head.addView(View(this),LinearLayout.LayoutParams(0,1,1f))
+            head.addView(label(if(item.sourceKind=="provider_event")"CANONICAL EVENT" else "OBSERVATION",8f,if(item.sourceKind=="provider_event")MINT else AMBER,true))
+            entry.addView(head)
+            entry.addView(label(item.itemType.replace('_',' ').uppercase(Locale.getDefault()),12f,WHITE,true).apply{setPadding(0,dp(7),0,dp(4))})
+            val timeText=if(item.sourceOccurredAtMillis==null) {
+                "RECEIVED · ${dateTime(item.receivedAtMillis)} · SOURCE TIME UNKNOWN"
+            } else {
+                "SOURCE · ${dateTime(item.sourceOccurredAtMillis)}  /  RECEIVED · ${dateTime(item.receivedAtMillis)}"
+            }
+            entry.addView(label(timeText,8f,MUTED,false).apply{setPadding(0,0,0,dp(6))})
+            val details=mutableListOf<String>()
+            item.status?.let{details.add("STATUS · ${it.uppercase(Locale.getDefault())}")}
+            item.amount?.let{details.add("AMOUNT · ${String.format(Locale.US,"%.2f",it)} ${item.currency ?: ""}".trim())}
+            item.pickup?.let{details.add("FROM · $it")}
+            item.destination?.let{details.add("TO · $it")}
+            item.distanceKm?.let{details.add("DISTANCE · ${String.format(Locale.US,"%.1f",it)} km")}
+            item.durationMinutes?.let{details.add("DURATION · ${String.format(Locale.US,"%.0f",it)} min")}
+            item.lifecycleId?.let{details.add("LIFECYCLE · $it")}
+            details.add("METHOD · ${item.sourceMethod}")
+            details.forEach { entry.addView(label(it,9f,WHITE,false).apply{setPadding(0,dp(2),0,dp(2))}) }
+            entry.addView(label("CLASSIFICATION · ${item.classification.uppercase(Locale.getDefault())}",8f,AMBER,true).apply{setPadding(0,dp(6),0,0)})
+            item.evidenceDigest?.let {
+                entry.addView(label("EVIDENCE SHA-256 · ${it.take(20)}…",8f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+            }
+            item.payloadJson?.let {
+                entry.addView(label("PAYLOAD · ${it.take(220)}",8f,MUTED,false).apply{setPadding(0,dp(4),0,0)})
+            }
+            entry.addView(action("INSPECT EVIDENCE",false){showActivityEvidence(item)},LinearLayout.LayoutParams(-1,dp(34)).apply{topMargin=dp(8)})
+            activityContainer?.addView(entry)
+        }
+    }
+
+    private fun showActivityEvidence(item:UnifiedActivityItem) {
+        val message=buildString {
+            appendLine("Record: ${item.id}")
+            appendLine("Kind: ${item.sourceKind} / ${item.itemType}")
+            appendLine("Provider: ${item.provider ?: "Unknown"}")
+            appendLine("Source method: ${item.sourceMethod}")
+            appendLine("Classification: ${item.classification}")
+            appendLine("Source event time: ${item.sourceOccurredAtMillis?.let(::dateTime) ?: "Unknown"}")
+            appendLine("Received locally: ${dateTime(item.receivedAtMillis)}")
+            appendLine("Lifecycle: ${item.lifecycleId ?: "Not linked"}")
+            appendLine("Evidence row: ${item.evidenceId ?: "Not available"}")
+            appendLine("Evidence reference: ${item.evidenceReference ?: "Not available"}")
+            appendLine("Evidence SHA-256: ${item.evidenceDigest ?: "Not available"}")
+            appendLine("Status: ${item.status ?: "Unknown"}")
+            appendLine("Amount: ${item.amount?.let { String.format(Locale.US,"%.2f",it) } ?: "Unknown"} ${item.currency ?: ""}")
+            appendLine("Pickup: ${item.pickup ?: "Unknown"}")
+            appendLine("Destination: ${item.destination ?: "Unknown"}")
+            appendLine("Distance: ${item.distanceKm?.let { String.format(Locale.US,"%.1f km",it) } ?: "Unknown"}")
+            appendLine("Duration: ${item.durationMinutes?.let { String.format(Locale.US,"%.0f min",it) } ?: "Unknown"}")
+            item.payloadJson?.let { appendLine("\nCanonical payload:\n$it") }
+        }
+        AlertDialog.Builder(this).setTitle("ACTIVITY EVIDENCE").setMessage(message)
+            .setPositiveButton("CLOSE",null).show()
     }
 
     private fun buildSourcesScreen():View{
@@ -570,8 +1144,29 @@ class MainActivity : AppCompatActivity() {
         sourceRow(live,"Overpass API","Mapped construction and hazard observations","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Open-Meteo","Current weather context","LIVE WHEN ENDPOINT RESPONDS")
         sourceRow(live,"Android location","Driver position after permission","DEVICE PERMISSION")
-        sourceRow(live,"Uber / Bolt / FreeNow / iTaxi / Cabify / Lyft","Visible notifications from supported ride apps after opt-in","USER AUTHORIZATION REQUIRED")
+        sourceRow(live,"Ride-platform notifications","Visible user-facing notices after opt-in. This is a partial signal, not a provider API.",if(notificationAccessEnabled())"PERMISSION GRANTED · PARTIAL SIGNAL" else "USER AUTHORIZATION REQUIRED")
         sourceRow(live,"User exports","Statement and history CSV import","LOCAL IMPORT");root.addView(live)
+
+        val providerCoverageCard=card()
+        providerCoverageCard.addView(label("CONNECTED APPS · LOCAL PROVIDER COVERAGE",11f,MINT,true))
+        providerCoverageCard.addView(label("App detection only enables opening the official driver app. Notifications, manual offers and imports are local inputs; none proves a direct provider API connection.",10f,MUTED,false).apply{setPadding(0,dp(4),0,dp(5))})
+        providerCoverageCard.addView(label("Counts use the latest 1,000 local entries per source table; they are not lifetime totals or provider-side sync counts.",8f,AMBER,false).apply{setPadding(0,0,0,dp(8))})
+        providerCoverageContainer=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
+        providerCoverageCard.addView(providerCoverageContainer)
+        providerCoverageCard.addView(action("REFRESH PROVIDER COVERAGE",false){refreshProviderCoverage()},LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(7)})
+        root.addView(providerCoverageCard)
+        refreshProviderCoverage()
+        val migrationCard=card()
+        migrationCard.addView(label("LOCAL DATA MIGRATION",11f,MINT,true))
+        migrationCard.addView(label("Read-only legacy inspection · source rows are checked against migrated row identities. This does not modify or delete the old databases.",10f,MUTED,false).apply{setPadding(0,dp(5),0,dp(9))})
+        ledgerMigrationContainer=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
+        migrationCard.addView(ledgerMigrationContainer)
+        migrationCard.addView(action("REFRESH MIGRATION CHECK",true){syncUnifiedActivityLedger()},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(8)})
+        migrationCard.addView(action("VERIFY DRIVER MIRROR PARITY",false){verifyActivityLedgerParity()},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(7)})
+        migrationCard.addView(action("SHARE DIAGNOSTIC REPORT",false){shareMigrationDiagnostics()},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(7)})
+        root.addView(migrationCard)
+        renderMigrationDiagnostics()
+
         val gated=card();gated.addView(label("CONNECTOR CATALOGUE · NOT CONNECTED",11f,AMBER,true))
         listOf(
             Pair("TomTom Traffic / Incidents / Routing","Commercial API credentials and storage/display rights"),
@@ -593,6 +1188,90 @@ class MainActivity : AppCompatActivity() {
         })
         return root
     }
+    private fun refreshProviderCoverage() {
+        val target=providerCoverageContainer ?: return
+        target.removeAllViews()
+        target.addView(label("READING LOCAL PROVIDER DATA…",9f,MUTED,false).apply{setPadding(0,dp(5),0,dp(5))})
+        val notificationPermission=notificationAccessEnabled()
+        worker.execute {
+            val result=runCatching {
+                ProviderCoverageCalculator.summarize(
+                    notifications=commands.notices(1000),
+                    offers=commands.offers(1000),
+                    importedRecords=mirror.recent(1000),
+                    notificationAccessGranted=notificationPermission
+                )
+            }
+            runOnUiThread {
+                if(activeTab!="SOURCES") return@runOnUiThread
+                target.removeAllViews()
+                if(result.isSuccess) {
+                    result.getOrDefault(emptyList()).forEach { renderProviderCoverage(it) }
+                } else {
+                    target.addView(label("COVERAGE UNAVAILABLE · ${result.exceptionOrNull()?.message ?: "LOCAL READ FAILED"}",9f,AMBER,false))
+                }
+            }
+        }
+    }
+
+    private fun renderProviderCoverage(summary:ProviderCoverageSummary) {
+        val target=providerCoverageContainer ?: return
+        val app=ProviderAppCatalog.forProvider(summary.provider)
+        // A launch intent confirms only that Android can find a launchable app package.
+        // It is not a provider session, API connection or proof of data access.
+        val launchIntent=app?.let { packageManager.getLaunchIntentForPackage(it.packageName) }
+        val appState=when {
+            app==null -> "NO VERIFIED APP HANDOFF"
+            launchIntent!=null -> "INSTALLED / LAUNCHABLE · NOT A CONNECTION"
+            else -> "NOT DETECTED OR NOT LAUNCHABLE"
+        }
+        val entry=card()
+        val stateColor=if(summary.state==ProviderCoverageState.LOCAL_INPUTS_PRESENT)MINT else AMBER
+        entry.addView(label(summary.provider.uppercase(Locale.getDefault()),12f,WHITE,true))
+        entry.addView(label(summary.statusLabel,8f,stateColor,true).apply{setPadding(0,dp(3),0,dp(5))})
+        entry.addView(label("APP · $appState",8f,if(launchIntent!=null)MINT else MUTED,true))
+        entry.addView(label("NOTIFICATIONS · ${summary.visibleNotificationCount} CAPTURED · ${if(summary.notificationAccessGranted) "PERMISSION ON" else "PERMISSION REQUIRED"}",9f,WHITE,false).apply{setPadding(0,dp(5),0,0)})
+        entry.addView(label("OFFERS · ${summary.manualOfferCount} MANUAL · ${summary.notificationReviewedOfferCount} REVIEWED · ${summary.otherOfferCount} OTHER",9f,WHITE,false).apply{setPadding(0,dp(3),0,0)})
+        entry.addView(label("IMPORTED HISTORY · ${summary.importedRecordCount} RECORDS",9f,WHITE,false).apply{setPadding(0,dp(3),0,0)})
+        val lastRecord=summary.lastLocalRecordAtMillis?.let(::dateTime) ?: "NOT RECORDED"
+        entry.addView(label("LATEST NOTICE / OFFER CAPTURE · $lastRecord",8f,MUTED,false).apply{setPadding(0,dp(5),0,0)})
+        entry.addView(label("DIRECT PROVIDER API · NOT CONNECTED / NOT VERIFIED",8f,AMBER,true).apply{setPadding(0,dp(4),0,0)})
+        summary.dataGaps.forEach { gap ->
+            entry.addView(label("GAP · $gap",8f,MUTED,false).apply{setPadding(0,dp(3),0,0)})
+        }
+        val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        app?.let { definition ->
+            val buttonTitle=if(launchIntent!=null) "OPEN ${definition.displayName.uppercase(Locale.getDefault())}" else "APP NOT DETECTED"
+            actions.addView(action(buttonTitle,launchIntent!=null){
+                if(launchIntent!=null) startActivity(launchIntent)
+                else Toast.makeText(this,"${definition.displayName} is not detected or launchable on this device.",Toast.LENGTH_LONG).show()
+            },LinearLayout.LayoutParams(0,dp(38),1f))
+        }
+        actions.addView(action(if(summary.notificationAccessGranted)"MANAGE NOTIFICATION ACCESS" else "ENABLE NOTIFICATION ACCESS",false){
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        },LinearLayout.LayoutParams(if(app==null)-1 else 0,dp(38),if(app==null)0f else 1f).apply{
+            if(app!=null) marginStart=dp(7)
+        })
+        entry.addView(actions,LinearLayout.LayoutParams(-1,dp(38)).apply{topMargin=dp(9)})
+        target.addView(entry)
+    }
+
+    private fun renderMigrationDiagnostics() {
+        val target=ledgerMigrationContainer ?: return
+        target.removeAllViews()
+        target.addView(label(ledgerMigrationStatus,10f,if(ledgerMigrationStatus.startsWith("MIGRATION COMPLETE"))MINT else AMBER,false))
+        target.addView(label(ledgerParityStatus,10f,if(ledgerParityStatus.startsWith("DRIVER MIRROR V6 CONSOLIDATION COMPLETE"))MINT else AMBER,false).apply{setPadding(0,dp(8),0,0)})
+    }
+
+    private fun shareMigrationDiagnostics() {
+        val intent=Intent(Intent.ACTION_SEND).apply {
+            type="text/plain"
+            putExtra(Intent.EXTRA_SUBJECT,"BusyBee local data migration report")
+            putExtra(Intent.EXTRA_TEXT,ledgerMigrationStatus + "\n\n" + ledgerParityStatus)
+        }
+        startActivity(Intent.createChooser(intent,"Share migration report"))
+    }
+
     private fun sourceRow(parent:LinearLayout,name:String,detail:String,status:String){
         val row=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(0,dp(9),0,dp(9))}
         row.addView(label(name,12f,WHITE,true));row.addView(label(detail,10f,MUTED,false).apply{setPadding(0,dp(2),0,dp(3))})
@@ -636,7 +1315,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(requestCode==LOCATION_REQUEST&&grantResults.any{it==PackageManager.PERMISSION_GRANTED})requestLocation()}
     override fun onStart(){super.onStart();mapView.onStart()}
-    override fun onResume(){super.onResume();mapView.onResume()}
+    override fun onResume(){super.onResume();mapView.onResume();if(activeTab=="SOURCES")refreshProviderCoverage()}
     override fun onPause(){try{locationManager.removeUpdates(locationListener)}catch(_:Exception){};mapView.onPause();super.onPause()}
     override fun onStop(){mapView.onStop();super.onStop()}
     override fun onLowMemory(){super.onLowMemory();mapView.onLowMemory()}

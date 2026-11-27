@@ -2,6 +2,7 @@ package com.ysfclc.busybee.drivercommandcentre
 
 import android.content.ContentValues
 import android.content.Context
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
@@ -59,10 +60,28 @@ data class DriverItem(
 )
 
 data class CapturedNotice(val id: Long, val platform: String, val title: String, val body: String, val capturedAt: Long)
+
+/**
+ * A malformed persisted event is returned as a row-level failure so it cannot
+ * prevent valid pending events later in the same batch from being delivered.
+ */
+data class PendingProviderOfferEvent(
+    val outboxId: Long,
+    val event: ProviderEventEnvelope?,
+    val failureReason: String? = null
+)
 data class CommunityDocument(val id: Long, val title: String, val content: String, val importedAt: Long)
 data class RoadReport(val id: Long, val category: String, val description: String, val latitude: Double, val longitude: Double, val createdAt: Long)
 
-class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 2) {
+class DriverCommandStore(context: Context) : SQLiteOpenHelper(
+    context.applicationContext,
+    "busybee_command_centre.db",
+    null,
+    DRIVER_COMMAND_SCHEMA_VERSION
+) {
+    companion object {
+        private const val DRIVER_COMMAND_SCHEMA_VERSION = 4
+    }
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE offers(
             id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, pickup TEXT, destination TEXT,
@@ -83,23 +102,281 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, description TEXT NOT NULL,
             latitude REAL NOT NULL, longitude REAL NOT NULL, created_at INTEGER NOT NULL)""")
         db.execSQL("""CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
+        createWhatsAppWatchTables(db)
+        createProviderEventOutbox(db)
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE driver_items ADD COLUMN recurrence TEXT")
             db.execSQL("ALTER TABLE driver_items ADD COLUMN completed_at INTEGER")
         }
+        if (oldVersion < 4) {
+            // PR #16 schema v3 has WhatsApp tables; PR #29 schema v3 has the
+            // provider-event outbox. v4 converges both layouts additively.
+            createWhatsAppWatchTables(db)
+            createProviderEventOutbox(db)
+        }
+    }
+
+    private fun createWhatsAppWatchTables(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE IF NOT EXISTS whatsapp_groups(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            package_name TEXT NOT NULL,
+            group_title TEXT NOT NULL,
+            tracking_enabled INTEGER NOT NULL DEFAULT 0,
+            first_seen_at INTEGER NOT NULL,
+            last_seen_at INTEGER NOT NULL,
+            UNIQUE(package_name, group_title)
+        )""")
+        db.execSQL("""CREATE TABLE IF NOT EXISTS whatsapp_group_messages(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            fingerprint TEXT NOT NULL UNIQUE,
+            sender TEXT NOT NULL,
+            body TEXT NOT NULL,
+            message_at INTEGER NOT NULL,
+            FOREIGN KEY(group_id) REFERENCES whatsapp_groups(id) ON DELETE CASCADE
+        )""")
+        db.execSQL("CREATE INDEX IF NOT EXISTS whatsapp_messages_group_time ON whatsapp_group_messages(group_id,message_at DESC)")
+    }
+
+    private fun createProviderEventOutbox(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE IF NOT EXISTS provider_event_outbox(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            idempotency_key TEXT NOT NULL UNIQUE,
+            offer_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            decision TEXT,
+            occurred_at_ms INTEGER,
+            created_at_ms INTEGER NOT NULL,
+            delivered_at_ms INTEGER,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            FOREIGN KEY(offer_id) REFERENCES offers(id)
+        )""")
+        db.execSQL("CREATE INDEX IF NOT EXISTS provider_event_outbox_pending_idx ON provider_event_outbox(delivered_at_ms,id)")
     }
 
     @Synchronized fun saveOffer(o: DriverOffer): Long {
-        val v = ContentValues().apply {
-            put("platform",o.platform); put("pickup",o.pickup); put("destination",o.destination)
-            put("fare",o.fare); put("bonus",o.bonus); put("pickup_km",o.pickupKm); put("trip_km",o.tripKm)
-            put("duration_min",o.durationMin); if(o.passengerRating==null) putNull("passenger_rating") else put("passenger_rating",o.passengerRating)
-            put("captured_at",o.capturedAt); put("source",o.source); put("raw",o.raw); put("status",o.status)
-        }
-        return writableDatabase.insertOrThrow("offers",null,v)
+        return writableDatabase.insertOrThrow("offers", null, offerValues(o))
     }
+
+    /**
+     * Saves the offer and its canonical-event outbox row in one SQLite transaction.
+     * If the app process dies before the Provider Bridge write completes, the
+     * pending event remains recoverable from this same database on next startup.
+     */
+    @Synchronized
+    fun saveOfferWithPendingEvent(offer: DriverOffer): DriverOffer {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val id = db.insertOrThrow("offers", null, offerValues(offer))
+            val saved = offer.copy(id = id)
+            enqueueProviderOfferEvent(db, id, ManualOfferEventFactory.observed(saved))
+            db.setTransactionSuccessful()
+            return saved
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /**
+     * Applies the driver's local decision and enqueues its event atomically with
+     * the offer status update. This does not send a decision to the ride provider.
+     */
+    @Synchronized
+    fun recordOfferDecision(
+        offerId: Long,
+        status: String,
+        decision: String,
+        decidedAtMillis: Long
+    ): DriverOffer? {
+        require(status.isNotBlank()) { "Offer status is required" }
+        require(decision.isNotBlank()) { "Decision is required" }
+        require(decidedAtMillis > 0L) { "Decision time must be positive" }
+
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val updated = db.update(
+                "offers",
+                ContentValues().apply { put("status", status) },
+                "id=?",
+                arrayOf(offerId.toString())
+            )
+            if (updated == 0) return null
+            val saved = readOffer(db, offerId) ?: return null
+            enqueueProviderOfferEvent(
+                db,
+                offerId,
+                ManualOfferEventFactory.decisionObserved(saved, decision, decidedAtMillis)
+            )
+            db.setTransactionSuccessful()
+            return saved
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Highest durable outbox row ID, including already delivered rows. */
+    @Synchronized
+    fun latestProviderOfferOutboxId(): Long =
+        readableDatabase.rawQuery(
+            "SELECT COALESCE(MAX(id),0) FROM provider_event_outbox",
+            null
+        ).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else 0L }
+
+    /**
+     * Returns an ordered snapshot of pending events through the supplied row ID.
+     * The upper bound lets the caller detect records enqueued while a drain is running.
+     */
+    @Synchronized
+    fun pendingProviderOfferEvents(throughId: Long, limit: Int = 200): List<PendingProviderOfferEvent> {
+        require(limit in 1..1000) { "limit must be between 1 and 1000" }
+        if (throughId <= 0L) return emptyList()
+
+        val events = mutableListOf<PendingProviderOfferEvent>()
+        readableDatabase.rawQuery(
+            """SELECT q.id,q.idempotency_key,q.event_type,q.decision,q.occurred_at_ms,
+                      o.id,o.platform,o.pickup,o.destination,o.fare,o.bonus,o.pickup_km,
+                      o.trip_km,o.duration_min,o.passenger_rating,o.captured_at,o.source,o.raw,o.status
+               FROM provider_event_outbox q
+               JOIN offers o ON o.id=q.offer_id
+               WHERE q.delivered_at_ms IS NULL AND q.id<=?
+               ORDER BY q.id ASC
+               LIMIT ?""",
+            arrayOf(throughId.toString(), limit.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val outboxId = cursor.getLong(0)
+                try {
+                    val offer = readOffer(cursor, 5)
+                    val event = when (ProviderEventType.valueOf(cursor.getString(2))) {
+                        ProviderEventType.OFFER_OBSERVED ->
+                            ManualOfferEventFactory.observed(offer)
+                        ProviderEventType.OFFER_DECISION_OBSERVED ->
+                            ManualOfferEventFactory.decisionObserved(
+                                offer,
+                                cursor.getString(3) ?: throw IllegalStateException("Outbox decision is missing"),
+                                if (cursor.isNull(4)) throw IllegalStateException("Outbox decision time is missing") else cursor.getLong(4)
+                            )
+                        else -> throw IllegalStateException("Unsupported offer outbox event type: ${cursor.getString(2)}")
+                    }
+                    val storedKey = cursor.getString(1)
+                    check(event.idempotencyKey == storedKey) {
+                        "Reconstructed event idempotency key does not match its outbox row"
+                    }
+                    events.add(PendingProviderOfferEvent(outboxId, event))
+                } catch (error: Exception) {
+                    val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                    events.add(PendingProviderOfferEvent(outboxId, null, detail.take(1000)))
+                }
+            }
+        }
+        return events
+    }
+
+    @Synchronized
+    fun markProviderOfferEventDelivered(outboxId: Long, deliveredAtMillis: Long = System.currentTimeMillis()) {
+        writableDatabase.execSQL(
+            "UPDATE provider_event_outbox SET delivered_at_ms=?,last_error=NULL WHERE id=? AND delivered_at_ms IS NULL",
+            arrayOf(deliveredAtMillis, outboxId)
+        )
+    }
+
+    @Synchronized
+    fun markProviderOfferEventFailed(outboxId: Long, error: String) {
+        writableDatabase.execSQL(
+            "UPDATE provider_event_outbox SET attempt_count=attempt_count+1,last_error=? WHERE id=? AND delivered_at_ms IS NULL",
+            arrayOf(error.take(1000), outboxId)
+        )
+    }
+
+    @Synchronized
+    fun hasPendingProviderOfferEventsAfter(outboxId: Long): Boolean =
+        readableDatabase.rawQuery(
+            "SELECT 1 FROM provider_event_outbox WHERE delivered_at_ms IS NULL AND id>? LIMIT 1",
+            arrayOf(outboxId.toString())
+        ).use { it.moveToFirst() }
+
+    @Synchronized
+    fun pendingProviderOfferEventCount(): Int =
+        readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM provider_event_outbox WHERE delivered_at_ms IS NULL",
+            null
+        ).use { cursor -> if (cursor.moveToFirst()) cursor.getInt(0) else 0 }
+
+    private fun enqueueProviderOfferEvent(
+        db: SQLiteDatabase,
+        offerId: Long,
+        event: ProviderEventEnvelope
+    ) {
+        require(offerId > 0L) { "Offer ID must be positive" }
+        val payload = event.payload as? ProviderEventPayload.Offer
+            ?: throw IllegalArgumentException("Offer outbox only accepts offer payloads")
+        val values = ContentValues().apply {
+            put("idempotency_key", event.idempotencyKey)
+            put("offer_id", offerId)
+            put("event_type", event.eventType.name)
+            put("decision", payload.decision)
+            if (event.occurredAtMillis == null) putNull("occurred_at_ms")
+            else put("occurred_at_ms", event.occurredAtMillis)
+            put("created_at_ms", System.currentTimeMillis())
+        }
+        val inserted = db.insertWithOnConflict(
+            "provider_event_outbox",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_IGNORE
+        )
+        if (event.eventType == ProviderEventType.OFFER_OBSERVED && inserted == -1L) {
+            throw IllegalStateException("Offer-observed outbox event already exists for a new offer")
+        }
+    }
+
+    private fun offerValues(offer: DriverOffer) = ContentValues().apply {
+        put("platform", offer.platform)
+        put("pickup", offer.pickup)
+        put("destination", offer.destination)
+        put("fare", offer.fare)
+        put("bonus", offer.bonus)
+        put("pickup_km", offer.pickupKm)
+        put("trip_km", offer.tripKm)
+        put("duration_min", offer.durationMin)
+        if (offer.passengerRating == null) putNull("passenger_rating") else put("passenger_rating", offer.passengerRating)
+        put("captured_at", offer.capturedAt)
+        put("source", offer.source)
+        put("raw", offer.raw)
+        put("status", offer.status)
+    }
+
+    private fun readOffer(db: SQLiteDatabase, offerId: Long): DriverOffer? =
+        db.rawQuery(
+            """SELECT id,platform,pickup,destination,fare,bonus,pickup_km,trip_km,
+                      duration_min,passenger_rating,captured_at,source,raw,status
+               FROM offers WHERE id=?""",
+            arrayOf(offerId.toString())
+        ).use { cursor -> if (cursor.moveToFirst()) readOffer(cursor) else null }
+
+    private fun readOffer(cursor: Cursor, offset: Int = 0): DriverOffer =
+        DriverOffer(
+            id = cursor.getLong(offset),
+            platform = cursor.getString(offset + 1),
+            pickup = cursor.getString(offset + 2) ?: "",
+            destination = cursor.getString(offset + 3) ?: "",
+            fare = cursor.getDouble(offset + 4),
+            bonus = cursor.getDouble(offset + 5),
+            pickupKm = cursor.getDouble(offset + 6),
+            tripKm = cursor.getDouble(offset + 7),
+            durationMin = cursor.getDouble(offset + 8),
+            passengerRating = if (cursor.isNull(offset + 9)) null else cursor.getDouble(offset + 9),
+            capturedAt = cursor.getLong(offset + 10),
+            source = cursor.getString(offset + 11),
+            raw = cursor.getString(offset + 12) ?: "",
+            status = cursor.getString(offset + 13)
+        )
+
     fun offers(limit:Int=100):List<DriverOffer> {
         val out=mutableListOf<DriverOffer>()
         readableDatabase.rawQuery("SELECT id,platform,pickup,destination,fare,bonus,pickup_km,trip_km,duration_min,passenger_rating,captured_at,source,raw,status FROM offers ORDER BY captured_at DESC LIMIT ?", arrayOf(limit.toString())).use { c ->
@@ -109,10 +386,10 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
     }
     fun updateOfferStatus(id:Long,status:String) { writableDatabase.execSQL("UPDATE offers SET status=? WHERE id=?", arrayOf(status,id)) }
 
-    @Synchronized fun captureNotice(platform:String,title:String,body:String,at:Long=System.currentTimeMillis()) {
+    @Synchronized fun captureNotice(platform:String,title:String,body:String,at:Long=System.currentTimeMillis()): Long {
         val fingerprint=java.security.MessageDigest.getInstance("SHA-256").digest("$platform|$title|$body".toByteArray()).joinToString(""){"%02x".format(it)}
         val v=ContentValues().apply { put("fingerprint",fingerprint);put("platform",platform);put("title",title);put("body",body);put("captured_at",at) }
-        writableDatabase.insertWithOnConflict("notices",null,v,SQLiteDatabase.CONFLICT_IGNORE)
+        return writableDatabase.insertWithOnConflict("notices",null,v,SQLiteDatabase.CONFLICT_IGNORE)
     }
     fun notices(limit:Int=30):List<CapturedNotice> {
         val out=mutableListOf<CapturedNotice>()

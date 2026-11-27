@@ -31,7 +31,7 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 
 ## Phase 3 — Driver Data Mirror (first real product capability)
 
-**Status:** first usable vertical slice implemented. Real provider-export validation, statement reconciliation and completeness review remain open. Native Provider Bridge is now the accepted architecture direction; provider-specific live access is not yet proven.
+**Status:** first usable vertical slice implemented; Driver Money product workflow is being completed on top of it. Period-aware reporting, reviewed CSV import, evidence inspection and explicit completeness are implemented in the current checkpoint. Real provider-export validation, statement reconciliation and device acceptance remain open. Local correction/re-import is implemented and test-covered but not yet device-verified. Native Provider Bridge is the accepted architecture direction; provider-specific live access is not yet proven.
 
 **Goal:** make BusyBee understand the driver's actual work, across platforms, under the driver's control.
 
@@ -49,6 +49,7 @@ The map is the spatial interface for these systems. Base-map rendering and gener
 **Exit gate**
 - Import/capture a representative set of real user records from at least one platform and show the original evidence beside the normalised records.
 - Cross-check totals against the source statement.
+- Driver Money import review must block invalid numeric values, preserve unknowns/currency, and show source evidence beside derived period totals.
 - Clearly show unknowns, gaps, duplicate candidates and confidence; never treat missing values as zero.
 - Provider Bridge contract and unified timeline expose current notification/import data with source, freshness and capability coverage.
 - Owned test harness demonstrates outbound and inbound plaintext observation, redaction and explicit unsupported-state handling before any provider-specific instrumentation feasibility claim.

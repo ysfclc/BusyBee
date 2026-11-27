@@ -212,3 +212,275 @@ Detailed design: [Native Provider Bridge](NATIVE_PROVIDER_BRIDGE.md).
 
 Verification boundary:
 - This checkpoint is design only. No Android app code, database schema, provider integration or APK was changed. The next implementation issue tracks the Provider Bridge contract and unified timeline.
+
+
+## 2026-11-22 — Native Provider Bridge and unified activity migration (implementation checkpoint)
+
+**Status:** implementation committed on `feature/native-provider-bridge-slice-1-2026-11-22`; PR #29 remains open and unmerged.
+
+Delivered:
+- Added a provider-neutral Kotlin bridge contract, adapter registry, capability/health types, typed event payloads and evidence envelope.
+- Added idempotent event-ingestion validation. Delayed/out-of-order evidence is retained; offer expiry requires explicit evidence.
+- Added a local model inventory and app-private model storage catalogue. Discovery never makes a model inference-eligible without compatible runtime/capability metadata.
+- Added the first read-only migration from `busybee_driver_mirror.db` and `busybee_command_centre.db` into `busybee_driver_activity.db`.
+- Migration copies import metadata, every raw CSV evidence row, normalized CSV observations, saved offers and captured notifications. It leaves unrelated driver hub/map tables in place.
+- Each source row and migration marker are committed together. Stable source identity keys prevent duplicate copies on restart. Source databases are opened read-only and never rewritten.
+- Missing/ambiguous source timestamps remain unknown; ISO-8601 timestamps are parsed only when explicit. Imported notifications remain unclassified observations and do not become invented offers/trips/expiry events.
+- Added Robolectric database fixtures for missing databases/tables, duplicate evidence retention, timestamp handling, notification provenance and idempotent reruns.
+- Added CI APK artifact upload so pull-request builds can provide a retrievable validation APK rather than only building it on the runner.
+
+Verification:
+- CI run 449 passed actionlint, Rust domain tests, Android unit tests (including the initial Robolectric migration fixtures) and debug APK assembly.
+- CI run 451 passed actionlint, Rust domain tests, Android Rust-library builds, Android unit tests (including digest, duplicate-row, timestamp and missing-table migration fixtures), and debug APK assembly.
+- CI run 452 was blocked before test execution because Maven Central returned HTTP 429 for a Robolectric transitive dependency. Kotlin compilation had completed; the test runtime dependency could not be downloaded.
+- Added a Google-hosted Maven Central mirror. CI run 453 then passed actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, Android APK signature verification with `apksigner`, and artifact upload.
+- Run 453 uploaded artifact `busybee-debug-apk-453` (artifact ID 14766792681; expires 2026-12-06). Extracted APK size: 48,926,162 bytes; SHA-256: `b6fe30282bd7acfba01885446d9d065c5728201508364095e9be171cefd93efb`.
+- Persistent Android release-signing secrets are absent, so release-signing steps were skipped. The verified debug APK uses a separate `.debug` application ID and cannot update the release package. The pull-request build did not publish a GitHub Release asset.
+- No migration is invoked automatically yet; existing screens still use the legacy stores. The migration must pass on-device parity checks before the UI is switched.
+- PR: https://github.com/ysfclc/BusyBee/pull/29
+
+
+## 2026-11-22 — Persistent provider events and live ledger synchronization
+
+**Status:** implementation committed in the next slice; CI verification pending.
+
+Delivered:
+- Upgraded the unified ledger schema additively to version 2 with a dedicated `evidence_digest` field for canonical provider events. Existing v1 ledgers upgrade without dropping data.
+- Added `SqliteProviderEventStore`, persisting the complete event envelope and typed payload JSON. The database uniqueness constraint decides duplicate races; duplicate inserts are returned as duplicates.
+- Updated `ProviderEventStore.append` to report whether the insert succeeded, closing the race between a prior idempotency read and concurrent inserts.
+- Added `UnifiedActivityRepository`, merging raw observations and canonical provider events into a single timeline query while keeping unknown source time null.
+- Wired legacy-store migration/synchronization to app startup, CSV imports, manual offer creation/status updates and new notification captures. All work runs off the UI thread.
+- Subsequent syncs refresh the current status of already-migrated offers without duplicating their evidence or observation.
+- Added Robolectric coverage for persistent idempotency across store instances, v1-to-v2 schema upgrade, merged timeline ordering, unknown source time and offer status refresh.
+
+Verification:
+- CI run #456 compiled the new code and executed 57 Android tests; 56 passed. One Robolectric test exposed an SDK runtime incompatibility with treating the SQLiteOpenHelper as AutoCloseable. The test was corrected to close the helper explicitly with try/finally.
+- The migration now preloads existing row markers once per source table instead of issuing a target database query for every source row; unchanged offer statuses are not rewritten.
+- CI run #458 passed actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification with `apksigner`, and artifact upload.
+- Run 458 uploaded `busybee-debug-apk-458` (artifact ID 14767985689; expires 2026-12-06). Extracted APK size: 48,926,162 bytes; SHA-256: `f7d7c8476b4b83c76183a4ffe0c8347a40f2250992bd814a62667c7dcb6804a0`.
+- No screen has been switched to the new repository yet. On-device parity and rollback verification remain mandatory before that change.
+
+
+## 2026-11-22 — First unified Activity timeline surface
+
+**Status:** implementation committed on the feature branch; CI verification pending.
+
+Delivered:
+- Added an ACTIVITY destination to the existing navigation without removing MAP, OFFERS, EARNINGS, DRIVER HUB or SOURCES.
+- The screen reads from `UnifiedActivityRepository` off the UI thread and merges imported observations with canonical provider events.
+- Added All / Observations / Events filters and provenance-first cards.
+- Cards distinguish source event time from local receive time. Unknown provider time is explicitly labelled unknown rather than inferred from capture time.
+- Observation cards show source method, classification, current status, route, amount/currency, distance/duration and evidence digest. Canonical event cards show their bounded typed payload preview.
+- Existing Driver Mirror and Offer Desk screens remain on their legacy data sources pending on-device parity; the new Activity surface does not silently replace them.
+
+Verification:
+- CI run #461 passed actionlint, Rust domain tests, Android native-library builds, Android unit tests, debug APK assembly, signature verification and artifact upload.
+- Device-level visual/layout testing on a narrow Android screen remains required.
+
+
+## 2026-11-22 — Activity evidence inspection and provider filters
+
+**Status:** implemented on the existing Native Provider Bridge feature branch; CI run #463 passed.
+
+Delivered:
+- Added provider-specific Activity filters generated from the actual providers present in the local ledger, including a visible unknown-provider group.
+- Provider filters compose with All / Observations / Events filters and use case-insensitive matching.
+- Added an evidence-inspection dialog for each Activity item, exposing record identity, provider/source provenance, source and receive timestamps, lifecycle, evidence row/reference/digest, structured fields and the full stored canonical payload where available.
+- Added deterministic JVM tests for provider-list normalization, unknown providers, case-insensitive matching and combined filters.
+
+Verification:
+- CI run #463: https://github.com/ysfclc/BusyBee/actions/runs/45063014977 — actionlint, Rust domain tests, Android native-library builds, Android unit tests, debug APK assembly, APK v2 signature verification and artifact upload all passed.
+- Artifact: `busybee-debug-apk-463` (ID `14770805750`), 48,942,546-byte APK.
+- APK SHA-256: `a777850852b36cbd66b2ac70ee54a7b5ad7f9e59481a7122bbfccbcc81acb934`.
+- Package/version: `com.ysfclc.busybee.drivercommandcentre.debug`, `0.1.463-debug`.
+- Debug signing is CI validation only; persistent release-signing secrets remain unavailable. This artifact cannot update the release application ID.
+- Physical-device validation and legacy-screen parity/rollback checks remain outstanding.
+
+
+## 2026-11-22 — On-device migration parity diagnostics
+
+**Status:** implemented on the Native Provider Bridge feature branch; CI verification pending.
+
+Delivered:
+- Sources screen includes a local migration status panel and manual re-check action.
+- The panel reports missing legacy databases, per-table source counts, copied/already-present rows and identity-digest verification.
+- A share action exports the diagnostic report as plain text, allowing device validation without logcat or screenshots.
+- Migration exceptions are shown in the panel; the old databases remain read-only and are not modified or deleted.
+- Added formatter tests for not-run, complete and incomplete reports.
+
+Acceptance boundary:
+- A complete migration report verifies source-row identity/count parity for the migrated tables. It does not prove every legacy screen calculation is visually or semantically identical.
+- Physical-device validation on a pre-existing installation and rollback testing are still required before migrating legacy screen reads.
+
+
+## 2026-11-23 — User-curated offer events enter the Provider Bridge
+
+**Status:** implementation committed on the Native Provider Bridge branch; CI verification pending.
+
+Delivered:
+- Manual structured offers and offers explicitly reviewed from a captured platform notification now emit typed `OFFER_OBSERVED` provider events.
+- Provenance distinguishes manual user entry from notification-backed user capture; neither is labelled an official provider API.
+- The app's local capture timestamp remains the receive timestamp. Source event time stays unknown unless the source supplies it.
+- The BusyBee **SKIP** action emits a separate `OFFER_DECISION_OBSERVED` event named `skipped_by_driver_in_busybee`; it is not confused with a provider-side acceptance or rejection.
+- Events are persisted through the existing SQLite idempotency store. Existing command-centre rows, imported records and raw evidence are not rewritten or deleted.
+- Added focused JVM tests for event mapping, source provenance, stable idempotency, evidence digest, explicit decision time and invalid unsaved offers.
+
+Verification:
+- CI run #471: https://github.com/ysfclc/BusyBee/actions/runs/45128390056 — actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification with apksigner and artifact upload all passed.
+- Artifact: busybee-debug-apk-471 (ID 14796742452), 19,874,453-byte ZIP; artifact ZIP SHA-256: c8558dc16d7b3401472d681453b691431fd03f206a42427e250337f5442a0fd4; expires 2026-12-07.
+- Debug package: com.ysfclc.busybee.drivercommandcentre.debug, version 0.1.471-debug. This is a validation build and cannot update the installed release package.
+- Release signing was not exercised in this run. The workflow received empty values for all four expected signing inputs (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD), so release keystore preparation, release assembly and release-certificate verification were skipped. The debug APK's Android Debug certificate is not the persistent release certificate.
+- Physical-device migration parity and rollback acceptance remain outstanding.
+
+Verification boundary:
+- Raw notifications remain observations until reviewed; CSV imports remain observations pending a source-specific mapping contract.
+- No direct Uber/Bolt API connection, auto-acceptance or provider-side action is claimed.
+
+
+## 2026-11-23 — End-to-end user-curated offer event verification
+
+**Status:** implemented and verified on the Native Provider Bridge branch.
+
+Delivered:
+- Added a Robolectric end-to-end test that saves a structured offer in the existing Command Centre store, emits its typed OFFER_OBSERVED event, emits a separate BusyBee-local skip decision and persists both through the SQLite Provider Bridge store.
+- The test runs the read-only legacy-offer migration and verifies that the Activity repository shows both the original offer observation and the two canonical events.
+- It verifies the full offer payload (fare, bonus, distance, duration, passenger rating), unknown provider event time for the user-curated offer, explicit local decision time, stable idempotency after reopening the store, and preservation of the original legacy offer row/status/evidence.
+- Corrected the Activity empty-state wording so it no longer says canonical events can only come from provider adapters; manual or notification-reviewed offers are also supported event producers.
+
+Verification:
+- CI run #474: https://github.com/ysfclc/BusyBee/actions/runs/45129506262 — actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload passed.
+- Artifact: busybee-debug-apk-474 (ID 14796953779), 19,874,624-byte ZIP; artifact ZIP SHA-256 e1d0f127f83e8e28942b119e0ac0ca8978056b1aed1debf082b3e8a1296bae10; expires 2026-12-07.
+- Package/version: com.ysfclc.busybee.drivercommandcentre.debug, 0.1.474-debug.
+- Release keystore preparation and signed APK verification were skipped because the four expected release-signing secret values were empty in the workflow. The certificate verified in this run is the Android Debug certificate, not the persistent release certificate.
+- Physical-device migration parity and rollback acceptance remain open.
+
+
+## 2026-11-23 — Per-provider local source coverage in Sources
+
+**Status:** implemented and verified on the Native Provider Bridge branch.
+
+Delivered:
+- Added a provider-coverage panel to Sources for Uber, Bolt, FreeNow, iTaxi, Cabify, Lyft and any additional provider names present in local data.
+- The panel reports notification-permission state, visible captured-notification count, manually entered offers, notification-reviewed offers, other saved offers, imported-history record count and local capture recency.
+- It exposes source gaps explicitly: permission not granted, no visible notices, no structured offer, no imported history and no verified direct provider API connection.
+- The notification source row now changes its label based on the real Android notification-listener permission and explicitly calls this a partial user-visible signal, not a provider API.
+- All provider summaries are calculated from local records on a background worker. Returning from Android Settings refreshes the coverage panel.
+- Unknown provider names are preserved rather than discarded.
+- Added unit tests for Uber/Bolt aliases, local input counts, manual vs notification-reviewed offers, imported history, unknown providers, permission gaps and the explicit unverified-API state.
+- This is local evidence coverage, not a capability handshake with Uber/Bolt. The panel does not label a provider connected or verified.
+
+Verification:
+- CI run #476: https://github.com/ysfclc/BusyBee/actions/runs/45130369253 — actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload passed.
+- Artifact: busybee-debug-apk-476 (ID 14797357509), 19,884,900-byte ZIP; artifact ZIP SHA-256 996052dffdf46e3187d533a4d39c4a5eeb95f5895208fde1b5ab12515c9359ac; expires 2026-12-07.
+- Package/version: com.ysfclc.busybee.drivercommandcentre.debug, 0.1.476-debug.
+- The release keystore and release-signature steps were skipped. The workflow again received empty values for the four expected release-signing secrets. The certificate verified here is the Android Debug certificate (SHA-256 eae426830bd5011c49c81ab8b7868f46fef37564f9807163a215091076bdd06d), not the persistent release certificate.
+- Physical-device migration parity and rollback acceptance remain outstanding.
+
+
+## 2026-11-23 — Provider coverage wording and recency clarification
+
+**Status:** implemented and verified.
+
+- The Sources coverage panel now discloses that counts use the latest 1,000 local entries per source table; they are not lifetime totals or provider-side sync counts.
+- The recency label was narrowed to “latest notice / offer capture” because imported-history source times are a separate timestamp domain and are not included in that capture timestamp.
+- This prevents a local notice/offer capture timestamp from being mistaken for the most recent imported trip or authoritative provider sync.
+
+Verification:
+- CI run #478: https://github.com/ysfclc/BusyBee/actions/runs/45131173423 — actionlint, Rust domain tests, Android native-library builds, all Android unit tests, debug APK assembly, debug APK signature verification and artifact upload passed.
+- Artifact: busybee-debug-apk-478 (ID 14798520217), 19,884,619-byte ZIP; SHA-256 2943566d83598a43441af8549cd9e047abc3aa35c2f8275455f8ff703b487e8e; expires 2026-12-07.
+- Package/version: com.ysfclc.busybee.drivercommandcentre.debug, 0.1.478-debug.
+- Release keystore preparation and release verification were skipped because the four required repository Actions secret inputs were empty. The verified Android Debug certificate SHA-256 is 154c6bbad2a197fedd45eaffad98798eafc69fd39e910f37121e707106be9721 and is not the persistent release certificate.
+
+
+## 2026-11-23 — Uber / Bolt Connected Apps handoff cards
+
+**Status:** implemented and verified on the Native Provider Bridge branch.
+
+Delivered:
+- Sources now presents per-provider cards under CONNECTED APPS · LOCAL PROVIDER COVERAGE.
+- Uber Driver and Bolt Driver cards report whether Android can detect a launchable app package and provide an explicit button to open the official app.
+- Both cards expose captured notification count, global notification-listener permission state, manual / notification-reviewed / other offer counts, imported-history count, latest notice/offer capture time and outstanding source gaps.
+- Each known card keeps these states separate: app installed/launchable, notification access granted, local records present and direct provider API connection. The API state remains NOT CONNECTED / NOT VERIFIED.
+- Added narrow Android package visibility queries for only com.ubercab.driver and ee.mtakso.driver. No QUERY_ALL_PACKAGES permission was added.
+- ProviderAppCatalog supports only those two explicit app handoffs. Unknown/other provider names remain visible in coverage but do not receive invented package IDs or launch actions.
+- Notification settings can be opened from each card. Returning from Settings refreshes the local coverage view.
+- Added tests for Uber Driver / Uber alias mapping, Bolt / Taxify alias mapping, unsupported providers and the explicit app-catalogue boundary.
+
+Verification:
+- CI run #481: https://github.com/ysfclc/BusyBee/actions/runs/45132114510 — actionlint, Rust domain tests, Android native-library builds, all Android unit tests, APK assembly, debug signature verification and artifact upload passed.
+- Artifact busybee-debug-apk-481 (ID 14798067702), 19,886,969-byte ZIP; SHA-256 b52c09fb32a4edee8e5f89ac8d435604c71542fa9866fcfaf12d1c43c13d8ab2; expires 2026-12-07.
+- CI run #482: https://github.com/ysfclc/BusyBee/actions/runs/45132847686 — all the same validation stages passed after the final Connected Apps heading/copy change.
+- Artifact busybee-debug-apk-482 (ID 14798677356), 19,887,053-byte ZIP; SHA-256 4927f6fbb46ac7039d0063ad934a9559a2f7389652534346fe39ce11e2015362; expires 2026-12-07.
+- The workflow did not receive release-signing secrets in either pull-request run, so both artifacts are debug validation APKs. They are not install-over-existing release builds; their Android Debug certificates are not the persistent release certificate.
+
+### Release-pipeline safety
+
+- The workflow now allows debug-only APK validation on pull requests and fails closed for push to main or manual workflow_dispatch when any of the four persistent release-signing inputs is unavailable.
+- This prevents a debug APK from being published as a release asset. The non-PR release path still needs a successful run to verify the persistent certificate.
+
+Remaining:
+- No production Uber/Bolt API connection or provider-side action is implemented.
+- Real device acceptance of package detection, app handoff and notification capture remains outstanding.
+
+
+## 2026-11-23 — Restart-safe offer event outbox
+
+**Status:** implemented on the Native Provider Bridge branch.
+
+Delivered:
+- Added an additive schema-version-3 `provider_event_outbox` table to the existing Command Centre database that already owns saved offers.
+- Manual offer save and creation of its `OFFER_OBSERVED` outbox row now commit in one SQLite transaction.
+- BusyBee-local offer decisions update the offer status and enqueue `OFFER_DECISION_OBSERVED` in one transaction.
+- On startup and after offer save/decision actions, a background drain delivers pending outbox entries to the canonical Provider Bridge store.
+- The source outbox row is acknowledged only after the canonical store confirms a new insert or an idempotent duplicate. A process death between those operations is safe: the same stable idempotency key is replayed after restart.
+- Failed deliveries remain pending with an attempt count and error text; a later launch or new event triggers another drain.
+- Existing Command Centre offers and status are preserved; version-2 databases upgrade additively.
+
+Automated verification:
+- Added a Robolectric end-to-end test simulating process restart after canonical insertion but before source-outbox acknowledgement, then verifies duplicate replay, acknowledgement and preservation of original offer data.
+- Added a version-2-to-version-3 database upgrade test and repeated local-decision idempotency coverage.
+- CI run #485 was cancelled. Run #486 failed during Android unit tests: 9 of 76 tests reported MavenArtifactFetcher.java:129 / HttpURLConnection IOException while Robolectric attempted artifact retrieval; the run did not provide assertion-level evidence for those failures. Run: https://github.com/ysfclc/BusyBee/actions/runs/45135138523
+
+
+The outbox is local durability infrastructure. It does not imply a direct Uber/Bolt API connection or provider-side execution.
+
+
+## 2026-11-23 — Isolate malformed provider-outbox rows
+
+- Reproduced a failure mode by inspection: pendingProviderOfferEvents reconstructed the entire batch without per-row error isolation. One unsupported event type or stored-key mismatch threw before returning any events; MainActivity's outer drain catch then left all later healthy rows undelivered.
+- Changed decoding to return each row as either a reconstructed event or a bounded failure reason. The existing per-row delivery catch now records malformed rows and continues through the batch.
+- Added a regression test that inserts a valid offer, corrupts its outbox event type, then inserts another valid offer; the test expects the malformed row to be isolated and the second event to remain deliverable. Updated the process-restart flow test to unwrap valid events explicitly.
+- Files: DriverCommandStore.kt, MainActivity.kt, DriverCommandStoreOutboxTest.kt, ManualOfferEventFlowTest.kt, implementation checkpoint and phase log.
+- Verification boundary: local clone/build unavailable in this runtime (GitHub DNS resolution failed); prior CI #486 failed 9/76 tests at Robolectric's MavenArtifactFetcher/HttpURLConnection artifact retrieval, so this patch requires a fresh CI result
+## 2026-11-25 — Driver Money product checkpoint
+
+**Status:** product workflow implemented on the current feature branch; CI, real provider-statement reconciliation and physical-device acceptance pending.
+
+Delivered as one end-to-end local-first product:
+- Period-aware Today / 7 days / 30 days / All time reporting, with local-date handling for offset timestamps.
+- One period drives the headline economics, platform comparison and trip ledger.
+- Reviewed CSV import preview shows platforms, trip counts, missing fields and currency handling before commit.
+- Invalid numeric values and negative distance stop import; omitted currency defaults to PLN, while a present-but-blank currency remains unknown.
+- Trip-level correction updates normalized values while retaining original raw evidence and source identity.
+- Additive SQLite v1→v2 migration creates correction audit history without dropping existing records.
+- Re-importing the original row cannot overwrite the correction or double-count the canonical trip.
+- Trip inspection exposes source file, external ID, original imported fields and correction history.
+- Product rules and outstanding acceptance gates documented in DRIVER_MONEY_PRODUCT.md.
+
+Not claimed:
+- No verified Uber/Bolt export adapter or direct account/API integration.
+- No statement-total reconciliation until representative user-authorised exports are tested.
+- No tax-adjusted take-home pay, dead-mileage or effective hourly-wage calculation.
+- Signed release build and existing-install device migration/upgrade still require separate verification.
+
+
+## CI verification — Driver Money checkpoint
+
+Workflow run #515 on commit 59dfcb3dedac7d9ad2737a9fec03d76f2c4f7d51 completed successfully:
+- 93 Android unit/Robolectric tests passed; 0 failed; 0 ignored.
+- Rust domain tests passed.
+- Rust Android libraries built.
+- Debug APK assembled and debug signature verified.
+- Release signing intentionally skipped for this pull-request event. No release APK was produced or presented as an update.
+
+External acceptance remains: representative platform statement reconciliation and physical-device verification with a signed release update.

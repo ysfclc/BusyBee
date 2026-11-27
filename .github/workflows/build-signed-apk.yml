@@ -2,7 +2,9 @@ name: Build signed BusyBee APK
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'feature/native-provider-bridge-slice-1-2026-11-22'
     paths:
       - 'rust/**'
       - 'android/**'
@@ -18,7 +20,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: busybee-signed-apk
+  # Keep the secret-bearing push release build independent from the PR validation run.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -46,18 +49,19 @@ jobs:
         id: signing-check
         shell: bash
         env:
-          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEYSTORE: ${{ secrets.BUSYBEE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
-          if [[ -n "$KEYSTORE" && -n "$STORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
+          if [[ -n "$KEYSTORE" && -n "$STORE_PASSWORD" ]]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
-            echo "Persistent release signing is configured."
-          else
+            echo "Persistent release keystore and password are configured."
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" || ( "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" != "refs/heads/main" ) ]]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Release signing secrets are incomplete. CI will build a debug APK for validation; add the four secrets in docs/ANDROID_SIGNING.md to produce install-over-existing signed releases."
+            echo "::warning::Release signing is not required for pull-request or feature-branch validation. APK production remains disabled for feature-branch pushes."
+          else
+            echo "::error::Release signing is required for main-branch and manual release builds. Configure all four repository Actions secrets listed in docs/ANDROID_SIGNING.md. Refusing to publish a debug APK as a release."
+            exit 1
           fi
 
       - name: Set up Java 17
@@ -109,36 +113,101 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest
 
+      - name: Verify Robolectric Bouncy Castle dependency
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon :app:dependencyInsight \
+            --dependency bcprov-jdk18on \
+            --configuration debugUnitTestRuntimeClasspath | tee "$RUNNER_TEMP/bcprov-insight.txt"
+          grep -Eq 'org\.bouncycastle:bcprov-jdk18on:1\.85([[:space:]]|$)' "$RUNNER_TEMP/bcprov-insight.txt"
+
+      - name: Upload Android test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: busybee-android-test-reports-${{ github.run_number }}
+          path: android/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Evaluate APK production gate
+        id: apk-gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "allowed=true" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Feature-branch push: signed APK will be uploaded as a workflow artifact, without publishing a GitHub Release."
+          fi
+
       - name: Prepare release keystore
         id: signing
-        if: steps.signing-check.outputs.ready == 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready == 'true'
         shell: bash
         env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.BUSYBEE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
           path="$RUNNER_TEMP/busybee-release.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$path"
           chmod 600 "$path"
+          aliases="$(keytool -list -v -keystore "$path" -storepass "$STORE_PASSWORD" 2>/dev/null | awk '/^Alias name: / { alias=$3 } /^Entry type: PrivateKeyEntry/ { print alias }')"
+          mapfile -t alias_entries <<< "$aliases"
+          if [[ "${#alias_entries[@]}" -ne 1 || -z "${alias_entries[0]}" ]]; then
+            echo "::error::Expected exactly one private-key entry in the BusyBee keystore; found ${#alias_entries[@]}."
+            exit 1
+          fi
+          alias="${alias_entries[0]}"
           echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "alias=$alias" >> "$GITHUB_OUTPUT"
 
       - name: Assemble signed release APK
-        if: steps.signing-check.outputs.ready == 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready == 'true'
         working-directory: android
         env:
           ANDROID_KEYSTORE_FILE: ${{ steps.signing.outputs.path }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ steps.signing.outputs.alias }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Assemble debug APK for validation
-        if: steps.signing-check.outputs.ready != 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready != 'true'
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
 
+      - name: Verify debug APK signature
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+
+      - name: Upload signed release APK artifact
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: busybee-signed-apk-${{ github.run_number }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload debug validation APK artifact
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: busybee-debug-apk-${{ github.run_number }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Verify signed APK signature
-        if: steps.signing-check.outputs.ready == 'true'
+        if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -147,7 +216,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
 
       - name: Publish APK as a GitHub Release asset
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         id: publish
         shell: bash
         env:
@@ -177,7 +246,10 @@ jobs:
         shell: bash
         run: |
           {
-            if [[ "${{ steps.signing-check.outputs.ready }}" == "true" ]]; then
+            if [[ "${{ steps.apk-gate.outputs.allowed }}" != "true" ]]; then
+              echo "## Tests completed — APK production skipped"
+              echo "- APK production was skipped."
+            elif [[ "${{ steps.signing-check.outputs.ready }}" == "true" ]]; then
               echo "## Signed APK ready"
               echo "- Package: com.ysfclc.busybee.drivercommandcentre"
               echo "- Version: 0.1.${{ github.run_number }}"

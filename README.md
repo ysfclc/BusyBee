@@ -38,13 +38,14 @@ BusyBee is a phase-import control repository. Each `incoming/<name>.zip` is a co
 
 ## Current Android product surfaces
 
-The current build replaces the POI-only experiment with five driver-facing surfaces:
+The current build has six driver-facing surfaces:
 
 - **Map:** tilted spatial map, mapped roadworks/hazards, local driver reports, weather context, destination routing and handoff to turn-by-turn navigation.
 - **Offers:** opt-in notification capture for supported ride apps, manual offer review, driver-controlled filters, and ranking by estimated net PLN/hour after pickup distance and vehicle cost.
-- **Earnings:** private imported trip history and cautious PLN totals.
+- **Activity:** unified local timeline of source observations and canonical provider events, with provider/source filters and evidence inspection. Manually entered or notification-reviewed offers emit typed events; raw notifications remain unclassified until reviewed.
+- **Driver Money:** period-aware private work ledger with reviewed statement import, source-backed trip inspection, platform comparison, vehicle-cost estimates and explicit data completeness.
 - **Driver Hub:** documents, due-date reminders, recurring insurance/payment schedules, completion history, expenses, service contacts and local WhatsApp export search.
-- **Sources:** honest connected / permission-required / not-connected source catalogue.
+- **Sources:** explicit Uber Driver / Bolt Driver app handoff cards, per-provider local data coverage, notification permission state, source gaps and migration diagnostics. App presence and notification permission remain separate from a verified provider API connection.
 
 The offer workflow does not claim direct Uber/Bolt partner API access or auto-acceptance. It surfaces captured information and hands the driver back to the source app for the final decision. Road feed coverage is not equivalent to live traffic speed; source health and gaps remain visible.
 

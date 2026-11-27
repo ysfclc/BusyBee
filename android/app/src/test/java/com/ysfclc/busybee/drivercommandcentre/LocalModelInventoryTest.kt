@@ -1,0 +1,64 @@
+package com.ysfclc.busybee.drivercommandcentre
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.File
+
+class LocalModelInventoryTest {
+    @Test fun scanRecognizesKnownModelFilesAndIgnoresUnknownFiles() {
+        val root = createTempDir(prefix = "busybee-inventory-")
+        try {
+            File(root, "a.gguf").writeBytes(byteArrayOf(1, 2, 3))
+            File(root, "b.tflite").writeBytes(byteArrayOf(4, 5))
+            File(root, "c.onnx").writeBytes(byteArrayOf(6))
+            File(root, "notes.txt").writeText("not a model")
+            val models = LocalModelInventory(root).scan()
+            assertEquals(3, models.size)
+            assertEquals(listOf("a.gguf", "b.tflite", "c.onnx"), models.map { it.fileName })
+            assertEquals(DiscoveredModelFormat.GGUF, models[0].format)
+            assertEquals(3L, models[0].sizeBytes)
+            assertEquals(64, models[0].sha256.length)
+            assertTrue(models.all { !it.metadataKnown && it.capabilities.isEmpty() })
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun missingDirectoryReturnsEmptyInventory() {
+        val root = File(createTempDir(), "not-created")
+        assertTrue(LocalModelInventory(root).scan().isEmpty())
+    }
+
+    @Test fun formatExtensionMappingIsCaseInsensitive() {
+        assertEquals(DiscoveredModelFormat.GGUF, LocalModelInventory.recognizedFormat("GGUF"))
+        assertEquals(DiscoveredModelFormat.LITERT_LM, LocalModelInventory.recognizedFormat("litertlm"))
+        assertEquals(DiscoveredModelFormat.UNKNOWN, LocalModelInventory.recognizedFormat("zip"))
+    }
+    @Test fun modelIdentityIsContentBasedAcrossRename() {
+        val root = createTempDir(prefix = "busybee-identity-")
+        try {
+            val first = File(root, "first.gguf").apply { writeBytes(byteArrayOf(9, 8, 7)) }
+            val firstId = LocalModelInventory(root).scan().single().id
+            val second = File(root, "second.gguf").apply { writeBytes(first.readBytes()) }
+            assertEquals(firstId, LocalModelInventory(root).scan().first { it.fileName == second.name }.id)
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun inventoryRejectsModelSymlinkEscapingManagedDirectory() {
+        val root = createTempDir(prefix = "busybee-managed-")
+        val outside = createTempDir(prefix = "busybee-outside-")
+        try {
+            File(outside, "outside.gguf").writeBytes(byteArrayOf(1, 2, 3))
+            val link = File(root, "escape.gguf")
+            try {
+                java.nio.file.Files.createSymbolicLink(link.toPath(), File(outside, "outside.gguf").toPath())
+            } catch (_: Exception) {
+                return // Symlink creation may be unavailable on this CI host.
+            }
+            assertTrue(LocalModelInventory(root).scan().isEmpty())
+        } finally {
+            root.deleteRecursively()
+            outside.deleteRecursively()
+        }
+    }
+
+}

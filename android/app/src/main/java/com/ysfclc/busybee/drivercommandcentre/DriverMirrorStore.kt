@@ -5,6 +5,10 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import org.json.JSONObject
 
 data class DriverRecord(
     val id: Long,
@@ -22,6 +26,18 @@ data class DriverRecord(
     val status: String?,
     val raw: String,
     val sourceName: String
+)
+
+data class DriverRecordCorrection(
+    val occurredAt: String?,
+    val pickup: String?,
+    val dropoff: String?,
+    val distanceKm: Double?,
+    val gross: Double?,
+    val fees: Double?,
+    val bonus: Double?,
+    val currency: String,
+    val status: String?
 )
 
 data class MirrorSummary(
@@ -52,6 +68,9 @@ object DriverCsv {
         val headers = rows.first().mapIndexed { index, value ->
             (if (index == 0) value.removePrefix("\uFEFF") else value).trim().lowercase().replace(" ", "_")
         }
+        require(headers.distinct().size == headers.size) {
+            "CSV contains duplicate column names after normalisation"
+        }
         require(headers.toSet().containsAll(requiredHeaders)) {
             "CSV needs platform and record_type columns"
         }
@@ -60,8 +79,8 @@ object DriverCsv {
         }
         return rows.drop(1).mapNotNull { cells ->
             if (cells.all { it.isBlank() }) return@mapNotNull null
-            headers.mapIndexedNotNull { index, key ->
-                if (index < cells.size) key to cells[index].trim() else null
+            headers.mapIndexed { index, key ->
+                key to cells.getOrNull(index).orEmpty().trim()
             }.toMap()
         }
     }
@@ -101,10 +120,25 @@ object DriverCsv {
 
     fun number(value: String?): Double? = value?.trim()?.takeIf { it.isNotEmpty() }
         ?.replace(" ", "")?.replace(",", ".")?.toDoubleOrNull()?.takeIf { it.isFinite() }
+
+    fun validationErrors(rows: List<Map<String, String>>): List<String> = buildList {
+        rows.forEachIndexed { index, row ->
+            listOf("distance_km", "gross", "fees", "bonus").forEach { field ->
+                val raw = row[field]?.trim().orEmpty()
+                if (raw.isNotEmpty() && number(raw) == null) {
+                    add("Row " + (index + 2) + ": " + field + " is not a valid number.")
+                }
+            }
+            val distance = number(row["distance_km"])
+            if (distance != null && distance < 0.0) {
+                add("Row " + (index + 2) + ": distance_km cannot be negative.")
+            }
+        }
+    }
 }
 
 class DriverMirrorStore(context: Context) :
-    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 1) {
+    SQLiteOpenHelper(context, "busybee_driver_mirror.db", null, 6) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
@@ -139,6 +173,8 @@ class DriverMirrorStore(context: Context) :
                 pickup TEXT,
                 dropoff TEXT,
                 distance_km REAL,
+                duration_minutes REAL,
+                parse_confidence REAL,
                 gross REAL,
                 fees REAL,
                 bonus REAL,
@@ -151,10 +187,55 @@ class DriverMirrorStore(context: Context) :
         """.trimIndent())
         db.execSQL("CREATE INDEX records_time_idx ON records(occurred_at DESC)")
         db.execSQL("CREATE INDEX records_platform_idx ON records(platform)")
+        createRecordCorrectionsTable(db)
+        createProviderEventsTable(db)
+        UnifiedActivityLedgerSchema.createInDriverMirror(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Versioned migrations are added here; never destroy user evidence on upgrade.
+        if (oldVersion < 2) createRecordCorrectionsTable(db)
+        if (oldVersion < 3) db.execSQL("ALTER TABLE records ADD COLUMN duration_minutes REAL")
+        if (oldVersion < 4) db.execSQL("ALTER TABLE records ADD COLUMN parse_confidence REAL")
+        if (oldVersion < 5) {
+            // PR #16 schema v4 already has provider_events but lacks corrections.
+            // PR #29 schema v2 has corrections but lacks duration/confidence/events.
+            // IF NOT EXISTS preserves whichever branch-local additions already exist.
+            createRecordCorrectionsTable(db)
+            createProviderEventsTable(db)
+        }
+        if (oldVersion < 6) {
+            // Prepare the existing Driver Mirror database as the future activity-ledger owner.
+            UnifiedActivityLedgerSchema.createInDriverMirror(db)
+        }
+    }
+
+    private fun createRecordCorrectionsTable(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS record_corrections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                record_id INTEGER NOT NULL,
+                corrected_at INTEGER NOT NULL,
+                before_values TEXT NOT NULL,
+                after_values TEXT NOT NULL,
+                FOREIGN KEY(record_id) REFERENCES records(id)
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS record_corrections_record_idx ON record_corrections(record_id, corrected_at DESC)")
+    }
+
+    private fun createProviderEventsTable(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS provider_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                dedupe_key TEXT NOT NULL,
+                event_time INTEGER NOT NULL,
+                received_at INTEGER NOT NULL,
+                event_blob TEXT NOT NULL,
+                UNIQUE(provider, dedupe_key)
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS provider_events_time_idx ON provider_events(event_time DESC, received_at DESC)")
     }
 
     @Synchronized
@@ -196,7 +277,7 @@ class DriverMirrorStore(context: Context) :
                     put("gross", DriverCsv.number(row["gross"]))
                     put("fees", DriverCsv.number(row["fees"]))
                     put("bonus", DriverCsv.number(row["bonus"]))
-                    put("currency", row["currency"].orEmpty().ifBlank { "PLN" }.uppercase())
+                    put("currency", row["currency"]?.trim()?.uppercase() ?: "PLN")
                     put("status", row["status"])
                     put("raw", raw)
                     put("source_name", sourceName)
@@ -209,6 +290,86 @@ class DriverMirrorStore(context: Context) :
         } finally {
             db.endTransaction()
         }
+    }
+
+    @Synchronized
+    fun correctRecord(recordId: Long, correction: DriverRecordCorrection): Boolean {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val before = JSONObject()
+            val columns = listOf("occurred_at", "pickup", "dropoff", "distance_km", "gross", "fees", "bonus", "currency", "status")
+            val found = db.rawQuery(
+                "SELECT occurred_at,pickup,dropoff,distance_km,gross,fees,bonus,currency,status FROM records WHERE id=?",
+                arrayOf(recordId.toString())
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) false else {
+                    columns.forEachIndexed { index, column ->
+                        before.put(
+                            column,
+                            if (cursor.isNull(index)) JSONObject.NULL
+                            else if (column in setOf("distance_km", "gross", "fees", "bonus")) cursor.getDouble(index)
+                            else cursor.getString(index)
+                        )
+                    }
+                    true
+                }
+            }
+            if (!found) return false
+
+            val after = JSONObject().apply {
+                put("occurred_at", correction.occurredAt ?: JSONObject.NULL)
+                put("pickup", correction.pickup ?: JSONObject.NULL)
+                put("dropoff", correction.dropoff ?: JSONObject.NULL)
+                put("distance_km", correction.distanceKm ?: JSONObject.NULL)
+                put("gross", correction.gross ?: JSONObject.NULL)
+                put("fees", correction.fees ?: JSONObject.NULL)
+                put("bonus", correction.bonus ?: JSONObject.NULL)
+                put("currency", correction.currency.trim().uppercase())
+                put("status", correction.status ?: JSONObject.NULL)
+            }
+            val values = ContentValues().apply {
+                put("occurred_at", correction.occurredAt)
+                put("pickup", correction.pickup)
+                put("dropoff", correction.dropoff)
+                put("distance_km", correction.distanceKm)
+                put("gross", correction.gross)
+                put("fees", correction.fees)
+                put("bonus", correction.bonus)
+                put("currency", correction.currency.trim().uppercase())
+                put("status", correction.status)
+            }
+            if (db.update("records", values, "id=?", arrayOf(recordId.toString())) != 1) return false
+            val history = ContentValues().apply {
+                put("record_id", recordId)
+                put("corrected_at", System.currentTimeMillis())
+                put("before_values", before.toString())
+                put("after_values", after.toString())
+            }
+            db.insertOrThrow("record_corrections", null, history)
+            db.setTransactionSuccessful()
+            return true
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun correctionHistory(recordId: Long): List<String> {
+        val history = mutableListOf<String>()
+        readableDatabase.rawQuery(
+            "SELECT corrected_at,before_values,after_values FROM record_corrections WHERE record_id=? ORDER BY id DESC",
+            arrayOf(recordId.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val changedAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(cursor.getLong(0)))
+                history.add(
+                    "Changed at " + changedAt +
+                        "\nBefore: " + cursor.getString(1) +
+                        "\nAfter: " + cursor.getString(2)
+                )
+            }
+        }
+        return history
     }
 
     fun summary(): MirrorSummary {
@@ -240,20 +401,25 @@ class DriverMirrorStore(context: Context) :
         return MirrorSummary(records, trips, offers, gross, fees, bonuses, platforms, imports, nonPln, netComplete)
     }
 
-    fun recent(limit: Int = 30): List<DriverRecord> {
+    fun recent(limit: Int = 30): List<DriverRecord> = queryRecords(limit)
+
+    /** Full local ledger; period reports must never silently truncate at a recent-row limit. */
+    fun allRecords(): List<DriverRecord> = queryRecords(null)
+
+    private fun queryRecords(limit: Int?): List<DriverRecord> {
         val records = mutableListOf<DriverRecord>()
-        readableDatabase.rawQuery(
-            "SELECT id,platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,gross,fees,bonus,currency,status,raw,source_name FROM records ORDER BY COALESCE(occurred_at,'') DESC,id DESC LIMIT ?",
-            arrayOf(limit.toString())
-        ).use { c ->
-            while (c.moveToNext()) records.add(DriverRecord(
-                c.getLong(0), c.getString(1), c.getString(2), c.getString(3), c.getString(4),
-                c.getString(5), c.getString(6),
-                if (c.isNull(7)) null else c.getDouble(7),
-                if (c.isNull(8)) null else c.getDouble(8),
-                if (c.isNull(9)) null else c.getDouble(9),
-                if (c.isNull(10)) null else c.getDouble(10),
-                c.getString(11), c.getString(12), c.getString(13), c.getString(14)
+        val baseSql = "SELECT id,platform,record_type,external_id,occurred_at,pickup,dropoff,distance_km,gross,fees,bonus,currency,status,raw,source_name FROM records ORDER BY COALESCE(occurred_at,'') DESC,id DESC"
+        val sql = if (limit == null) baseSql else "$baseSql LIMIT ?"
+        val args = limit?.let { arrayOf(it.toString()) }
+        readableDatabase.rawQuery(sql, args).use { cursor ->
+            while (cursor.moveToNext()) records.add(DriverRecord(
+                cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getString(3), cursor.getString(4),
+                cursor.getString(5), cursor.getString(6),
+                if (cursor.isNull(7)) null else cursor.getDouble(7),
+                if (cursor.isNull(8)) null else cursor.getDouble(8),
+                if (cursor.isNull(9)) null else cursor.getDouble(9),
+                if (cursor.isNull(10)) null else cursor.getDouble(10),
+                cursor.getString(11), cursor.getString(12), cursor.getString(13), cursor.getString(14)
             ))
         }
         return records

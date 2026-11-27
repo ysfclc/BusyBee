@@ -30,10 +30,10 @@ In BusyBee: Settings → Secrets and variables → Actions → New repository se
 
 | Secret | Value |
 |---|---|
-| ANDROID_KEYSTORE_BASE64 | Base64 output from the previous step |
-| ANDROID_KEYSTORE_PASSWORD | Keystore password |
-| ANDROID_KEY_ALIAS | busybee (or the alias you chose) |
-| ANDROID_KEY_PASSWORD | Private-key password |
+| BUSYBEE_KEYSTORE_BASE64 | Base64 output from the previous step |
+| BUSYBEE_KEYSTORE_PASSWORD | Keystore password |
+| (detected automatically from the keystore) | busybee (or the alias you chose) |
+| (uses the keystore password) | Private-key password |
 
 These names are shared with the existing phase importer.
 
@@ -46,3 +46,40 @@ The workflow tests Rust and Android, builds a release APK, verifies its signatur
 Download the artifact ZIP from the successful workflow run, extract app-release.apk and open it on Android. Android installs it as an update when package ID and signing certificate match. App data is retained.
 
 Do not lose the keystore. Every future update must be signed with the same key. If it is lost, Android will not accept an in-place update signed with a replacement key.
+
+## Troubleshooting: CI falls back to a debug APK
+
+The current Build signed BusyBee APK workflow reads these exact repository Actions secret names:
+
+- BUSYBEE_KEYSTORE_BASE64
+- BUSYBEE_KEYSTORE_PASSWORD
+- (detected automatically from the keystore)
+- (uses the keystore password)
+
+If the workflow summary says release signing is incomplete, check that all four are present under BusyBee → Settings → Secrets and variables → Actions → Repository secrets, not Actions variables or a different repository. The current workflow does not declare an Actions environment, so environment-scoped secrets are not loaded into this job. Do not paste keystore contents or passwords into workflow files, issues, commits or chat.
+
+A successful debug signature check does not verify the release certificate. The release gate is only passed when the workflow assembles app-release.apk and apksigner verifies it with the persistent release certificate.
+
+
+## Release workflow behavior and verification
+
+The release workflow now distinguishes pull-request validation from actual release builds:
+
+- A pull_request run can build and upload a debug validation APK. This APK has the .debug application ID and cannot update the installed release app.
+- A push to main or a manual workflow_dispatch requires all four persistent signing inputs. If they are not available, the workflow fails early and does not publish a debug APK as a release.
+- The PR workflow runs #481 and #482 passed validation but reported that release-signing secrets were not available to the pull-request build. They therefore verified only the Android Debug certificate, not the persistent release certificate.
+- A successful non-PR build must assemble app-release.apk and pass apksigner certificate verification before the release-pipeline acceptance gate is complete.
+
+The current build job does not declare a GitHub Actions Environment. Put the four values in the repository's Actions → Repository secrets scope using the exact names above. Environment-scoped secrets are not injected unless the job references that environment. Never put keystore data or passwords in source files, PR descriptions, issue comments or chat.
+
+
+## Current two-secret CI configuration
+
+The BusyBee Actions workflow consumes exactly these two repository Actions secrets:
+
+- `BUSYBEE_KEYSTORE_BASE64`
+- `BUSYBEE_KEYSTORE_PASSWORD`
+
+It decodes the existing keystore, discovers the single `PrivateKeyEntry` alias from the keystore, and uses the keystore password as the private-key password. This matches keystores created with keytool's default “press Return to use the same password” behavior. The workflow fails rather than guessing if the keystore contains zero or multiple private-key entries.
+
+A push to the active feature branch builds a signed APK and uploads it as a workflow artifact. It does not publish a GitHub Release. A push to `main` additionally publishes the verified signed APK as a prerelease asset.
