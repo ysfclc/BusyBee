@@ -102,10 +102,13 @@ class MainActivity : AppCompatActivity() {
         worker.execute {
             try {
                 val report = UnifiedActivityLedgerMigrator(applicationContext).migrateIfNeeded()
-                val status=MigrationDiagnosticsFormatter.format(report)
+                val consolidation = ActivityLedgerConsolidator(applicationContext).consolidateIfNeeded()
+                val status = MigrationDiagnosticsFormatter.format(report) + "\\n\\n" +
+                    MigrationDiagnosticsFormatter.formatConsolidation(consolidation)
                 android.util.Log.d(
                     "BusyBeeLedger",
-                    "Legacy sync copied=${report.copiedRows}, complete=${report.complete}, missing=${report.missingDatabases.joinToString()}"
+                    "Legacy sync copied=${report.copiedRows}, complete=${report.complete}, missing=${report.missingDatabases.joinToString()}; " +
+                        "Driver Mirror v6 copied=${consolidation.copiedRows}, complete=${consolidation.complete}, missingSource=${consolidation.missingSource}"
                 )
                 runOnUiThread {
                     ledgerMigrationStatus=status
@@ -181,6 +184,15 @@ class MainActivity : AppCompatActivity() {
                         }
                     } catch (error: Exception) {
                         android.util.Log.w("BusyBeeProvider", "Could not check pending outbox rows", error)
+                    }
+                    try {
+                        val consolidation = ActivityLedgerConsolidator(applicationContext).consolidateIfNeeded()
+                        android.util.Log.d(
+                            "BusyBeeLedger",
+                            "Post-outbox Driver Mirror v6 sync copied=${consolidation.copiedRows}, complete=${consolidation.complete}"
+                        )
+                    } catch (error: Exception) {
+                        android.util.Log.e("BusyBeeLedger", "Post-outbox Driver Mirror v6 sync failed", error)
                     }
                     runOnUiThread {
                         if (activeTab == "ACTIVITY") refreshUnifiedActivity()
