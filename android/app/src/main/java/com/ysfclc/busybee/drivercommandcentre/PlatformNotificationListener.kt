@@ -29,7 +29,12 @@ class PlatformNotificationListener : NotificationListenerService() {
         if (insertedId > 0L) {
             ledgerSyncExecutor.execute {
                 try {
-                    UnifiedActivityLedgerMigrator(applicationContext).migrateIfNeeded()
+                    val migration = UnifiedActivityLedgerMigrator(applicationContext).migrateIfNeeded()
+                    val consolidation = ActivityLedgerConsolidator(applicationContext).consolidateIfNeeded()
+                    android.util.Log.d(
+                        "BusyBeeLedger",
+                        "Notification sync legacyComplete=${migration.complete}, consolidationComplete=${consolidation.complete}, consolidated=${consolidation.copiedRows}"
+                    )
                 } catch (error: Exception) {
                     android.util.Log.w("BusyBeeLedger", "Notification ledger sync failed", error)
                 }
