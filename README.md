@@ -19,11 +19,19 @@ The map is the default launch surface and uses the full display. It is the spati
 - [Phase log](docs/PHASE_LOG.md)
 - [Android signing](docs/ANDROID_SIGNING.md)
 
-## Current engineering checkpoint
+## Current engineering checkpoint — 2026-11-27
 
-The integration candidate combines the map-first/native-capture feature lineage with the typed Provider Bridge and its durable local event ledger. The candidate preserves the existing app ID and existing database names. The Provider Bridge uses an additive schema migration in `busybee_driver_mirror.db`; it does not introduce a third database.
+The map-first/native-capture integration (PR #16) is merged into `main` at merge commit `954bf872d29ea3e43c23f80d615487c902dbc8cc`. It restores the BusyBee adaptive launcher icon, the lifecycle-safe MapLibre tab host, crash diagnostics, route/navigation surface, capture workflows and typed Provider Bridge persistence.
 
-**Verification is deliberately separate from implementation.** The latest consolidated workflow (#362) passed all 29 steps, including Rust tests/native builds, Android unit/Robolectric tests (including malformed-event resilience), the owned-app POC tests/build, debug APK assembly, apksigner verification and checksum generation. Persistent release signing is not configured, so the generated .debug package cannot update the installed release app. Target-phone acceptance remains pending. See the integration checkpoint for exact SHAs, known limits and next acceptance gates.
+**Latest signed mainline APK:** GitHub release `build-627`, version `0.1.627`, package `com.ysfclc.busybee.drivercommandcentre`. The build passed actionlint, Rust tests/native builds, Android unit/Robolectric tests, the owned-app observer POC checks, release assembly, `apksigner` verification and checksum/provenance generation. Its release certificate matches the previous signed build #622. See [the build-627 release](https://github.com/ysfclc/BusyBee/releases/tag/build-627).
+
+The mainline workflow now uses the existing `BUSYBEE_KEYSTORE_BASE64` and `BUSYBEE_KEYSTORE_PASSWORD` secrets, discovers the keystore alias, refuses to publish a debug APK as a mainline release, and checks the package/launcher resources before building. The launcher artwork guard prevents the missing-icon regression from silently returning.
+
+**Data architecture on main:** `busybee_driver_mirror.db` (schema v4) contains imported driver evidence/records and the additive `provider_events` ledger. `busybee_command_centre.db` (schema v3) contains offers, notices, driver items, community/road data, settings and selected WhatsApp-group records. These are the two established production stores.
+
+**Held work:** PR #29 remains draft. Its proposed `busybee_driver_activity.db` third database is still the active read source on that branch; its migration/consolidation is not complete and it has not passed physical-device parity checks. Do not merge it wholesale or replace the current stores. App Observer remains a separate research/POC line, not a production BusyBee provider integration.
+
+**Device acceptance is still pending.** CI proves the source builds and the APK is signed; it does not prove that the app is stable on the target Xiaomi device, that every tab interaction survives repeated use, or that notification/accessibility/location permissions and background behavior work as expected. Do not uninstall the existing app to work around a signature error.
 
 ## Data and privacy boundaries
 
