@@ -20,6 +20,7 @@ class SqliteProviderEventStoreTest {
     @Before
     fun clean() {
         context.deleteDatabase(UnifiedActivityLedgerSchema.DATABASE_NAME)
+        context.deleteDatabase("busybee_driver_mirror.db")
     }
 
     @After
@@ -84,6 +85,38 @@ class SqliteProviderEventStoreTest {
         } finally {
             ledger.close()
         }
+    }
+
+
+    @Test
+    fun driverMirrorReadSourceMatchesOriginalAfterVerifiedConsolidation() {
+        val ledger = UnifiedActivityLedger(context)
+        try {
+            ledger.writableDatabase.execSQL(
+                """INSERT INTO activity_observations
+                   (origin_key,provider,observation_kind,source_method,source_occurred_at_ms,
+                    received_at_ms,classification,status,amount,currency,pickup,destination,distance_km,duration_min)
+                   VALUES('notice:mirror','Uber','notification','ANDROID_NOTIFICATION',NULL,1000,'unclassified',
+                          'new',12.5,'PLN','Old Town','Airport',8.2,20)"""
+            )
+            SqliteProviderEventStore(context).use { assertTrue(it.append(sampleEvent())) }
+        } finally {
+            ledger.close()
+        }
+
+        val consolidation = ActivityLedgerConsolidator(context).use { it.consolidateIfNeeded() }
+        assertTrue(consolidation.complete)
+
+        val original = UnifiedActivityRepository(context, UnifiedActivityReadSource.ORIGINAL_LEDGER).use {
+            it.timeline()
+        }
+        val mirror = UnifiedActivityRepository(context, UnifiedActivityReadSource.DRIVER_MIRROR).use {
+            it.timeline()
+        }
+        assertEquals(2, original.size)
+        assertEquals(original, mirror)
+        assertEquals("provider_event", mirror.first().sourceKind)
+        assertEquals("observation", mirror.last().sourceKind)
     }
 
     @Test
