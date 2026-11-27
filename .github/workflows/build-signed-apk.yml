@@ -147,19 +147,20 @@ jobs:
         if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready == 'true'
         shell: bash
         env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.BUSYBEE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
           path="$RUNNER_TEMP/busybee-release.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$path"
           chmod 600 "$path"
           aliases="$(keytool -list -v -keystore "$path" -storepass "$STORE_PASSWORD" 2>/dev/null | awk '/^Alias name: / { alias=$3 } /^Entry type: PrivateKeyEntry/ { print alias }')"
-          count="$(printf '%s\\n' "$aliases" | sed '/^$/d' | wc -l)"
-          if [[ "$count" -ne 1 ]]; then
-            echo "::error::Expected exactly one private-key entry in the BusyBee keystore; found $count."
+          mapfile -t alias_entries <<< "$aliases"
+          if [[ "${#alias_entries[@]}" -ne 1 || -z "${alias_entries[0]}" ]]; then
+            echo "::error::Expected exactly one private-key entry in the BusyBee keystore; found ${#alias_entries[@]}."
             exit 1
           fi
-          alias="$(printf '%s\\n' "$aliases" | sed -n '1p')"
+          alias="${alias_entries[0]}"
           echo "path=$path" >> "$GITHUB_OUTPUT"
           echo "alias=$alias" >> "$GITHUB_OUTPUT"
 
