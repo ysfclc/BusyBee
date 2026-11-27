@@ -58,18 +58,19 @@ jobs:
         id: signing-check
         shell: bash
         env:
-          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEYSTORE: ${{ secrets.BUSYBEE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
-          if [[ -n "$KEYSTORE" && -n "$STORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
+          if [[ -n "$KEYSTORE" && -n "$STORE_PASSWORD" ]]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
-            echo "Persistent release signing is configured."
-          else
+            echo "Persistent BusyBee release keystore and password are configured."
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" || ( "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" != "refs/heads/main" ) ]]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Release signing secrets are incomplete. CI will build a debug APK for validation; add the four secrets in docs/ANDROID_SIGNING.md to produce install-over-existing signed releases."
+            echo "::warning::Release signing is not available to pull-request or feature-branch validation. APK production remains debug-only."
+          else
+            echo "::error::Release signing is required for main-branch and manual release builds. Configure BUSYBEE_KEYSTORE_BASE64 and BUSYBEE_KEYSTORE_PASSWORD. Refusing to publish a debug APK as a release."
+            exit 1
           fi
 
       - name: Set up Java 17
@@ -131,22 +132,30 @@ jobs:
         if: steps.signing-check.outputs.ready == 'true'
         shell: bash
         env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.BUSYBEE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
           path="$RUNNER_TEMP/busybee-release.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$path"
           chmod 600 "$path"
+          aliases="$(keytool -list -v -keystore "$path" -storepass "$STORE_PASSWORD" 2>/dev/null | awk '/^Alias name: / { alias=$3 } /^Entry type: PrivateKeyEntry/ { print alias }')"
+          mapfile -t alias_entries <<< "$aliases"
+          if [[ "${#alias_entries[@]}" -ne 1 || -z "${alias_entries[0]}" ]]; then
+            echo "::error::Expected exactly one private-key entry in the BusyBee keystore; found ${#alias_entries[@]}."
+            exit 1
+          fi
           echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "alias=${alias_entries[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Assemble signed release APK
         if: steps.signing-check.outputs.ready == 'true'
         working-directory: android
         env:
           ANDROID_KEYSTORE_FILE: ${{ steps.signing.outputs.path }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ steps.signing.outputs.alias }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Assemble debug APK for validation
@@ -229,7 +238,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish APK as a GitHub Release asset
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.signing-check.outputs.ready == 'true'
         id: publish
         shell: bash
         env:
