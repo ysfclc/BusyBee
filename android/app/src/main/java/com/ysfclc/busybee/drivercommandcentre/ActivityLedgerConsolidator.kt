@@ -66,6 +66,59 @@ class ActivityLedgerConsolidator(
         }
     }
 
+    /**
+     * Read-only acceptance check for a future repository cutover. It does not repair or
+     * mutate either database; missing markers, missing rows, changed payloads or source
+     * mutations all produce an incomplete table result.
+     */
+    fun verifyParity(): Report = synchronized(CONSOLIDATION_LOCK) {
+        val file = appContext.getDatabasePath(sourceName)
+        if (!file.isFile) return@synchronized Report(emptyList(), missingSource = true)
+
+        val source = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+        source.use { sourceDb ->
+            val destination = target.readableDatabase
+            val results = TABLES.map { spec ->
+                requireTable(sourceDb, spec.source)
+                requireTable(destination, spec.target)
+                val sourceColumns = columns(sourceDb, spec.source)
+                val targetColumns = columns(destination, spec.target)
+                require(sourceColumns.toSet() == targetColumns.toSet()) {
+                    "Schema mismatch for ${spec.source} -> ${spec.target}"
+                }
+                val sourceCount = scalar(sourceDb, "SELECT COUNT(*) FROM ${quoteIdentifier(spec.source)}")
+                var verifiedRows = 0
+                var rowsMatch = true
+                val orderBy = spec.primaryKey.joinToString(",") { quoteIdentifier(it) }
+                sourceDb.rawQuery("SELECT * FROM ${quoteIdentifier(spec.source)} ORDER BY $orderBy", null).use { rows ->
+                    while (rows.moveToNext()) {
+                        val rowId = stableRowId(rows, spec.primaryKey)
+                        if (!markerExists(destination, spec.source, rowId)) {
+                            rowsMatch = false
+                        } else {
+                            try {
+                                verifyTargetRow(destination, rows, spec, rowId)
+                                verifiedRows++
+                            } catch (_: IllegalStateException) {
+                                rowsMatch = false
+                            }
+                        }
+                    }
+                }
+                val markerCount = scalar(
+                    destination,
+                    "SELECT COUNT(*) FROM migration_rows WHERE source_database=? AND source_table=?",
+                    arrayOf(MARKER_DATABASE, spec.source)
+                )
+                val sourceDigest = digestSourceKeys(sourceDb, spec)
+                val markerDigest = digestMarkerKeys(destination, spec.source)
+                val complete = rowsMatch && markerCount == sourceCount && sourceDigest == markerDigest
+                TableResult(spec.source, spec.target, sourceCount, 0, verifiedRows, complete)
+            }
+            Report(results, missingSource = false)
+        }
+    }
+
     private fun copyTable(source: SQLiteDatabase, destination: SQLiteDatabase, spec: TableSpec): TableResult {
         val sourceColumns = columns(source, spec.source)
         val targetColumns = columns(destination, spec.target)
