@@ -30,10 +30,10 @@ In BusyBee: Settings → Secrets and variables → Actions → New repository se
 
 | Secret | Value |
 |---|---|
-| ANDROID_KEYSTORE_BASE64 | Base64 output from the previous step |
-| ANDROID_KEYSTORE_PASSWORD | Keystore password |
-| ANDROID_KEY_ALIAS | busybee (or the alias you chose) |
-| ANDROID_KEY_PASSWORD | Private-key password |
+| BUSYBEE_KEYSTORE_BASE64 | Base64 output from the previous step |
+| BUSYBEE_KEYSTORE_PASSWORD | Keystore password |
+| (detected automatically from the keystore) | busybee (or the alias you chose) |
+| (uses the keystore password) | Private-key password |
 
 These names are shared with the existing phase importer.
 
@@ -51,10 +51,10 @@ Do not lose the keystore. Every future update must be signed with the same key. 
 
 The current Build signed BusyBee APK workflow reads these exact repository Actions secret names:
 
-- ANDROID_KEYSTORE_BASE64
-- ANDROID_KEYSTORE_PASSWORD
-- ANDROID_KEY_ALIAS
-- ANDROID_KEY_PASSWORD
+- BUSYBEE_KEYSTORE_BASE64
+- BUSYBEE_KEYSTORE_PASSWORD
+- (detected automatically from the keystore)
+- (uses the keystore password)
 
 If the workflow summary says release signing is incomplete, check that all four are present under BusyBee → Settings → Secrets and variables → Actions → Repository secrets, not Actions variables or a different repository. The current workflow does not declare an Actions environment, so environment-scoped secrets are not loaded into this job. Do not paste keystore contents or passwords into workflow files, issues, commits or chat.
 
@@ -71,3 +71,15 @@ The release workflow now distinguishes pull-request validation from actual relea
 - A successful non-PR build must assemble app-release.apk and pass apksigner certificate verification before the release-pipeline acceptance gate is complete.
 
 The current build job does not declare a GitHub Actions Environment. Put the four values in the repository's Actions → Repository secrets scope using the exact names above. Environment-scoped secrets are not injected unless the job references that environment. Never put keystore data or passwords in source files, PR descriptions, issue comments or chat.
+
+
+## Current two-secret CI configuration
+
+The BusyBee Actions workflow consumes exactly these two repository Actions secrets:
+
+- `BUSYBEE_KEYSTORE_BASE64`
+- `BUSYBEE_KEYSTORE_PASSWORD`
+
+It decodes the existing keystore, discovers the single `PrivateKeyEntry` alias from the keystore, and uses the keystore password as the private-key password. This matches keystores created with keytool's default “press Return to use the same password” behavior. The workflow fails rather than guessing if the keystore contains zero or multiple private-key entries.
+
+A push to the active feature branch builds a signed APK and uploads it as a workflow artifact. It does not publish a GitHub Release. A push to `main` additionally publishes the verified signed APK as a prerelease asset.
