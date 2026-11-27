@@ -49,6 +49,18 @@ class CrashDiagnosticsTest {
     }
 
     @Test
+    fun startupFailureCanBeCopiedWithoutExceptionMessage() {
+        CrashDiagnostics.recordStartupFailure(context, IllegalStateException("private destination text"))
+
+        val report = CrashDiagnostics.snapshot(context)
+
+        assertTrue(report.contains("IllegalStateException"))
+        assertTrue(report.contains("CrashDiagnosticsTest"))
+        assertTrue(report.contains("STACK FRAMES"))
+        assertFalse(report.contains("private destination text"))
+    }
+
+    @Test
     fun reportExplainsWhenNoJvmStackTraceWasCaptured() {
         val report = CrashDiagnostics.snapshot(context)
 
