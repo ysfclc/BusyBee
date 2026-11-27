@@ -19,8 +19,6 @@ object MigrationDiagnosticsFormatter {
             }
         }.trim()
     }
-}
-
 
     fun formatConsolidation(report: ActivityLedgerConsolidator.Report?): String {
         if (report == null) return "DRIVER MIRROR V6 CONSOLIDATION CHECK NOT RUN"
@@ -38,3 +36,4 @@ object MigrationDiagnosticsFormatter {
             }
         }.trim()
     }
+}
