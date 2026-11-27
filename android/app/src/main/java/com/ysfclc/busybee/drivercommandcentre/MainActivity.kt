@@ -103,7 +103,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 val report = UnifiedActivityLedgerMigrator(applicationContext).migrateIfNeeded()
                 val consolidation = ActivityLedgerConsolidator(applicationContext).consolidateIfNeeded()
-                val status = MigrationDiagnosticsFormatter.format(report) + "\\n\\n" +
+                val status = MigrationDiagnosticsFormatter.format(report) + "\n\n" +
                     MigrationDiagnosticsFormatter.formatConsolidation(consolidation)
                 android.util.Log.d(
                     "BusyBeeLedger",
