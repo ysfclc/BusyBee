@@ -1,48 +1,36 @@
 # Stable Android release signing
 
-The fixed Android application ID is com.ysfclc.busybee.drivercommandcentre.
+BusyBee's production Android application ID is:
 
-The release workflow refuses to create a release APK until a persistent signing key is configured. A dedicated key package has been prepared for this project. Use the same key for every release; a random key on each CI run would make Android reject upgrades and force uninstall/reinstall.
+`com.ysfclc.busybee.drivercommandcentre`
 
-## Generate the signing key once
+Every installable release must use the same persistent keystore. Do not generate a replacement key for future builds: Android will reject updates signed with a different certificate and the user may lose access to existing app data.
 
-Run this on a trusted computer with Java keytool installed. Keep the resulting file and passwords backed up securely. Do not regenerate it for future releases.
+## Existing repository Actions secrets
 
-    keytool -genkeypair -v -keystore busybee-release.jks -alias busybee -keyalg RSA -keysize 4096 -validity 10000
+The active release workflow uses exactly these two repository-level Actions secrets:
 
-Choose and securely store the keystore password, key password and alias. The example alias is busybee.
-
-## Encode the keystore
-
-Linux:
-
-    base64 -w 0 busybee-release.jks
-
-macOS:
-
-    base64 < busybee-release.jks | tr -d '\n'
-
-Copy the output directly into a GitHub Actions secret. Never commit the keystore or paste passwords into source files.
-
-## Add four repository Actions secrets
-
-In BusyBee: Settings → Secrets and variables → Actions → New repository secret.
-
-| Secret | Value |
+| Secret | Purpose |
 |---|---|
-| ANDROID_KEYSTORE_BASE64 | Base64 output from the previous step |
-| ANDROID_KEYSTORE_PASSWORD | Keystore password |
-| ANDROID_KEY_ALIAS | busybee (or the alias you chose) |
-| ANDROID_KEY_PASSWORD | Private-key password |
+| `BUSYBEE_KEYSTORE_BASE64` | Base64-encoded existing `busybee-release.jks` |
+| `BUSYBEE_KEYSTORE_PASSWORD` | Keystore password; also used as the private-key password |
 
-These names are shared with the existing phase importer.
+The workflow discovers the single `PrivateKeyEntry` alias from the keystore. It fails if the keystore contains zero or multiple private-key entries. The key alias is not hardcoded and no extra alias/password secrets are required.
 
-## Build and install updates
+Add these under BusyBee → Settings → Secrets and variables → Actions → Repository secrets. Environment-scoped secrets are not read by this workflow.
 
-Push a change under rust/ or android/, or run Actions → Build signed BusyBee APK → Run workflow.
+Never commit the keystore, base64 contents, or passwords. Never paste them into issues, pull requests, source files, or chat.
 
-The workflow tests Rust and Android, builds a release APK, verifies its signature and uploads the APK as a 30-day artifact.
+## Release behavior
 
-Download the artifact ZIP from the successful workflow run, extract app-release.apk and open it on Android. Android installs it as an update when package ID and signing certificate match. App data is retained.
+- Pull-request validation can produce a debug APK. Its application ID has the `.debug` suffix and it cannot update the installed production app.
+- A push to `main` or a manual release build requires the existing keystore and password. If they are unavailable, the workflow fails rather than publishing a debug APK as a release.
+- The release build uses the production application ID and the existing signing certificate.
+- The workflow verifies the APK signature with `apksigner` before publishing a GitHub prerelease asset.
+- The version code is based on the GitHub Actions run number and must increase for every production update.
 
-Do not lose the keystore. Every future update must be signed with the same key. If it is lost, Android will not accept an in-place update signed with a replacement key.
+## Install
+
+Download the signed APK from the successful main-branch workflow/release. Open it on Android and choose Update. Do not uninstall the existing app. With the same package ID and signing certificate, Android accepts it as an update and preserves app-private data.
+
+If Android reports a signature mismatch, stop. Do not uninstall the existing app or clear its data; verify the signing certificate before proceeding.
