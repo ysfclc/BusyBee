@@ -33,9 +33,10 @@ class ActivityLedgerConsolidator(
 
     data class Report(
         val tables: List<TableResult>,
-        val missingSource: Boolean
+        val missingSource: Boolean,
+        val missingTarget: Boolean = false
     ) {
-        val complete: Boolean get() = !missingSource && tables.size == TABLES.size && tables.all { it.complete }
+        val complete: Boolean get() = !missingSource && !missingTarget && tables.size == TABLES.size && tables.all { it.complete }
         val copiedRows: Int get() = tables.sumOf { it.copiedRows }
     }
 
@@ -74,6 +75,11 @@ class ActivityLedgerConsolidator(
     fun verifyParity(): Report = synchronized(CONSOLIDATION_LOCK) {
         val file = appContext.getDatabasePath(sourceName)
         if (!file.isFile) return@synchronized Report(emptyList(), missingSource = true)
+
+        val targetFile = appContext.getDatabasePath("busybee_driver_mirror.db")
+        if (!targetFile.isFile) {
+            return@synchronized Report(emptyList(), missingSource = false, missingTarget = true)
+        }
 
         val source = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
         source.use { sourceDb ->
