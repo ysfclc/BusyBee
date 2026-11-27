@@ -54,8 +54,6 @@ class MigrationDiagnosticsFormatterTest {
         assertTrue(result.contains("MISSING DATABASE · old_offers.db"))
         assertTrue(result.contains("Identity verification: INCOMPLETE"))
     }
-}
-
 
     @Test
     fun consolidationFormatterDoesNotClaimSuccessWhenSourceIsMissing() {
@@ -89,3 +87,4 @@ class MigrationDiagnosticsFormatterTest {
         assertTrue(result.contains("Source rows: 3"))
         assertTrue(result.contains("Row parity: PASS"))
     }
+}
