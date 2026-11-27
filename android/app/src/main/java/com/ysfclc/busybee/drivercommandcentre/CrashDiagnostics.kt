@@ -55,6 +55,11 @@ internal object CrashDiagnostics {
         }
     }
 
+    fun recordStartupFailure(context: Context, error: Throwable) {
+        persistCrashReport(context, Thread.currentThread(), error)
+        record(context, "startup:recovery-screen")
+    }
+
     fun recordActionFailure(context: Context, action: String, error: Throwable) {
         try {
             val frames = formatStackFrames(error)
