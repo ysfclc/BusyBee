@@ -202,3 +202,18 @@ Robolectric tests cover default-original behavior, missing-target fallback witho
 **Verification:** PR run [#616](https://github.com/ysfclc/BusyBee/actions/runs/46026804721) on exact code commit `8e67c8d99d728457ee9f41c23f8cf2c22aea508e` passed Rust tests/build, Android/Robolectric tests, dependency verification, debug APK assembly and debug signature verification. Test report artifact: `busybee-android-test-reports-616` (ID `15213375039`). Debug-only validation APK: `busybee-debug-apk-616` (ID `15212059929`). Release signing was skipped on the feature branch.
 
 **Cutover status:** not enabled. The physical-device parity check and fallback exercise remain outstanding; no production read switch is claimed.
+
+
+## 13. MainActivity parity-gated reader integration (2026-11-27)
+
+MainActivity now obtains the Activity timeline through `UnifiedActivityReadCoordinator`. The preference remains explicitly disabled (`preferDriverMirrorActivityRead = false`), so current production behavior still reads the original ledger.
+
+If the flag is enabled in a later controlled release:
+1. The coordinator runs `verifyParity()` before selecting Driver Mirror.
+2. Missing target/source, incomplete row markers, changed payloads or source mutations force a fallback to `ORIGINAL_LEDGER`.
+3. A Driver Mirror query exception also falls back to the original repository.
+4. The result records the actual source and fallback reason.
+
+The flag is intentionally not enabled by this PR. No device-level acceptance is claimed.
+
+**Verification:** PR run [#617](https://github.com/ysfclc/BusyBee/actions/runs/46027606746) passed all Rust/Android tests and debug APK assembly/signature verification on code commit `8e67c8d99d728457ee9f41c23f8cf2c22aea508e`. Test reports artifact `15211434865`; debug-only validation APK `15214110066`. Release signing was skipped.
