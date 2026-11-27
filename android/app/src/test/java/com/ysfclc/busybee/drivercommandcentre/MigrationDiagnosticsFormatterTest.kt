@@ -70,14 +70,11 @@ class MigrationDiagnosticsFormatterTest {
         val result = MigrationDiagnosticsFormatter.formatConsolidation(
             ActivityLedgerConsolidator.Report(
                 tables = listOf(
-                    ActivityLedgerConsolidator.TableResult(
-                        sourceTable = "provider_events",
-                        targetTable = "provider_event_envelopes",
-                        sourceRows = 3,
-                        copiedRows = 2,
-                        alreadyPresentRows = 1,
-                        complete = true
-                    )
+                    ActivityLedgerConsolidator.TableResult("activity_evidence", "activity_evidence", 1, 1, 0, true),
+                    ActivityLedgerConsolidator.TableResult("activity_observations", "activity_observations", 1, 1, 0, true),
+                    ActivityLedgerConsolidator.TableResult("provider_events", "provider_event_envelopes", 3, 2, 1, true),
+                    ActivityLedgerConsolidator.TableResult("migration_sources", "migration_sources", 1, 1, 0, true),
+                    ActivityLedgerConsolidator.TableResult("migration_rows", "migration_rows", 1, 1, 0, true)
                 ),
                 missingSource = false
             )
