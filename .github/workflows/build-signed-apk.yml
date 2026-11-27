@@ -32,6 +32,16 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Verify BusyBee release identity and launcher artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'applicationId = "com.ysfclc.busybee.drivercommandcentre"' android/app/build.gradle.kts
+          grep -Fq 'android:icon="@mipmap/ic_launcher"' android/app/src/main/AndroidManifest.xml
+          grep -Fq 'android:roundIcon="@mipmap/ic_launcher_round"' android/app/src/main/AndroidManifest.xml
+          test -s android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          test -s android/app/src/main/res/drawable/busybee_launcher_foreground.xml
+          echo "Stable package identity and BusyBee launcher artwork are present."
       - name: Validate workflow
         uses: actions/setup-go@v6
         with:
