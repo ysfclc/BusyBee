@@ -202,3 +202,12 @@ A Robolectric parity test copies evidence/observation/event data with the consol
 The consolidator now implements `AutoCloseable`; app and test call sites close its Driver Mirror helper after each run.
 
 **Verification:** PR run [#593](https://github.com/ysfclc/BusyBee/actions/runs/46023111698) passed the full Rust/Android suite, the new read-source parity test, dependency verification, debug APK assembly and debug signature verification. Test report artifact `15210357271`; debug-only validation artifact `15211875593`. No release APK was produced.
+
+
+## 15. Read-only parity verification surfaced in Sources
+
+Added a non-mutating `verifyParity()` operation and exposed it as **VERIFY DRIVER MIRROR PARITY** in the Sources screen. It checks all five source/target table pairs, identity markers, row counts and payload parity; it reports source mutations or missing mirror rows and does not create a missing target database. The existing refresh action remains responsible for copying and retrying.
+
+This provides a user-visible acceptance check before any read-path change. The app still defaults to the original ledger and no production code selects the Driver Mirror repository source. The next slice is the controlled read-path cutover with automatic fallback and a rollback exercise, gated on a successful on-device parity report.
+
+**Verification:** PR run [#609](https://github.com/ysfclc/BusyBee/actions/runs/46025748291) passed Rust/Android tests, dependency verification, debug APK assembly and debug signature verification. Test reports `15212960120`; debug-only validation APK `15212228762`. Release APK assembly was skipped.
