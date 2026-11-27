@@ -222,3 +222,12 @@ If enabled in a later cutover, the coordinator requires a successful read-only p
 **Verification:** PR run [#616](https://github.com/ysfclc/BusyBee/actions/runs/46026804721) passed all Rust/Android tests, dependency verification, debug APK assembly and debug signature verification. Test report artifact `15213375039`; debug-only validation artifact `15212059929`. Release APK assembly was skipped.
 
 **Still not cut over:** `preferDriverMirrorActivityRead = false`. Next is physical-device parity verification and fallback testing; only then should the preference be enabled.
+
+
+## 17. MainActivity read coordinator wired, cutover disabled
+
+The Activity screen now reads through `UnifiedActivityReadCoordinator`. The `preferDriverMirrorActivityRead` preference is explicitly false. If enabled later, the coordinator requires full read-only parity before selecting Driver Mirror and falls back to the original ledger on parity failure or mirror read exceptions.
+
+This is a tested rollback path, not an active cutover. No production caller currently selects the Driver Mirror source.
+
+**Verification:** PR run [#617](https://github.com/ysfclc/BusyBee/actions/runs/46027606746) passed Rust/Android tests, Bouncy Castle dependency verification, debug APK assembly and debug signature verification. Test report `15211434865`; debug validation APK `15214110066`. Release APK assembly was skipped.
