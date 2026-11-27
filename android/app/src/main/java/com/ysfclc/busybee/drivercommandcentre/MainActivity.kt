@@ -135,7 +135,7 @@ class MainActivity : AppCompatActivity() {
                     if (activeTab == "SOURCES") renderMigrationDiagnostics()
                 }
             } catch (error: Exception) {
-                val status = "DRIVER MIRROR PARITY CHECK ERROR\\n${error.javaClass.simpleName}: ${error.message ?: "No details"}"
+                val status = "DRIVER MIRROR PARITY CHECK ERROR\n${error.javaClass.simpleName}: ${error.message ?: "No details"}"
                 android.util.Log.e("BusyBeeLedger", "Driver Mirror parity check failed", error)
                 runOnUiThread {
                     ledgerParityStatus = status
@@ -1257,7 +1257,7 @@ class MainActivity : AppCompatActivity() {
         val intent=Intent(Intent.ACTION_SEND).apply {
             type="text/plain"
             putExtra(Intent.EXTRA_SUBJECT,"BusyBee local data migration report")
-            putExtra(Intent.EXTRA_TEXT,ledgerMigrationStatus + "\\n\\n" + ledgerParityStatus)
+            putExtra(Intent.EXTRA_TEXT,ledgerMigrationStatus + "\n\n" + ledgerParityStatus)
         }
         startActivity(Intent.createChooser(intent,"Share migration report"))
     }
