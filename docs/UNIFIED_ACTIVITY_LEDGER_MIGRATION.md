@@ -166,3 +166,21 @@ The third database remains the source of truth during this stage. Each consolida
 No production caller selects `DRIVER_MIRROR`; MainActivity remains on the original source. This creates a tested opt-in path without exposing users to a premature cutover.
 
 **Verification:** PR run [#593](https://github.com/ysfclc/BusyBee/actions/runs/46023111698) on commit `42242ee6a5587ab0572a18cf3162854cf1f3fd4a` passed Rust tests/build, Android/Robolectric tests (including source parity), Bouncy Castle 1.85 dependency verification, debug APK assembly and debug signature verification. Test report artifact: `busybee-android-test-reports-593` (ID `15210357271`). Debug-only validation APK: `busybee-debug-apk-593` (ID `15211875593`). Release signing was skipped on the feature branch.
+
+
+## 11. Read-only parity verifier and Sources-screen action (2026-11-27)
+
+Added `ActivityLedgerConsolidator.verifyParity()` as a read-only acceptance check:
+
+- Verifies all five source/target table pairs, stable row identity markers, counts and row payloads without copying or mutating rows.
+- Detects new source rows that have not yet been mirrored, missing markers, missing target rows and changed target payloads.
+- Returns incomplete if the source is missing or if the Driver Mirror database does not already exist. In particular, the verifier does not create an empty target database.
+- Uses the same table-level report formatter as the consolidation step.
+
+The Sources screen now exposes **VERIFY DRIVER MIRROR PARITY** separately from **REFRESH MIGRATION CHECK**. The first is read-only; the second runs the existing legacy migration followed by the retryable copy. Both results are included in the shareable diagnostic report.
+
+Tests cover successful parity, detection of a new source row, successful parity after retry, conflicting target payloads, and the missing-target no-create behavior.
+
+**Verification:** PR run [#609](https://github.com/ysfclc/BusyBee/actions/runs/46025748291) on exact code commit `b7bbcb462ab8d61a39b45cbe255ea86252a4f7a5` passed Rust tests/build, Android/Robolectric tests, dependency verification, debug APK assembly and debug signature verification. Test report artifact: `busybee-android-test-reports-609` (ID `15212960120`). Debug-only validation APK: `busybee-debug-apk-609` (ID `15212228762`). Release signing was skipped on the feature branch.
+
+**Still deliberately unchanged:** the Activity screen reads `ORIGINAL_LEDGER`; `DRIVER_MIRROR` remains opt-in. No production read switch, database deletion, release APK or physical-device acceptance is claimed.
