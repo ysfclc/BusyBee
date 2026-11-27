@@ -224,6 +224,7 @@ class MainActivity : AppCompatActivity() {
             }
             mapView.getMapAsync { instance ->
                 uiCallbacks.post {
+                    try {
                     CrashDiagnostics.record(this,"map:ready")
                     map=instance
                     instance.addOnCameraMoveStartedListener { reason ->
@@ -240,6 +241,7 @@ class MainActivity : AppCompatActivity() {
                     val initialStyleUri=palette.mapStyleUri
                     activeMapStyleUri=initialStyleUri
                     instance.setStyle(Style.Builder().fromUri(initialStyleUri)) { loadedStyle ->
+                        try {
                         applyLocalRoadLabels(loadedStyle)
                         install3DBuildings(loadedStyle)
                         if(activeMapStyleUri==initialStyleUri) {
@@ -249,6 +251,14 @@ class MainActivity : AppCompatActivity() {
                                 activateMapAfterStyleIfResumed()
                             }
                         }
+                        } catch (error: Exception) {
+                            CrashDiagnostics.recordStartupFailure(this, error)
+                            renderStartupRecovery()
+                        }
+                    }
+                    } catch (error: Exception) {
+                        CrashDiagnostics.recordStartupFailure(this, error)
+                        renderStartupRecovery()
                     }
                 }
             }
