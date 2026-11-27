@@ -211,3 +211,14 @@ Added a non-mutating `verifyParity()` operation and exposed it as **VERIFY DRIVE
 This provides a user-visible acceptance check before any read-path change. The app still defaults to the original ledger and no production code selects the Driver Mirror repository source. The next slice is the controlled read-path cutover with automatic fallback and a rollback exercise, gated on a successful on-device parity report.
 
 **Verification:** PR run [#609](https://github.com/ysfclc/BusyBee/actions/runs/46025748291) passed Rust/Android tests, dependency verification, debug APK assembly and debug signature verification. Test reports `15212960120`; debug-only validation APK `15212228762`. Release APK assembly was skipped.
+
+
+## 16. Parity-gated repository read coordinator
+
+MainActivity now reads its Activity timeline through `UnifiedActivityReadCoordinator`. The preference flag remains explicitly false, preserving the original read source and avoiding a parity scan on the current production path.
+
+If enabled in a later cutover, the coordinator requires a successful read-only parity check before selecting Driver Mirror and automatically falls back to the original ledger if parity is incomplete or the mirror read fails. The returned result records the actual source and fallback reason. Tests cover original-default, missing-target fallback without creation, mirror selection after parity, and fallback after target tampering.
+
+**Verification:** PR run [#616](https://github.com/ysfclc/BusyBee/actions/runs/46026804721) passed all Rust/Android tests, dependency verification, debug APK assembly and debug signature verification. Test report artifact `15213375039`; debug-only validation artifact `15212059929`. Release APK assembly was skipped.
+
+**Still not cut over:** `preferDriverMirrorActivityRead = false`. Next is physical-device parity verification and fallback testing; only then should the preference be enabled.
