@@ -75,6 +75,35 @@ class ActivityLedgerConsolidatorTest {
     }
 
     @Test
+    fun detectsSourceChangesUntilTheNextConsolidationRun() {
+        createSourceFixture()
+        val results = ActivityLedgerConsolidator(context).use { consolidator ->
+            assertTrue(consolidator.consolidateIfNeeded().complete)
+            SQLiteDatabase.openDatabase(
+                context.getDatabasePath(sourceName).absolutePath,
+                null,
+                SQLiteDatabase.OPEN_READWRITE
+            ).use { source ->
+                source.execSQL(
+                    """INSERT INTO activity_evidence(
+                        id,origin_key,source_database,source_table,source_row_id,provider,captured_at_ms,
+                        received_at_ms,evidence_kind,content_digest,content,content_ref
+                    ) VALUES(8,'evidence-8','legacy.db','raw','8','Bolt',190,200,'notification','digest-8','second payload','ref-8')"""
+                )
+            }
+            val staleParity = consolidator.verifyParity()
+            val refreshed = consolidator.consolidateIfNeeded()
+            val currentParity = consolidator.verifyParity()
+            Triple(staleParity, refreshed, currentParity)
+        }
+
+        assertFalse(results.first.complete)
+        assertTrue(results.second.complete)
+        assertTrue(results.third.complete)
+        assertEquals(2, results.third.tables.first { it.sourceTable == "activity_evidence" }.alreadyPresentRows)
+    }
+
+    @Test
     fun conflictingExistingTargetPayloadFailsWithoutWritingCompletionMarker() {
         createSourceFixture()
         val store = DriverMirrorStore(context)
@@ -96,6 +125,8 @@ class ActivityLedgerConsolidatorTest {
         )
         store.close()
 
+        val parity = ActivityLedgerConsolidator(context).use { it.verifyParity() }
+        assertFalse(parity.complete)
         val error = runCatching { ActivityLedgerConsolidator(context).use { it.consolidateIfNeeded() } }.exceptionOrNull()
         assertTrue(error is IllegalStateException)
         val db = DriverMirrorStore(context).readableDatabase
