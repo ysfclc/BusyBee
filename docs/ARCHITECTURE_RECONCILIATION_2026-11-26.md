@@ -170,10 +170,24 @@ Added `ActivityLedgerConsolidator` and dedicated Robolectric tests on the PR #29
 - Historical `migration_sources` and `migration_rows` are copied. New progress markers use a distinct `__consolidation__` source namespace.
 - Every copied row is compared field-by-field with its destination counterpart. Already-marked rows are rechecked on retry; conflicting data stops the migration.
 - Completion requires source/marker count parity, a stable row-identity digest and successful row-by-row payload verification.
-- No changes were made to `UnifiedActivityLedgerMigrator`, `UnifiedActivityRepository`, app startup wiring or existing screens. This is a callable migration component only; no on-device data has been moved by this commit.
+- The existing `UnifiedActivityLedgerMigrator` and `UnifiedActivityRepository` read path remain unchanged. App startup/legacy sync, notification capture and provider-event outbox drains now invoke the consolidator as a retryable mirror refresh. No read-path cutover or on-device data migration is claimed.
 
 Tests cover successful copying of all five source tables, ID/FK preservation, historical migration markers, idempotent second run, conflicting target payload rejection, and missing-source behavior.
 
 **Verification:** PR run [#565](https://github.com/ysfclc/BusyBee/actions/runs/46019739390) passed Rust domain tests, Rust Android library builds, Android/Robolectric tests, Bouncy Castle 1.85 dependency verification, debug APK assembly and debug signature verification. Test artifact: `busybee-android-test-reports-565` (ID `15208042227`). Debug-only validation artifact: `busybee-debug-apk-565` (ID `15207962619`). Release signing was skipped on the feature branch.
 
 **Remaining work:** dual-write or another proven write-capture strategy during the migration window; reconciliation of source mutations; repository read-path cutover; on-device parity; rollback exercise. PR #29 remains draft and no release APK is claimed.
+
+
+## 13. Retryable Driver Mirror synchronization triggers (2026-11-27)
+
+The new consolidator is now integrated after the existing source writes without changing database ownership or the ACTIVITY read path:
+
+- MainActivity startup and manual migration refresh: run legacy migration, then consolidate to Driver Mirror v6 and display both outcomes.
+- CSV import and manual offer save/decision: reuse the same refresh path.
+- Provider-event outbox drain: consolidate after the source event-store batch so newly persisted provider events are mirrored.
+- Platform notification listener: after a new notice is saved in Command Centre, run legacy migration and consolidation on its existing background executor.
+
+This is sequential, retryable synchronization between two SQLite files, not a cross-database atomic transaction. A failure is logged and a later trigger retries. The third activity database remains canonical; the Activity repository still reads it. No schema switch, data deletion, release APK or physical-device acceptance is claimed.
+
+**Verification:** PR run [#582](https://github.com/ysfclc/BusyBee/actions/runs/46021873820) passed all Rust/Android tests, dependency verification, debug APK assembly and debug APK signature verification on exact code commit `4674a9ea2c35608c0df51f4ccaad1c762737114a`. Artifacts: test reports `15210820217`; debug-only validation APK `15210490908`. Release APK assembly was skipped.
