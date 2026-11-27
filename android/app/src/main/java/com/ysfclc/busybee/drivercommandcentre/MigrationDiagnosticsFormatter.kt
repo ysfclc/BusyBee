@@ -25,6 +25,7 @@ object MigrationDiagnosticsFormatter {
         return buildString {
             appendLine(if (report.complete) "DRIVER MIRROR V6 CONSOLIDATION COMPLETE" else "DRIVER MIRROR V6 CONSOLIDATION NEEDS ATTENTION")
             if (report.missingSource) appendLine("SOURCE LEDGER MISSING · ${UnifiedActivityLedgerSchema.DATABASE_NAME}")
+            if (report.missingTarget) appendLine("TARGET MIRROR MISSING · busybee_driver_mirror.db")
             appendLine("Rows copied in this check: ${report.copiedRows}")
             report.tables.forEach { table ->
                 appendLine()
