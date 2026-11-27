@@ -17,7 +17,7 @@ import java.security.MessageDigest
 class ActivityLedgerConsolidator(
     context: Context,
     private val now: () -> Long = System::currentTimeMillis
-) {
+) : AutoCloseable {
     private val appContext = context.applicationContext
     private val sourceName = UnifiedActivityLedgerSchema.DATABASE_NAME
     private val target = DriverMirrorStore(appContext)
@@ -291,6 +291,8 @@ class ActivityLedgerConsolidator(
         digest().joinToString("") { "%02x".format(it) }
 
     private fun quoteIdentifier(value: String): String = "`" + value.replace("`", "``") + "`"
+
+    override fun close() = target.close()
 
     companion object {
         private const val MARKER_DATABASE = "__consolidation__:busybee_driver_activity.db"
