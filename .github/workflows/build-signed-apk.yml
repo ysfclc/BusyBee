@@ -49,15 +49,13 @@ jobs:
         id: signing-check
         shell: bash
         env:
-          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEYSTORE: ${{ secrets.BUSYBEE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
-          if [[ -n "$KEYSTORE" && -n "$STORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
+          if [[ -n "$KEYSTORE" && -n "$STORE_PASSWORD" ]]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
-            echo "Persistent release signing is configured."
+            echo "Persistent release keystore and password are configured."
           elif [[ "$GITHUB_EVENT_NAME" == "pull_request" || ( "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" != "refs/heads/main" ) ]]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::warning::Release signing is not required for pull-request or feature-branch validation. APK production remains disabled for feature-branch pushes."
@@ -139,11 +137,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "allowed=true" >> "$GITHUB_OUTPUT"
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "allowed=false" >> "$GITHUB_OUTPUT"
-            echo "Feature-branch push: tests only. APK assembly and publication are disabled."
-          else
-            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            echo "Feature-branch push: signed APK will be uploaded as a workflow artifact, without publishing a GitHub Release."
           fi
 
       - name: Prepare release keystore
@@ -157,16 +153,24 @@ jobs:
           path="$RUNNER_TEMP/busybee-release.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$path"
           chmod 600 "$path"
+          aliases="$(keytool -list -v -keystore "$path" -storepass "$STORE_PASSWORD" 2>/dev/null | awk '/^Alias name: / { alias=$3 } /^Entry type: PrivateKeyEntry/ { print alias }')"
+          count="$(printf '%s\\n' "$aliases" | sed '/^$/d' | wc -l)"
+          if [[ "$count" -ne 1 ]]; then
+            echo "::error::Expected exactly one private-key entry in the BusyBee keystore; found $count."
+            exit 1
+          fi
+          alias="$(printf '%s\\n' "$aliases" | sed -n '1p')"
           echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "alias=$alias" >> "$GITHUB_OUTPUT"
 
       - name: Assemble signed release APK
         if: steps.apk-gate.outputs.allowed == 'true' && steps.signing-check.outputs.ready == 'true'
         working-directory: android
         env:
           ANDROID_KEYSTORE_FILE: ${{ steps.signing.outputs.path }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ steps.signing.outputs.alias }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.BUSYBEE_KEYSTORE_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Assemble debug APK for validation
@@ -243,7 +247,7 @@ jobs:
           {
             if [[ "${{ steps.apk-gate.outputs.allowed }}" != "true" ]]; then
               echo "## Tests completed — APK production skipped"
-              echo "- Feature-branch pushes run validation only; no APK is assembled, uploaded or published."
+              echo "- APK production was skipped."
             elif [[ "${{ steps.signing-check.outputs.ready }}" == "true" ]]; then
               echo "## Signed APK ready"
               echo "- Package: com.ysfclc.busybee.drivercommandcentre"
