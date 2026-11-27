@@ -32,7 +32,7 @@ class ActivityLedgerConsolidatorTest {
     fun consolidatesAllTablesPreservingIdsAndHistoricalMarkers() {
         createSourceFixture()
 
-        val report = ActivityLedgerConsolidator(context) { 50_000L }.consolidateIfNeeded()
+        val report = ActivityLedgerConsolidator(context) { 50_000L }.use { it.consolidateIfNeeded() }
 
         assertTrue(report.complete)
         assertEquals(5, report.tables.size)
@@ -59,10 +59,9 @@ class ActivityLedgerConsolidatorTest {
     @Test
     fun secondRunIsIdempotentAndVerifiesExistingPayloads() {
         createSourceFixture()
-        val consolidator = ActivityLedgerConsolidator(context) { 60_000L }
-
-        val first = consolidator.consolidateIfNeeded()
-        val second = consolidator.consolidateIfNeeded()
+        val (first, second) = ActivityLedgerConsolidator(context) { 60_000L }.use { consolidator ->
+            consolidator.consolidateIfNeeded() to consolidator.consolidateIfNeeded()
+        }
 
         assertTrue(first.complete)
         assertTrue(second.complete)
@@ -97,7 +96,7 @@ class ActivityLedgerConsolidatorTest {
         )
         store.close()
 
-        val error = runCatching { ActivityLedgerConsolidator(context).consolidateIfNeeded() }.exceptionOrNull()
+        val error = runCatching { ActivityLedgerConsolidator(context).use { it.consolidateIfNeeded() } }.exceptionOrNull()
         assertTrue(error is IllegalStateException)
         val db = DriverMirrorStore(context).readableDatabase
         assertEquals(0, scalar(db, "SELECT COUNT(*) FROM migration_rows WHERE source_database='__consolidation__:busybee_driver_activity.db' AND source_table='activity_evidence'"))
@@ -106,7 +105,7 @@ class ActivityLedgerConsolidatorTest {
 
     @Test
     fun missingSourceIsNotCreatedOrReportedComplete() {
-        val report = ActivityLedgerConsolidator(context).consolidateIfNeeded()
+        val report = ActivityLedgerConsolidator(context).use { it.consolidateIfNeeded() }
 
         assertFalse(report.complete)
         assertTrue(report.missingSource)
