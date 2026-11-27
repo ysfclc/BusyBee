@@ -1,6 +1,10 @@
 package com.ysfclc.busybee.drivercommandcentre
 
 import android.content.Context
+import android.database.sqlite.SQLiteOpenHelper
+
+/** Explicit read source; the original ledger remains the default until cutover acceptance. */
+enum class UnifiedActivityReadSource { ORIGINAL_LEDGER, DRIVER_MIRROR }
 
 /**
  * Read-only merged timeline over source observations and normalized provider events.
@@ -32,8 +36,18 @@ data class UnifiedActivityItem(
         get() = sourceOccurredAtMillis ?: receivedAtMillis
 }
 
-class UnifiedActivityRepository(context: Context) : AutoCloseable {
-    private val ledger = UnifiedActivityLedger(context.applicationContext)
+class UnifiedActivityRepository(
+    context: Context,
+    private val readSource: UnifiedActivityReadSource = UnifiedActivityReadSource.ORIGINAL_LEDGER
+) : AutoCloseable {
+    private val ledger: SQLiteOpenHelper = when (readSource) {
+        UnifiedActivityReadSource.ORIGINAL_LEDGER -> UnifiedActivityLedger(context.applicationContext)
+        UnifiedActivityReadSource.DRIVER_MIRROR -> DriverMirrorStore(context.applicationContext)
+    }
+    private val providerEventTable = when (readSource) {
+        UnifiedActivityReadSource.ORIGINAL_LEDGER -> "provider_events"
+        UnifiedActivityReadSource.DRIVER_MIRROR -> "provider_event_envelopes"
+    }
 
     fun timeline(limit: Int = 100): List<UnifiedActivityItem> {
         require(limit in 1..1000) { "limit must be between 1 and 1000" }
@@ -83,7 +97,7 @@ class UnifiedActivityRepository(context: Context) : AutoCloseable {
         db.rawQuery(
             """SELECT event_id,provider,event_type,source_method,source_occurred_at_ms,
                       received_at_ms,lifecycle_id,evidence_ref,evidence_digest,payload_json
-               FROM provider_events
+               FROM $providerEventTable
                ORDER BY COALESCE(source_occurred_at_ms,received_at_ms) DESC,
                         received_at_ms DESC,event_id DESC
                LIMIT ?""",
