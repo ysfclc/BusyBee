@@ -74,6 +74,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mirror:DriverMirrorStore
     private lateinit var locationManager:LocationManager
     private lateinit var mapView:MapView
+    private var mapViewCreated=false
     private lateinit var content:FrameLayout
     private lateinit var screenHost:TabScreenHost
     private lateinit var appHeader:View
@@ -187,68 +188,73 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         CrashDiagnostics.install(this)
         CrashDiagnostics.record(this, "activity:onCreate")
-        commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
-        locationManager=getSystemService(LOCATION_SERVICE) as LocationManager
-        textToSpeech=TextToSpeech(this) { status ->
-            uiCallbacks.post {
-                speechReady=status==TextToSpeech.SUCCESS
-                if(speechReady) {
-                    val engine=textToSpeech ?: return@post
-                    val language=engine.setLanguage(Locale.UK)
-                    if(language==TextToSpeech.LANG_MISSING_DATA || language==TextToSpeech.LANG_NOT_SUPPORTED) {
-                        engine.setLanguage(Locale.getDefault())
-                    }
-                }
-            }
-        }
-        updateTimeBasedAppearance(force=true)
-        MapLibre.getInstance(this)
-        applySystemBars()
-        mapView=MapView(this);mapView.onCreate(savedInstanceState)
-        val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setBackgroundColor(BG)}
-        appHeader=buildHeader()
-        rootContainer=root
-        root.addView(appHeader)
-        content=FrameLayout(this);root.addView(content,LinearLayout.LayoutParams(-1,0,1f))
-        nav=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;setPadding(dp(7),dp(7),dp(7),dp(9));setBackgroundColor(PANEL)}
-        root.addView(nav);setContentView(root)
-        buildNavigation()
-        // Keep MapLibre's native view attached for the full Activity lifetime.
-        // Reparenting it on every tab change can tear down/recreate its GL surface.
-        screenHost=TabScreenHost(content,buildMapScreen())
-        showTab("MAP")
-        intent.getStringExtra(DriverAlertManager.EXTRA_OPEN_TAB)?.let { requested ->
-            if(requested in setOf("OFFERS","EARNINGS","DRIVER HUB","SOURCES")) showTab(requested)
-        }
-        mapView.getMapAsync { instance ->
-            uiCallbacks.post {
-                CrashDiagnostics.record(this,"map:ready")
-                map=instance
-                instance.addOnCameraMoveStartedListener { reason ->
-                    if(reason==MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
-                        followLocation=false
-                    }
-                }
-                instance.addOnCameraIdleListener {
-                    instance.cameraPosition.target?.let { center ->
-                        maybeRefreshMapPlaces(center)
-                        renderMapPlaces()
-                    }
-                }
-                val initialStyleUri=palette.mapStyleUri
-                activeMapStyleUri=initialStyleUri
-                instance.setStyle(Style.Builder().fromUri(initialStyleUri)) { loadedStyle ->
-                    applyLocalRoadLabels(loadedStyle)
-                    install3DBuildings(loadedStyle)
-                    if(activeMapStyleUri==initialStyleUri) {
-                        uiCallbacks.post {
-                            mapStyleState.markReady()
-                            CrashDiagnostics.record(this,"map:style-loaded")
-                            activateMapAfterStyleIfResumed()
+        try {
+            commands=DriverCommandStore(this);mirror=DriverMirrorStore(this)
+            locationManager=getSystemService(LOCATION_SERVICE) as LocationManager
+            textToSpeech=TextToSpeech(this) { status ->
+                uiCallbacks.post {
+                    speechReady=status==TextToSpeech.SUCCESS
+                    if(speechReady) {
+                        val engine=textToSpeech ?: return@post
+                        val language=engine.setLanguage(Locale.UK)
+                        if(language==TextToSpeech.LANG_MISSING_DATA || language==TextToSpeech.LANG_NOT_SUPPORTED) {
+                            engine.setLanguage(Locale.getDefault())
                         }
                     }
                 }
             }
+            updateTimeBasedAppearance(force=true)
+            MapLibre.getInstance(this)
+            applySystemBars()
+            mapView=MapView(this);mapView.onCreate(savedInstanceState);mapViewCreated=true
+            val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setBackgroundColor(BG)}
+            appHeader=buildHeader()
+            rootContainer=root
+            root.addView(appHeader)
+            content=FrameLayout(this);root.addView(content,LinearLayout.LayoutParams(-1,0,1f))
+            nav=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;setPadding(dp(7),dp(7),dp(7),dp(9));setBackgroundColor(PANEL)}
+            root.addView(nav);setContentView(root)
+            buildNavigation()
+            // Keep MapLibre's native view attached for the full Activity lifetime.
+            // Reparenting it on every tab change can tear down/recreate its GL surface.
+            screenHost=TabScreenHost(content,buildMapScreen())
+            showTab("MAP")
+            intent.getStringExtra(DriverAlertManager.EXTRA_OPEN_TAB)?.let { requested ->
+                if(requested in setOf("OFFERS","EARNINGS","DRIVER HUB","SOURCES")) showTab(requested)
+            }
+            mapView.getMapAsync { instance ->
+                uiCallbacks.post {
+                    CrashDiagnostics.record(this,"map:ready")
+                    map=instance
+                    instance.addOnCameraMoveStartedListener { reason ->
+                        if(reason==MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
+                            followLocation=false
+                        }
+                    }
+                    instance.addOnCameraIdleListener {
+                        instance.cameraPosition.target?.let { center ->
+                            maybeRefreshMapPlaces(center)
+                            renderMapPlaces()
+                        }
+                    }
+                    val initialStyleUri=palette.mapStyleUri
+                    activeMapStyleUri=initialStyleUri
+                    instance.setStyle(Style.Builder().fromUri(initialStyleUri)) { loadedStyle ->
+                        applyLocalRoadLabels(loadedStyle)
+                        install3DBuildings(loadedStyle)
+                        if(activeMapStyleUri==initialStyleUri) {
+                            uiCallbacks.post {
+                                mapStyleState.markReady()
+                                CrashDiagnostics.record(this,"map:style-loaded")
+                                activateMapAfterStyleIfResumed()
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (error: Exception) {
+            CrashDiagnostics.recordStartupFailure(this, error)
+            renderStartupRecovery()
         }
     }
 
@@ -398,6 +404,61 @@ class MainActivity : AppCompatActivity() {
         val destinationIcon=factory.fromBitmap(MapIconArtwork.routeEndpoint(this,true,night))
         active.addMarker(MarkerOptions().position(route.destination).title("Destination").snippet(route.destinationName).icon(destinationIcon))
             ?.let { routeMarkers.add(it) }
+    }
+
+    /**
+     * Keep a usable recovery surface if startup fails before the map shell is ready.
+     * This lets the driver retrieve a privacy-filtered report instead of a crash loop.
+     */
+    private fun renderStartupRecovery() {
+        runCatching {
+            val root = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(24), dp(28), dp(24), dp(28))
+                setBackgroundColor(Color.rgb(13, 20, 29))
+            }
+            root.addView(TextView(this).apply {
+                text = "BUSYBEE"
+                textSize = 25f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+            })
+            root.addView(TextView(this).apply {
+                text = "BusyBee could not finish starting"
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                setPadding(0, dp(18), 0, dp(10))
+            })
+            root.addView(TextView(this).apply {
+                text = "Your stored data has not been intentionally changed. Copy the diagnostic report and send it to support. Exception details are kept in the report."
+                textSize = 14f
+                setTextColor(Color.LTGRAY)
+                gravity = Gravity.CENTER
+                setPadding(0, 0, 0, dp(22))
+            })
+            root.addView(TextView(this).apply {
+                text = "COPY STARTUP DIAGNOSTICS"
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setTextColor(Color.BLACK)
+                setPadding(dp(18), dp(14), dp(18), dp(14))
+                background = rounded(Color.rgb(111, 226, 190), 12)
+                setOnClickListener {
+                    runCatching {
+                        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("BusyBee startup diagnostics", CrashDiagnostics.snapshot(this@MainActivity)))
+                        Toast.makeText(this@MainActivity, "Diagnostics copied. Paste the report into the chat.", Toast.LENGTH_LONG).show()
+                    }.onFailure {
+                        Toast.makeText(this@MainActivity, "Could not copy diagnostics.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            })
+            setContentView(root)
+        }.onFailure {
+            Log.e("BusyBeeStartup", "Could not render startup recovery surface", it)
+        }
     }
 
     private fun buildHeader():View {
@@ -2037,33 +2098,52 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-    override fun onStart(){CrashDiagnostics.record(this,"lifecycle:onStart");super.onStart();mapView.onStart()}
+    override fun onStart(){
+        CrashDiagnostics.record(this,"lifecycle:onStart")
+        super.onStart()
+        if(mapViewCreated) mapView.onStart()
+    }
     override fun onResume(){
         CrashDiagnostics.record(this,"lifecycle:onResume")
         super.onResume()
+        if(!mapViewCreated) return
         updateTimeBasedAppearance()
         appearanceHandler.removeCallbacks(appearanceTick)
         appearanceHandler.postDelayed(appearanceTick,15*60*1000L)
         mapView.onResume()
         if(map!=null && activeMapStyleUri!=palette.mapStyleUri) reloadMapStyle()
         if(::locationManager.isInitialized) {
-            // Apply only a fresh fix if a callback arrived after onPause() removed updates.
             lastLocation?.takeIf { System.currentTimeMillis()-it.time in 0..120000L }?.let(::updateDriverLocation)
             if(navigating || followLocation) startLocationUpdates()
         }
     }
     override fun onPostResume() {
         super.onPostResume()
-        // onResume() can run before lifecycle reaches RESUMED. MapLibre style
-        // switches are deferred until this boundary to avoid mutating a paused view.
+        if(!mapViewCreated) return
         if(map!=null && activeMapStyleUri!=palette.mapStyleUri) reloadMapStyle()
         activateMapAfterStyleIfResumed()
     }
 
-    override fun onPause(){CrashDiagnostics.record(this,"lifecycle:onPause");appearanceHandler.removeCallbacks(appearanceTick);try{locationManager.removeUpdates(locationListener)}catch(_:Exception){};mapView.onPause();super.onPause()}
-    override fun onStop(){CrashDiagnostics.record(this,"lifecycle:onStop");mapView.onStop();super.onStop()}
-    override fun onLowMemory(){super.onLowMemory();mapView.onLowMemory()}
-    override fun onSaveInstanceState(outState:Bundle){super.onSaveInstanceState(outState);mapView.onSaveInstanceState(outState)}
+    override fun onPause(){
+        CrashDiagnostics.record(this,"lifecycle:onPause")
+        appearanceHandler.removeCallbacks(appearanceTick)
+        if(::locationManager.isInitialized) runCatching { locationManager.removeUpdates(locationListener) }
+        if(mapViewCreated) mapView.onPause()
+        super.onPause()
+    }
+    override fun onStop(){
+        CrashDiagnostics.record(this,"lifecycle:onStop")
+        if(mapViewCreated) mapView.onStop()
+        super.onStop()
+    }
+    override fun onLowMemory(){
+        super.onLowMemory()
+        if(mapViewCreated) mapView.onLowMemory()
+    }
+    override fun onSaveInstanceState(outState:Bundle){
+        super.onSaveInstanceState(outState)
+        if(mapViewCreated) mapView.onSaveInstanceState(outState)
+    }
     override fun onDestroy(){
         CrashDiagnostics.record(this,"lifecycle:onDestroy")
         appearanceHandler.removeCallbacks(appearanceTick)
@@ -2071,7 +2151,7 @@ class MainActivity : AppCompatActivity() {
         textToSpeech?.stop()
         textToSpeech?.shutdown()
         worker.shutdownNow()
-        mapView.onDestroy()
+        if(mapViewCreated) mapView.onDestroy()
         super.onDestroy()
     }
 
