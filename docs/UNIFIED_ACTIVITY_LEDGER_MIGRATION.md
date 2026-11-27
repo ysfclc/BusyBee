@@ -37,7 +37,7 @@ The third database is `busybee_driver_activity.db`. It is a new local read/query
 
 Driver Mirror v6 now contains idempotently created destination tables for evidence, observations, typed event envelopes and migration markers. The rich PR #29 event schema is named `provider_event_envelopes` so it cannot collide with the legacy PR #16 `provider_events` table.
 
-This destination schema is prepared and tested. The current `UnifiedActivityLedgerMigrator` still writes to `busybee_driver_activity.db`. The app now invokes the separate `ActivityLedgerConsolidator` after startup/legacy sync, notification capture and provider-event outbox drains, so the Driver Mirror copy is refreshed at those integration points. This is retryable synchronization, not an atomic cross-database dual-write. No production-device rows are claimed to have been consolidated, and the ACTIVITY repository still reads the third database. The third database remains the active source of the current timeline until a later read-path cutover is implemented and verified.
+This destination schema is prepared and tested. The current `UnifiedActivityLedgerMigrator` still writes to `busybee_driver_activity.db`. The app now invokes the separate `ActivityLedgerConsolidator` after startup/legacy sync, notification capture and provider-event outbox drains, so the Driver Mirror copy is refreshed at those integration points. This is retryable synchronization, not an atomic cross-database dual-write. No production-device rows are claimed to have been consolidated, and the ACTIVITY repository still defaults to the third database. An explicit `DRIVER_MIRROR` read source is available for tests/controlled validation but is not selected by the app. The third database remains the active source of the current timeline until a later read-path cutover is implemented and verified.
 
 ## 3. Implemented migration behavior
 
@@ -152,3 +152,17 @@ The consolidator is now called at the existing activity-update boundaries:
 The third database remains the source of truth during this stage. Each consolidator run is idempotent and row-verified; a failed/partial run can be retried by the next existing trigger. These are sequential operations against separate SQLite files, not a cross-database atomic commit. The ACTIVITY repository and its current provider-event query still read the third database. No cutover or deletion is performed.
 
 **Verification:** PR run [#582](https://github.com/ysfclc/BusyBee/actions/runs/46021873820) on commit `4674a9ea2c35608c0df51f4ccaad1c762737114a` passed Rust tests/build, Android/Robolectric tests, Bouncy Castle 1.85 dependency verification, debug APK assembly and debug APK signature verification. Test report artifact: `busybee-android-test-reports-582` (ID `15210820217`). Debug-only validation artifact: `busybee-debug-apk-582` (ID `15210490908`). Release signing and release APK assembly were skipped on the feature branch.
+
+
+## 10. Opt-in Driver Mirror read path and parity test (2026-11-27)
+
+`UnifiedActivityRepository` now accepts an explicit `UnifiedActivityReadSource`:
+
+- `ORIGINAL_LEDGER` remains the default and continues reading `busybee_driver_activity.db` / `provider_events`.
+- `DRIVER_MIRROR` reads the corresponding `DriverMirrorStore` tables / `provider_event_envelopes`.
+- The same `UnifiedActivityItem` mapping and ordering rules are used for both sources.
+- A Robolectric test creates observation + canonical-event data, runs the verified consolidator, then asserts the full returned timeline objects from both sources are equal.
+
+No production caller selects `DRIVER_MIRROR`; MainActivity remains on the original source. This creates a tested opt-in path without exposing users to a premature cutover.
+
+**Verification:** PR run [#593](https://github.com/ysfclc/BusyBee/actions/runs/46023111698) on commit `42242ee6a5587ab0572a18cf3162854cf1f3fd4a` passed Rust tests/build, Android/Robolectric tests (including source parity), Bouncy Castle 1.85 dependency verification, debug APK assembly and debug signature verification. Test report artifact: `busybee-android-test-reports-593` (ID `15210357271`). Debug-only validation APK: `busybee-debug-apk-593` (ID `15211875593`). Release signing was skipped on the feature branch.
