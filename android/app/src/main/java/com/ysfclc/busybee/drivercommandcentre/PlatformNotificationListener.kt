@@ -30,7 +30,7 @@ class PlatformNotificationListener : NotificationListenerService() {
             ledgerSyncExecutor.execute {
                 try {
                     val migration = UnifiedActivityLedgerMigrator(applicationContext).migrateIfNeeded()
-                    val consolidation = ActivityLedgerConsolidator(applicationContext).consolidateIfNeeded()
+                    val consolidation = ActivityLedgerConsolidator(applicationContext).use { it.consolidateIfNeeded() }
                     android.util.Log.d(
                         "BusyBeeLedger",
                         "Notification sync legacyComplete=${migration.complete}, consolidationComplete=${consolidation.complete}, consolidated=${consolidation.copiedRows}"
