@@ -1,9 +1,11 @@
 # Driver Command Centre — Product Charter
 
-**Status:** Phase 1 — product direction locked  
+**Status:** product direction locked; initial brand system v0.1 in use  
+**Product / brand:** BusyBee  
+**Descriptor:** Driver Command Centre  
 **Pilot geography:** Kraków, Poland  
 **Primary platform:** Android  
-**Working product name:** Driver Command Centre (name is not a branding decision)
+**Brand reference:** [docs/BRAND.md](BRAND.md)
 
 ## 1. The product
 

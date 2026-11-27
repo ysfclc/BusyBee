@@ -1,53 +1,36 @@
 # BusyBee — Driver Command Centre
 
-BusyBee is the control repository and project delivery ledger for **Driver Command Centre**: an Android-native driver intelligence platform combining a private cross-platform Driver Data Mirror with a provider-neutral Road Intelligence Aggregator. The map is the spatial interface, not the product itself.
+BusyBee is an Android-native Driver Command Centre for independent drivers. It brings three connected capabilities into one private workspace:
 
-The product vision is one map that aggregates all accessible and legally usable data sources: commercial traffic and route providers, public and municipal feeds, environmental data, Android/device observations and opt-in driver reports. It normalises evidence into one canonical intelligence layer while preserving source provenance, freshness, conflicts and licence constraints.
+1. **Driver Data Mirror** — evidence-backed offers, offer outcomes, trips, time, routes, earnings, fees, bonuses, vehicle costs and cross-platform work history.
+2. **Road Intelligence & Navigation** — a full-screen spatial workspace combining map context, route planning, weather, road observations and opt-in driver/community information, with clear source freshness and confidence.
+3. **Driver Operations** — vehicle profile, documents, expenses, insurance/payment reminders and driver-selected WhatsApp group intelligence.
 
-## Phase 1 — Product and architecture lock
+The map is the default launch surface and uses the full display. It is the spatial workspace, not the whole product: the Mirror, capture/review workflow and driver operations remain equally core.
 
-- [Product charter](docs/PRODUCT_CHARTER.md)
-- [System architecture](docs/ARCHITECTURE.md)
-- [Source register](docs/SOURCE_REGISTER.md)
-- [Delivery roadmap](docs/ROADMAP.md)
-- [Architecture decisions](docs/DECISIONS.md)
-- [Phase log](docs/PHASE_LOG.md)
-- [Platform Activity Integration research and design](docs/PLATFORM_ACTIVITY_INTEGRATION.md)
+## Product contract
+
+- [Canonical product contract](docs/PRODUCT_CONTRACT.md)
+- [Map icon system and acceptance](docs/MAP_ICON_SYSTEM.md)
+- [Map and workspace UX roadmap](docs/INTEGRATION_MAP_UX_ROADMAP.md)
+- [Integration checkpoint and verification ledger](docs/INTEGRATION_CHECKPOINT_2026-11-16.md)
 - [Native Provider Bridge design](docs/NATIVE_PROVIDER_BRIDGE.md)
-- [Plaintext Observer proof-of-concept design](docs/PLAINTEXT_OBSERVER_POC.md)
-- [Phase 2 executable foundation](docs/PHASE_2_FOUNDATION.md)
-- [Android release signing](docs/ANDROID_SIGNING.md)
-- [Control repository setup](SETUP.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Phase log](docs/PHASE_LOG.md)
+- [Android signing](docs/ANDROID_SIGNING.md)
 
-## Delivery model
+## Current engineering checkpoint
 
-BusyBee is a phase-import control repository. Each `incoming/<name>.zip` is a complete snapshot imported into a private target repository named `<name>`. The import pipeline preserves target Git history, records provenance, scans and normalises the archive, and builds an Android APK when a Rust workspace and Android app are both present.
+The integration candidate combines the map-first/native-capture feature lineage with the typed Provider Bridge and its durable local event ledger. The candidate preserves the existing app ID and existing database names. The Provider Bridge uses an additive schema migration in `busybee_driver_mirror.db`; it does not introduce a third database.
 
-**Important:** every phase archive must contain the entire current project. It is not a patch mechanism.
+**Verification is deliberately separate from implementation.** The latest consolidated workflow (#362) passed all 29 steps, including Rust tests/native builds, Android unit/Robolectric tests (including malformed-event resilience), the owned-app POC tests/build, debug APK assembly, apksigner verification and checksum generation. Persistent release signing is not configured, so the generated .debug package cannot update the installed release app. Target-phone acceptance remains pending. See the integration checkpoint for exact SHAs, known limits and next acceptance gates.
 
-## Current checkpoint
+## Data and privacy boundaries
 
-- Phase: 3 — Driver Data Mirror (first vertical slice implemented; real export adapters and CI/device verification pending)
-- Product: Driver Command Centre
-- Pilot: Kraków, Poland
-- Client: Android / Kotlin
-- Domain core: Rust
-- Provider strategy: multi-source aggregator; no exclusive map vendor
-- Current state: the Android app now opens into a local-first Driver Data Mirror with CSV import, a private SQLite source ledger, raw-row evidence, duplicate protection, platform activity and cautious financial totals. It does not claim direct Uber/Bolt API access. The old map/POI screen has been removed from this milestone; road intelligence returns after the mirror and driver economics are proven. See [CSV import contract](docs/DRIVER_MIRROR_IMPORT.md).
-- Provider integration direction: a native-feeling internal Provider Bridge API will unify provider activity inside BusyBee. Current data is still partial (notifications + imports); no verified direct Uber/Bolt API connection exists. See [Native Provider Bridge](docs/NATIVE_PROVIDER_BRIDGE.md), [process-observation research](docs/PLATFORM_ACTIVITY_INTEGRATION.md) and [owned-app POC](docs/PLAINTEXT_OBSERVER_POC.md).
-
-## Current Android product surfaces
-
-The current build replaces the POI-only experiment with five driver-facing surfaces:
-
-- **Map:** tilted spatial map, mapped roadworks/hazards, local driver reports, weather context, destination routing and handoff to turn-by-turn navigation.
-- **Offers:** opt-in notification capture for supported ride apps, manual offer review, driver-controlled filters, and ranking by estimated net PLN/hour after pickup distance and vehicle cost.
-- **Earnings:** private imported trip history and cautious PLN totals.
-- **Driver Hub:** documents, due-date reminders, recurring insurance/payment schedules, completion history, expenses, service contacts and local WhatsApp export search.
-- **Sources:** honest connected / permission-required / not-connected source catalogue.
-
-The offer workflow does not claim direct Uber/Bolt partner API access or auto-acceptance. It surfaces captured information and hands the driver back to the source app for the final decision. Road feed coverage is not equivalent to live traffic speed; source health and gaps remain visible.
-
-### Spatial rendering
-
-The map now uses the OpenFreeMap Liberty vector style over OpenStreetMap-derived data. Liberty includes 3D building extrusions; the camera opens tilted at neighbourhood scale. This is 3D buildings and camera pitch, not 3D terrain. Map source attribution remains visible through the style.
+- No verified Uber or Bolt individual-driver API connection is claimed.
+- Native app observation is read-only and explicitly enabled by the driver; provider decisions remain in the official app.
+- Notifications are a secondary signal; manual screen OCR is a user-started fallback.
+- CSV/statements remain optional historical backfill, not normal onboarding.
+- Selected WhatsApp groups are opt-in and controllable per group.
+- Unknown amounts, currencies, routes and durations remain unknown; they are never silently converted to zero.
+- Event provenance and evidence are retained. The unified event timeline is not an authoritative cross-source reconciliation until conflict matching is implemented and tested.

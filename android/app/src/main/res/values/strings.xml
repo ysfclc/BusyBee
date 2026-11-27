@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_driver_bridge_description">Optional BusyBee read-only listener for visible Uber Driver and Bolt Driver information. It stores relevant screen text locally for your review and never presses buttons or accepts trips.</string>
+</resources>

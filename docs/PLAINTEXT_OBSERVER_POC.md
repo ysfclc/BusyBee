@@ -1,7 +1,7 @@
 # Plaintext Observer Proof of Concept — Design
 
 **Date:** 2026-11-15  
-**Status:** ready for implementation planning; no code or provider-app instrumentation implemented  
+**Status:** first owned-app harness, local HTTPS fixture and allowlist-only Frida hooks implemented on `feat/native-provider-bridge-core`; Android CI and emulator execution pending  
 **Parent design:** [Platform Activity Integration](PLATFORM_ACTIVITY_INTEGRATION.md)  
 **Target:** an Android test application and HTTPS test service that we own
 
@@ -179,4 +179,4 @@ Do not put generated test APKs, certificates with private keys, Frida binaries, 
 6. Record baseline vs instrumented performance.
 7. Review the result and decide whether a separate provider compatibility study is justified.
 
-**Next implementation checkpoint:** POC-01 and POC-02 passing in an Android emulator, with captured evidence and no third-party app involvement.
+**Current implementation checkpoint:** the isolated Android project, HTTPS fixture, local test-CA generator, explicit outbound/inbound boundary methods, Frida observer and runbook are committed. POC-01/02 are not yet claimed as passed; CI build and a controlled emulator run are the next verification gates. See [runbook](../research/plaintext-observer/README.md).
