@@ -1,3 +1,16 @@
+## 2026-11-27 — Map-first consolidation and signed mainline release
+
+**Status:** merged and CI-verified; target-device acceptance pending.
+
+- Merged PR #16 into main as `954bf872d29ea3e43c23f80d615487c902dbc8cc`, consolidating the map-first app shell, adaptive launcher artwork, lifecycle-safe MapLibre host, crash diagnostics, native capture workflows and typed Provider Bridge.
+- Closed superseded source PRs #3–#9, #14–#15 and duplicate roadmap PR #25. Branches are retained for rollback/history; they are not active release lines.
+- Kept PR #29 draft because its `busybee_driver_activity.db` third-database migration remains the active read source on that branch and has not completed device parity/read-path cutover.
+- Corrected the mainline release workflow to use the existing `BUSYBEE_KEYSTORE_BASE64` and `BUSYBEE_KEYSTORE_PASSWORD` secrets, discover the private-key alias, and refuse debug-only main releases. Added a CI guard for the production package ID and launcher resources.
+- Added the canonical Maven Central Robolectric dependency endpoint after intermittent HTTP 429 failures from repo1.
+- Workflow #627 passed actionlint, Rust tests/native builds, Android tests, owned-app observer POC checks, signed release assembly, apksigner verification and checksum/provenance generation.
+- Published signed APK [build-627](https://github.com/ysfclc/BusyBee/releases/tag/build-627), package `com.ysfclc.busybee.drivercommandcentre`, version `0.1.627`, SHA-256 `d7b6abde654677352a45ae06c07935b378f0eff8346d7992b25ed177115b7af4`. Its certificate digest matches signed build #622.
+- Physical-device install/upgrade, launcher appearance, repeated tab interaction, GPS/navigation and permission-gated capture smoke tests remain pending. CI success is not device acceptance.
+
 # Phase Log
 
 ## 2026-11-05 — Phase 1: product and architecture lock
