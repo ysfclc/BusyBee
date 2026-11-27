@@ -92,6 +92,7 @@ internal object NotificationFingerprint {
 }
 
 class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "busybee_command_centre.db", null, 3) {
+    private val appContext = context.applicationContext
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE offers(
             id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, pickup TEXT, destination TEXT,
@@ -120,6 +121,57 @@ class DriverCommandStore(context: Context) : SQLiteOpenHelper(context.applicatio
             db.execSQL("ALTER TABLE driver_items ADD COLUMN completed_at INTEGER")
         }
         if (oldVersion < 3) createWhatsAppWatchTables(db)
+    }
+
+    /**
+     * A newer experimental build may have opened this same production database and
+     * advanced SQLite's user_version beyond 3. Older app code must not crash or erase
+     * driver data just because it is being installed over that build.
+     *
+     * Keep all unknown tables/columns intact and make only the current app's schema
+     * guarantees idempotently. SQLiteOpenHelper updates user_version after this returns.
+     */
+    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        CrashDiagnostics.record(appContext, "database:downgrade:$oldVersion->$newVersion")
+        ensureCurrentSchema(db)
+    }
+
+    private fun ensureCurrentSchema(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE IF NOT EXISTS offers(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, pickup TEXT, destination TEXT,
+            fare REAL NOT NULL, bonus REAL NOT NULL, pickup_km REAL NOT NULL, trip_km REAL NOT NULL,
+            duration_min REAL NOT NULL, passenger_rating REAL, captured_at INTEGER NOT NULL,
+            source TEXT NOT NULL, raw TEXT, status TEXT NOT NULL)""")
+        db.execSQL("CREATE INDEX IF NOT EXISTS offers_status_time ON offers(status,captured_at DESC)")
+        db.execSQL("""CREATE TABLE IF NOT EXISTS notices(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, fingerprint TEXT NOT NULL UNIQUE, platform TEXT NOT NULL,
+            title TEXT NOT NULL, body TEXT NOT NULL, captured_at INTEGER NOT NULL)""")
+        db.execSQL("""CREATE TABLE IF NOT EXISTS driver_items(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, title TEXT NOT NULL, details TEXT,
+            due_at INTEGER, amount REAL, uri TEXT, done INTEGER NOT NULL DEFAULT 0,
+            recurrence TEXT, completed_at INTEGER)""")
+        ensureColumn(db, "driver_items", "recurrence", "TEXT")
+        ensureColumn(db, "driver_items", "completed_at", "INTEGER")
+        db.execSQL("""CREATE TABLE IF NOT EXISTS community_docs(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, content TEXT NOT NULL, imported_at INTEGER NOT NULL)""")
+        db.execSQL("""CREATE TABLE IF NOT EXISTS road_reports(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, description TEXT NOT NULL,
+            latitude REAL NOT NULL, longitude REAL NOT NULL, created_at INTEGER NOT NULL)""")
+        db.execSQL("""CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
+        createWhatsAppWatchTables(db)
+    }
+
+    private fun ensureColumn(db: SQLiteDatabase, table: String, column: String, definition: String) {
+        var exists = false
+        db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(1) == column) {
+                    exists = true
+                    break
+                }
+            }
+        }
+        if (!exists) db.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
     }
 
     private fun createWhatsAppWatchTables(db: SQLiteDatabase) {
