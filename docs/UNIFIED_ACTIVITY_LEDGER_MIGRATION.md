@@ -1,6 +1,6 @@
 # Unified Driver Activity Ledger — migration implementation
 
-**Status:** the original read-only migration, persistent provider-event storage, merged timeline query layer and background legacy-store synchronization remain implemented on the feature branch. A separately callable one-time consolidator into Driver Mirror v6 is now implemented and covered by CI. It has not been wired into app startup, the existing migrator or the repository read path. Existing screens still read their current stores, and no canonical provider events are inferred from imported observations.
+**Status:** the original read-only migration, persistent provider-event storage, merged timeline query layer and background legacy-store synchronization remain implemented on the feature branch. A one-time consolidator into Driver Mirror v6 is implemented, covered by CI and now invoked after app startup/legacy sync, notification capture, and provider-event outbox drains. The existing migrator still writes to the third ledger and the repository read path has not switched. Existing screens continue reading their current stores, and no canonical provider events are inferred from imported observations.
 
 ## 1. Existing on-device stores
 
@@ -37,7 +37,7 @@ The third database is `busybee_driver_activity.db`. It is a new local read/query
 
 Driver Mirror v6 now contains idempotently created destination tables for evidence, observations, typed event envelopes and migration markers. The rich PR #29 event schema is named `provider_event_envelopes` so it cannot collide with the legacy PR #16 `provider_events` table.
 
-This destination schema is prepared and tested. The current `UnifiedActivityLedgerMigrator` still writes to `busybee_driver_activity.db`; the new `ActivityLedgerConsolidator` is a separate, explicit operation and is not yet invoked by app startup or by that migrator. No production-device rows are claimed to have been consolidated, and the ACTIVITY repository still reads the third database. The third database remains the active source of the current timeline until a later dual-write/read-path cutover is implemented and verified.
+This destination schema is prepared and tested. The current `UnifiedActivityLedgerMigrator` still writes to `busybee_driver_activity.db`. The app now invokes the separate `ActivityLedgerConsolidator` after startup/legacy sync, notification capture and provider-event outbox drains, so the Driver Mirror copy is refreshed at those integration points. This is retryable synchronization, not an atomic cross-database dual-write. No production-device rows are claimed to have been consolidated, and the ACTIVITY repository still reads the third database. The third database remains the active source of the current timeline until a later read-path cutover is implemented and verified.
 
 ## 3. Implemented migration behavior
 
@@ -138,3 +138,17 @@ Robolectric coverage: full copy of all five tables, ID/FK preservation, historic
 **Verification:** PR run [#565](https://github.com/ysfclc/BusyBee/actions/runs/46019739390) passed Rust domain tests, Rust Android library builds, Android/Robolectric tests, the Bouncy Castle 1.85 dependency assertion, debug APK assembly and debug APK signature verification. Test report artifact: `busybee-android-test-reports-565` (ID `15208042227`). Debug-only validation artifact: `busybee-debug-apk-565` (ID `15207962619`). Release signing and release APK assembly were correctly skipped on the feature branch.
 
 **Not yet done:** no app code calls the consolidator, no live database was migrated, the old repository read path is unchanged, and no production release APK or physical-device acceptance is claimed. Next: define and test how new writes are kept in sync during the migration window, then add a controlled repository cutover with parity checks and rollback.
+
+
+## 9. App integration — retryable mirror synchronization (2026-11-27)
+
+The consolidator is now called at the existing activity-update boundaries:
+
+- MainActivity startup and the existing legacy migration refresh run the legacy migrator first, then refresh Driver Mirror v6. The Sources diagnostics show both reports separately.
+- CSV import and manual offer save/decision already call the same refresh path, so their new evidence/observations are copied after the legacy ledger is updated.
+- The provider-event outbox drain refreshes Driver Mirror after the batch has been delivered to the third-database event store, including the duplicate/retry path.
+- The Android notification listener runs the legacy migrator and then the consolidator after a newly captured Uber/Bolt/FreeNow/iTaxi/Cabify/Lyft notice.
+
+The third database remains the source of truth during this stage. Each consolidator run is idempotent and row-verified; a failed/partial run can be retried by the next existing trigger. These are sequential operations against separate SQLite files, not a cross-database atomic commit. The ACTIVITY repository and its current provider-event query still read the third database. No cutover or deletion is performed.
+
+**Verification:** PR run [#582](https://github.com/ysfclc/BusyBee/actions/runs/46021873820) on commit `4674a9ea2c35608c0df51f4ccaad1c762737114a` passed Rust tests/build, Android/Robolectric tests, Bouncy Castle 1.85 dependency verification, debug APK assembly and debug APK signature verification. Test report artifact: `busybee-android-test-reports-582` (ID `15210820217`). Debug-only validation artifact: `busybee-debug-apk-582` (ID `15210490908`). Release signing and release APK assembly were skipped on the feature branch.
