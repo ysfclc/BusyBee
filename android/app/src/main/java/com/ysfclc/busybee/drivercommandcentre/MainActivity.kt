@@ -85,6 +85,7 @@ class MainActivity : AppCompatActivity() {
     private val activityFilterButtons=mutableMapOf<String,TextView>()
     private val activityProviderFilterButtons=mutableMapOf<String,TextView>()
     private var ledgerMigrationStatus="Migration diagnostics have not run yet."
+    private var ledgerParityStatus="DRIVER MIRROR PARITY CHECK NOT RUN."
     private var ledgerMigrationContainer:LinearLayout?=null
     private var providerCoverageContainer:LinearLayout?=null
     private val locationListener=object:LocationListener {
@@ -123,6 +124,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
+    private fun verifyActivityLedgerParity() {
+        worker.execute {
+            try {
+                val report = ActivityLedgerConsolidator(applicationContext).use { it.verifyParity() }
+                val status = MigrationDiagnosticsFormatter.formatConsolidation(report)
+                runOnUiThread {
+                    ledgerParityStatus = status
+                    if (activeTab == "SOURCES") renderMigrationDiagnostics()
+                }
+            } catch (error: Exception) {
+                val status = "DRIVER MIRROR PARITY CHECK ERROR\\n${error.javaClass.simpleName}: ${error.message ?: "No details"}"
+                android.util.Log.e("BusyBeeLedger", "Driver Mirror parity check failed", error)
+                runOnUiThread {
+                    ledgerParityStatus = status
+                    if (activeTab == "SOURCES") renderMigrationDiagnostics()
+                }
+            }
+        }
+    }
 
     /**
      * At-least-once delivery from the Command Centre DB to the canonical event DB.
@@ -1131,6 +1152,7 @@ class MainActivity : AppCompatActivity() {
         ledgerMigrationContainer=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
         migrationCard.addView(ledgerMigrationContainer)
         migrationCard.addView(action("REFRESH MIGRATION CHECK",true){syncUnifiedActivityLedger()},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(8)})
+        migrationCard.addView(action("VERIFY DRIVER MIRROR PARITY",false){verifyActivityLedgerParity()},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(7)})
         migrationCard.addView(action("SHARE DIAGNOSTIC REPORT",false){shareMigrationDiagnostics()},LinearLayout.LayoutParams(-1,dp(40)).apply{topMargin=dp(7)})
         root.addView(migrationCard)
         renderMigrationDiagnostics()
@@ -1228,13 +1250,14 @@ class MainActivity : AppCompatActivity() {
         val target=ledgerMigrationContainer ?: return
         target.removeAllViews()
         target.addView(label(ledgerMigrationStatus,10f,if(ledgerMigrationStatus.startsWith("MIGRATION COMPLETE"))MINT else AMBER,false))
+        target.addView(label(ledgerParityStatus,10f,if(ledgerParityStatus.startsWith("DRIVER MIRROR V6 CONSOLIDATION COMPLETE"))MINT else AMBER,false).apply{setPadding(0,dp(8),0,0)})
     }
 
     private fun shareMigrationDiagnostics() {
         val intent=Intent(Intent.ACTION_SEND).apply {
             type="text/plain"
             putExtra(Intent.EXTRA_SUBJECT,"BusyBee local data migration report")
-            putExtra(Intent.EXTRA_TEXT,ledgerMigrationStatus)
+            putExtra(Intent.EXTRA_TEXT,ledgerMigrationStatus + "\\n\\n" + ledgerParityStatus)
         }
         startActivity(Intent.createChooser(intent,"Share migration report"))
     }
