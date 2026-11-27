@@ -1,4 +1,46 @@
-# Current engineering checkpoint — 2026-11-14 (map navigation and spatial detail correction)
+# Current engineering checkpoint — 2026-11-27 (mainline consolidation)
+
+**Main branch:** `a42a24a5923096a908d86ae30fcb9157ec496b39` (latest docs-only follow-up)
+**Application integration:** PR #16 merged as `954bf872d29ea3e43c23f80d615487c902dbc8cc`
+**Release source revision:** `d7d3fbb6f1ebf0fb269d904fa2a9ce689d71de33`
+**Signed APK:** [BusyBee build 627](https://github.com/ysfclc/BusyBee/releases/tag/build-627)
+**Status:** automated build/signature gates passed; physical-device acceptance remains open.
+
+## Verified mainline state
+
+- Map-first BusyBee app shell, adaptive launcher artwork, MapLibre lifecycle-safe tab host and crash diagnostics are on main.
+- Native capture paths remain read-only and permission-gated; selected WhatsApp-group tracking remains opt-in.
+- Typed Provider Bridge events persist additively in the existing Driver Mirror database.
+- Driver Mirror import/evidence and financial-summary tests, Provider Bridge tests, Android tests, Rust tests and Android native-library builds passed in workflow #627.
+- Release #627 uses package `com.ysfclc.busybee.drivercommandcentre`, version name `0.1.627`, version code `627`, SHA-256 `d7b6abde654677352a45ae06c07935b378f0eff8346d7992b25ed177115b7af4`, and the persistent certificate SHA-256 `f81db0b63d9948c645aaeb0ec01960cf4da0c3ef0d4c37e649b950e49fa84864`. The certificate matches signed build #622.
+- CI enforces the production application ID and adaptive launcher resources. The release workflow reads `BUSYBEE_KEYSTORE_BASE64` and `BUSYBEE_KEYSTORE_PASSWORD`; mainline builds fail rather than publishing debug APKs if those secrets are missing.
+- Robolectric SDK artifacts are pinned to Maven Central's canonical endpoint to avoid the intermittent repo1 HTTP 429 observed in run #623.
+
+## Data architecture
+
+The current production app has two SQLite stores:
+
+1. `busybee_driver_mirror.db`, schema v4: imports, raw evidence, normalized records and the additive `provider_events` table.
+2. `busybee_command_centre.db`, schema v3: offers, notices, driver items, community documents, road reports, settings and WhatsApp-group watch records.
+
+PR #29 remains draft and unmerged. It introduces a third `busybee_driver_activity.db` read/query surface. Its own migration document says the timeline still reads from that third database and that the Driver Mirror consolidation/read-path cutover and device parity checks remain incomplete. Preserve the two production stores; review and migrate this work deliberately rather than merging the branch wholesale.
+
+App Observer's Capture 0.6.0 and intelligence-reset lines remain separate research/POC work. They are not represented as a production BusyBee integration.
+
+## Remaining acceptance gates
+
+1. Install build #627 over the existing signed production install without uninstalling or clearing data.
+2. Verify launcher icon and repeat Map/Offers/Earnings/Driver Hub/Settings interactions, including tab switching and back navigation.
+3. Verify GPS permission, location marker, recenter/follow, route search/start/stop and lifecycle resume.
+4. Verify notification listener and AccessibilityService disclosure/permission flows; confirm read-only Uber/Bolt visible-text observations and event persistence.
+5. Verify selected WhatsApp-group opt-in and that unrelated chats are not captured.
+6. Reopen the app and confirm existing Driver Mirror/Command Centre data persists.
+
+Until these are performed on the target phone, label the build **CI-verified, device acceptance pending**, not fully device-verified or product-complete.
+
+---
+
+# Historical engineering checkpoint — 2026-11-14 (superseded by the 2026-11-27 checkpoint below)
 
 **Active branch:** `feat/map-first-route-dock-2026-11-13`  
 **Base:** PR #8 head `7d34e5bc20e7d50cf3b303784932eeadc8e26ab2`  
