@@ -157,7 +157,7 @@ class ActivityLedgerConsolidator(
         sourceRowId: String
     ) {
         val where = spec.primaryKey.joinToString(" AND ") { "${quoteIdentifier(it)}=?" }
-        val args = spec.primaryKey.map { sourceRow.stringOrNull(it) }.toTypedArray()
+        val args = spec.primaryKey.map { sourceRow.stringOrNull(it) ?: error("Null primary key column: $it") }.toTypedArray()
         destination.rawQuery(
             "SELECT * FROM ${quoteIdentifier(spec.target)} WHERE $where",
             args
@@ -214,9 +214,11 @@ class ActivityLedgerConsolidator(
     private fun digestSourceKeys(source: SQLiteDatabase, spec: TableSpec): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val orderBy = spec.primaryKey.joinToString(",") { quoteIdentifier(it) }
+        val keys = mutableListOf<String>()
         source.rawQuery("SELECT * FROM ${quoteIdentifier(spec.source)} ORDER BY $orderBy", null).use { rows ->
-            while (rows.moveToNext()) updateDigest(digest, stableRowId(rows, spec.primaryKey))
+            while (rows.moveToNext()) keys.add(stableRowId(rows, spec.primaryKey))
         }
+        keys.sorted().forEach { updateDigest(digest, it) }
         return digest.finishHex()
     }
 
